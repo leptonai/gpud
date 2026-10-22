@@ -690,3 +690,48 @@ func TestCommand_InvalidLogLevelJSON(t *testing.T) {
 		assert.NotEmpty(t, jerr.Error())
 	})
 }
+
+func TestCommand_JSONPublicAddressExclusion(t *testing.T) {
+	cases := []struct {
+		name        string
+		publicIP    string
+		routeIP     string
+		wantPrivate string
+	}{
+		{name: "unknown public address excludes matching egress route", routeIP: "1.2.3.4"},
+		{name: "unknown public address preserves internal route", routeIP: "7.246.0.10", wantPrivate: "7.246.0.10"},
+		{name: "provider public address excludes its matching route", publicIP: "5.6.7.8", routeIP: "5.6.7.8"},
+		{name: "provider public address takes precedence over egress", publicIP: "5.6.7.8", routeIP: "1.2.3.4", wantPrivate: "1.2.3.4"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockey.PatchConvey(tc.name, t, func() {
+				mockey.Mock(gpudcommon.StateFileFromContext).To(func(*cli.Context) (string, error) {
+					return filepath.Join(t.TempDir(), "state.db"), nil
+				}).Build()
+				mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+					return nvidianvml.NewNoOp(), nil
+				}).Build()
+				mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+					return &apiv1.MachineInfo{}, nil
+				}).Build()
+				mockey.Mock(netutil.PublicIP).To(func() (string, error) { return "1.2.3.4", nil }).Build()
+				mockey.Mock(pkgmachineinfo.GetProvider).To(func(string) *providers.Info {
+					return &providers.Info{Provider: "nebius", PublicIP: tc.publicIP, Region: "eu-north1"}
+				}).Build()
+				mockey.Mock(netutil.DefaultRouteHostIPv4).To(func() (netutil.InterfaceAddr, error) {
+					return netutil.InterfaceAddr{Addr: netip.MustParseAddr(tc.routeIP)}, nil
+				}).Build()
+				stdout, _ := captureOutput(t, func() {
+					require.NoError(t, Command(newCLIContext(t, []string{"--output-format", "json"})))
+				})
+				var out struct {
+					Provider providers.Info `json:"provider"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(stdout), &out))
+				require.Equal(t, tc.publicIP, out.Provider.PublicIP)
+				require.Equal(t, tc.wantPrivate, out.Provider.PrivateIP)
+			})
+		})
+	}
+}

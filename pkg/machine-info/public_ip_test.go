@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/providers"
+	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 )
 
 func TestProviderPublicIPDoesNotReportNATEgress(t *testing.T) {
@@ -44,6 +45,42 @@ func TestProviderPublicIPDoesNotReportNATEgress(t *testing.T) {
 				got := getProviderWithContext(context.Background(), tc.egress, func(context.Context) (*providers.Info, error) {
 					return &providers.Info{Provider: "aws", PublicIP: tc.metadata, IMDSDetected: tc.imds}, nil
 				})
+				require.Equal(t, tc.want, got.PublicIP)
+			})
+		})
+	}
+}
+
+func TestProviderPublicIPUnknownMetadata(t *testing.T) {
+	cases := []struct {
+		name  string
+		fetch func(context.Context) (string, error)
+		local string
+		want  string
+	}{
+		{name: "unsupported lookup does not publish NAT egress", local: "10.0.0.1"},
+		{name: "unsupported lookup retains local assignment", local: "1.2.3.4", want: "1.2.3.4"},
+		{name: "failed lookup does not publish NAT egress", fetch: func(context.Context) (string, error) {
+			return "", errors.New("metadata returned 503")
+		}, local: "10.0.0.1"},
+		{name: "failed lookup retains local assignment", fetch: func(context.Context) (string, error) {
+			return "", context.DeadlineExceeded
+		}, local: "1.2.3.4", want: "1.2.3.4"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockey.PatchConvey(tc.name, t, func() {
+				original := pkgprovidersall.All
+				pkgprovidersall.All = []providers.Detector{providers.NewIMDSWithRegion(
+					"test-imds", func(context.Context) (string, error) { return "test-imds", nil },
+					tc.fetch, nil, nil, nil, nil,
+				)}
+				defer func() { pkgprovidersall.All = original }()
+				mockey.Mock(net.InterfaceAddrs).To(func() ([]net.Addr, error) {
+					return []net.Addr{&net.IPNet{IP: net.ParseIP(tc.local), Mask: net.CIDRMask(32, 32)}}, nil
+				}).Build()
+				got := GetProvider("1.2.3.4")
+				require.Equal(t, "test-imds", got.Provider)
 				require.Equal(t, tc.want, got.PublicIP)
 			})
 		})

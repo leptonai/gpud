@@ -118,9 +118,17 @@ rather than guessing. A dedicated 1:1 public mapping that is not present on a
 local interface still needs authoritative provider metadata; an echo alone
 cannot distinguish that mapping from shared NAT.
 
+OCI and Nebius currently have no public-address metadata fetcher. Their
+provider-only 1:1 mappings therefore remain unknown unless another source
+positively verifies an assigned address. A failed public-address metadata read
+also leaves the assignment unknown; it is not proof that the machine has no
+public address. In either case, a verified local assignment is still retained.
+GPUd does not retry these optional reads or add provider API credentials.
+
 Egress discovery remains available for ASN-based provider identification even
-when no public address is reported. Consumers must treat an empty public address
-as absent or unknown, not as a reason to use the NAT address for inbound access.
+when no public address is reported. The current string field does not distinguish
+absent from unknown. Consumers must not use an empty public address as a reason
+to substitute the NAT address for inbound access.
 
 Login and the CLI also retain the egress address for internal private-address
 exclusion when no public address is reported. A matching default-route address
