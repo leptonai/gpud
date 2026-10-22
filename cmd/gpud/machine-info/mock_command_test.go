@@ -336,6 +336,11 @@ func TestCommand_FillsProviderPrivateIPFromMachineNIC(t *testing.T) {
 		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
 			return "1.2.3.4", nil
 		}).Build()
+		// The default-route interface takes precedence over NIC info; fail it so
+		// the result does not depend on the test host's network.
+		mockey.Mock(netutil.DefaultRouteHostIPv4).To(func() (netutil.InterfaceAddr, error) {
+			return netutil.InterfaceAddr{}, errors.New("no default route")
+		}).Build()
 
 		providerInfo := &providers.Info{
 			Provider:  "aws",

@@ -59,10 +59,44 @@ func TestSelectPrivateIP(t *testing.T) {
 			want: "",
 		},
 		{
-			name:         "RFC1918 NIC IPv4 wins over default route",
+			name:         "RFC1918 NIC IPv4 wins over non-RFC1918 default route",
 			publicIP:     "203.0.113.1",
 			nics:         []apiv1.MachineNetworkInterface{nic("eth1", "fe80::1"), nic("eth0", "10.0.0.5")},
 			defaultRoute: defaultRouteHostIPv4("bond0", "7.251.157.169"),
+			want:         "10.0.0.5",
+		},
+		{
+			// Lepton satellite node: kubelet-network assigns the node cluster IP to
+			// the lepton0 dummy link, which sorts before the LAN address. The
+			// default-route NIC is the host LAN.
+			name:     "RFC1918 default-route host IP wins over lepton0 dummy link",
+			publicIP: "203.0.113.1",
+			nics: []apiv1.MachineNetworkInterface{
+				nic("lepton0", "10.50.101.107"),
+				nic("ens6f0np0", "10.78.9.13"),
+			},
+			defaultRoute: defaultRouteHostIPv4("ens6f0np0", "10.78.9.13"),
+			want:         "10.78.9.13",
+		},
+		{
+			name:         "RFC1918 default-route host IP is used when NIC list has no IPv4",
+			publicIP:     "203.0.113.1",
+			nics:         []apiv1.MachineNetworkInterface{nic("eth1", "fe80::1")},
+			defaultRoute: defaultRouteHostIPv4("eth0", "192.168.10.4"),
+			want:         "192.168.10.4",
+		},
+		{
+			name:         "RFC1918 NIC IPv4 is used when default-route lookup fails",
+			publicIP:     "203.0.113.1",
+			nics:         []apiv1.MachineNetworkInterface{nic("eni0", "10.50.85.108")},
+			defaultRoute: noDefaultRouteHostIPv4,
+			want:         "10.50.85.108",
+		},
+		{
+			name:         "RFC1918 NIC IPv4 is used when default-route host IP equals public IP",
+			publicIP:     "10.1.2.3",
+			nics:         []apiv1.MachineNetworkInterface{nic("eth1", "10.0.0.5")},
+			defaultRoute: defaultRouteHostIPv4("eth0", "10.1.2.3"),
 			want:         "10.0.0.5",
 		},
 		{
