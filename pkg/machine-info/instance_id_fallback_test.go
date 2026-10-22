@@ -25,6 +25,11 @@ func TestParseFallbackInstanceID(t *testing.T) {
 		{name: "firebird bm ulid", raw: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X\n", want: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X"},
 		{name: "firebird vm ulid normalizes case", raw: "VM.01m3knhf1nfx3vx8z1ewnq2h3x", want: "vm.01M3KNHF1NFX3VX8Z1EWNQ2H3X"},
 		{name: "cloud-init placeholder with whitespace", raw: " \tiid-datasource-none\n", wantErr: true},
+		{name: "datasource placeholder with whitespace", raw: " \tiid-datasource\r\n", wantErr: true},
+		{name: "nocloud placeholder with whitespace", raw: " \tnocloud\r\n", wantErr: true},
+		{name: "config drive placeholder with whitespace", raw: " \tiid-dsconfigdrive\r\n", wantErr: true},
+		{name: "ovf placeholder with whitespace", raw: " \tiid-dsovf\r\n", wantErr: true},
+		{name: "opennebula placeholder with whitespace", raw: " \tiid-dsopennebula\r\n", wantErr: true},
 		{name: "empty", raw: "  \n", wantErr: true},
 	}
 	for _, tt := range tests {
@@ -63,4 +68,13 @@ func TestReadInstanceIDFallback(t *testing.T) {
 
 	linode := write("linode-instance-id", "108254612\n")
 	assert.Equal(t, "108254612", readInstanceIDFallback([]string{missing, placeholder, linode, first}))
+
+	for _, id := range []string{"iid-datasource-none", "iid-datasource", "nocloud", "iid-dsconfigdrive", "iid-dsovf", "iid-dsopennebula"} {
+		t.Run(id, func(t *testing.T) {
+			placeholder := write(id, " \t"+id+"\r\n")
+			assert.Empty(t, readInstanceIDFallback([]string{placeholder}))
+			assert.Equal(t, "108254612", readInstanceIDFallback([]string{placeholder, linode, first}),
+				"a cloud-init placeholder must not hide a later valid instance ID")
+		})
+	}
 }

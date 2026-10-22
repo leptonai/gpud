@@ -62,11 +62,12 @@ func readInstanceIDFallback(paths []string) string {
 }
 
 // parseFallbackInstanceID trims an opaque provider instance ID and rejects
-// cloud-init's empty or no-datasource values. Recognized Firebird and UUID IDs
+// cloud-init's empty or placeholder values. Recognized Firebird and UUID IDs
 // retain their existing case normalization; other provider IDs are unchanged.
 func parseFallbackInstanceID(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" || trimmed == "iid-datasource-none" {
+	switch trimmed {
+	case "", "iid-datasource-none", "iid-datasource", "nocloud", "iid-dsconfigdrive", "iid-dsovf", "iid-dsopennebula":
 		return "", fmt.Errorf("invalid instance ID %q", raw)
 	}
 	if id, ok := parseFirebirdInstanceID(trimmed); ok {

@@ -17,17 +17,22 @@ Then open [localhost:15132](https://localhost:15132) for the local web UI.
 
 ## Instance IDs without a metadata service
 
-If provider metadata does not supply an instance ID, GPUd reads the host's cloud-init files.
-GPUd treats instance IDs as opaque strings and uses `strings.TrimSpace` to remove surrounding whitespace.
+If provider metadata does not supply an instance ID, GPUd reads the host's
+cloud-init files. GPUd treats instance IDs as opaque strings and uses
+`strings.TrimSpace` to remove surrounding whitespace.
 Recognized UUIDs and Firebird canonical node IDs retain their existing case normalization.
-It rejects empty values and the `iid-datasource-none` placeholder.
+GPUd rejects empty values and these cloud-init placeholders after trimming:
+`iid-datasource-none`, `iid-datasource`, `nocloud`, `iid-dsconfigdrive`,
+`iid-dsovf`, and `iid-dsopennebula`.
+It skips those files and uses the first valid ID from the remaining fallback files.
 
 For Linode, GPUd reads `/var/lib/cloud/data/instance-id` in a systemd installation.
 In a DaemonSet, the host file is available at `/host/var/lib/cloud/data/instance-id`
 when `gpud.mountHostRoot` is enabled.
 The login request uses the decimal ID without Kubernetes's `linode://` prefix.
 An instance ID from provider metadata takes precedence over the host file.
-NScale does not use this fallback because its cloud-init UUID differs from its API instance ID.
+NScale does not use this fallback because its cloud-init UUID differs from
+its API instance ID.
 
 ## Build
 
