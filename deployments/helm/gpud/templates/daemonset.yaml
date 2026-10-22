@@ -620,6 +620,9 @@ spec:
             - name: GPUD_CONTAINERD_SYSTEMCTL_COMMANDS
               value: {{ $containerd.systemctlCommands | default "nsenter --target 1 --mount -- systemctl" | quote }}
             {{- end }}
+            {{- with .Values.gpud.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
 
           {{- if .Values.service.enabled }}
           ports:

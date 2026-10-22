@@ -278,6 +278,26 @@ gpud:
 On older gpud images without the LEP-6439 fix, a denylist-only list disables
 ALL components -- use an explicit allowlist there instead.
 
+### Extra Environment Variables
+
+Set `gpud.extraEnv` (a list of Kubernetes `EnvVar`s) to add environment
+variables to the gpud container. Entries are appended after the variables the
+chart manages; prefer the dedicated values (for example `gpud.tokenSecret`)
+over redefining `GPUD_*` variables here.
+
+For example, the DERP latency check (used for region detection at login and by
+the `network-latency` component) also probes the default gateway for port
+mapping: UPnP SSDP `M-SEARCH` (unicast and multicast to `239.255.255.250:1900`),
+NAT-PMP, and PCP. GPUd does not use the result. To turn that probe off, for
+example on hosts whose network datapath runs on a DPU:
+
+```yaml
+gpud:
+  extraEnv:
+    - name: TS_DISABLE_PORTMAPPER
+      value: "true"
+```
+
 ### Session Token from a Secret
 
 When `nodeLabelExporter.enabled=true`, the chart's init container can read the

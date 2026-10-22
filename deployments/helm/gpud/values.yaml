@@ -320,6 +320,16 @@ gpud:
   # --nfs-host-root when NFS checks must access the node filesystem.
   commandOverride: []
 
+  # Extra environment variables for the gpud container (Kubernetes EnvVar
+  # list), appended after the chart-managed variables. Prefer the dedicated
+  # values (e.g. gpud.tokenSecret) over redefining GPUD_* variables here.
+  # Example -- stop the DERP latency check from probing the default gateway
+  # for port mapping (UPnP SSDP M-SEARCH, NAT-PMP, PCP):
+  #   extraEnv:
+  #     - name: TS_DISABLE_PORTMAPPER
+  #       value: "true"
+  extraEnv: []
+
 # The default image repository is public and needs no image pull secret.
 # Configure this only when overriding image.repository with a private registry.
 # Example for a private NVIDIA NGC registry (nvcr.io):
