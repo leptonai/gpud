@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -54,12 +56,86 @@ func TestSendRequest_Success(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify response
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Equal(t, "test-machine-id", resp.MachineID)
+}
+
+// The proof from the previous login goes in a header the control plane can
+// check, and never in the JSON body that the client debug-logs.
+func TestSendRequest_SendsMachineProofHeaderOnly(t *testing.T) {
+	var gotHeader, gotBody string
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Get("X-GPUD-Machine-Proof")
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		gotBody = string(body)
+		_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: "test-machine-id"})
+	}))
+
+	_, err := sendRequest(context.Background(), server.URL, apiv1.LoginRequest{
+		Token:     "test-token",
+		MachineID: "test-machine-id",
+	}, "previous-proof")
+	require.NoError(t, err)
+	assert.Equal(t, "previous-proof", gotHeader)
+	assert.NotContains(t, gotBody, "previous-proof")
+}
+
+func TestSendRequest_OmitsMachineProofHeaderWithoutProof(t *testing.T) {
+	headerSent := true
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, headerSent = r.Header["X-Gpud-Machine-Proof"]
+		_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: "test-machine-id"})
+	}))
+
+	_, err := sendRequest(context.Background(), server.URL, apiv1.LoginRequest{Token: "test-token"}, "")
+	require.NoError(t, err)
+	assert.False(t, headerSent)
+}
+
+// redirectedProof sends a login with a proof to a server that redirects it to
+// targetHost on another loopback server, and returns the proof header the
+// redirect target received.
+func redirectedProof(t *testing.T, targetHost string) string {
+	var received string
+	target := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = r.Header.Get("X-GPUD-Machine-Proof")
+		_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: "test-machine-id"})
+	}))
+	targetURL, err := url.Parse(target.URL)
+	require.NoError(t, err)
+	targetURL.Host = net.JoinHostPort(targetHost, targetURL.Port())
+	origin := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, targetURL.String()+"/api/v1/login", http.StatusTemporaryRedirect)
+	}))
+
+	_, err = sendRequest(context.Background(), origin.URL, apiv1.LoginRequest{
+		Token:     "test-token",
+		MachineID: "test-machine-id",
+	}, "previous-proof")
+	require.NoError(t, err)
+	return received
+}
+
+func TestSendRequest_RedirectToAnotherHostDropsMachineProof(t *testing.T) {
+	assert.Empty(t, redirectedProof(t, "localhost"))
+}
+
+func TestSendRequest_RedirectOnSameHostKeepsMachineProof(t *testing.T) {
+	assert.Equal(t, "previous-proof", redirectedProof(t, "127.0.0.1"))
+}
+
+func TestDropMachineProofOnRedirect_HTTPSDowngrade(t *testing.T) {
+	original := httptest.NewRequest(http.MethodPost, "https://control.example/api/v1/login", nil)
+	redirect := httptest.NewRequest(http.MethodPost, "http://control.example/api/v1/login", nil)
+	redirect.Header.Set("X-GPUD-Machine-Proof", "previous-proof")
+
+	require.NoError(t, dropMachineProofOnRedirect(redirect, []*http.Request{original}))
+	assert.Empty(t, redirect.Header.Get("X-GPUD-Machine-Proof"))
 }
 
 func TestSendRequest_HttpError(t *testing.T) {
@@ -69,7 +145,7 @@ func TestSendRequest_HttpError(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, "http://invalid-server-url.that.does.not.exist", req)
+	resp, err := sendRequest(ctx, "http://invalid-server-url.that.does.not.exist", req, "")
 
 	// Verify error is returned
 	assert.Error(t, err)
@@ -78,7 +154,7 @@ func TestSendRequest_HttpError(t *testing.T) {
 
 func TestSendRequest_NoHostInURL(t *testing.T) {
 	// A URL that parses but carries no host hits the host check.
-	resp, err := sendRequest(context.Background(), "http://", apiv1.LoginRequest{Token: "test-token"})
+	resp, err := sendRequest(context.Background(), "http://", apiv1.LoginRequest{Token: "test-token"}, "")
 	require.Error(t, err)
 	assert.Nil(t, resp)
 	assert.Contains(t, err.Error(), "no host in endpoint URL")
@@ -94,7 +170,7 @@ func TestSendRequest_ResponseBodyReadError(t *testing.T) {
 		assert.NoError(t, err)
 	}))
 
-	resp, err := sendRequest(context.Background(), server.URL, apiv1.LoginRequest{Token: "test-token"})
+	resp, err := sendRequest(context.Background(), server.URL, apiv1.LoginRequest{Token: "test-token"}, "")
 	require.Error(t, err)
 	assert.Nil(t, resp)
 	assert.Contains(t, err.Error(), "error reading response body")
@@ -118,7 +194,7 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 	}
 
 	// Use a different variable name for the client's response
-	clientResp, err := sendRequest(ctx, server.URL, req)
+	clientResp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify error is returned and response is available
 	assert.Error(t, err)
@@ -141,7 +217,7 @@ func TestSendRequest_InvalidResponseFormat(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify error is returned
 	assert.Error(t, err)
@@ -165,7 +241,7 @@ func TestSendRequest_ContextCancellation(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify error is returned
 	assert.Error(t, err)
@@ -188,7 +264,7 @@ func TestSendRequest_EmptyMachineID(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify successful response (since validation was removed from the function)
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
@@ -217,7 +293,7 @@ func TestSendRequest(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify response
 	assert.NoError(t, err)
@@ -246,7 +322,7 @@ func TestSendRequestWithTimeout(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify error is returned due to timeout
 	assert.Error(t, err)
@@ -260,7 +336,7 @@ func TestSendRequestWithInvalidURL(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, "://invalid-url", req)
+	resp, err := sendRequest(ctx, "://invalid-url", req, "")
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)
@@ -290,7 +366,7 @@ func TestSendRequest_ServerError(t *testing.T) {
 	}
 
 	// Use a different variable name
-	clientResp, err := sendRequest(ctx, server.URL, req)
+	clientResp, err := sendRequest(ctx, server.URL, req, "")
 
 	assert.Error(t, err)
 	assert.NotNil(t, clientResp, "Response from sendRequest should not be nil on server error")
@@ -321,7 +397,7 @@ func TestSendRequest_ReadError(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)
@@ -363,7 +439,7 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 		},
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
@@ -387,7 +463,7 @@ func TestSendRequest_EmptyMachineIDReturnsError(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify successful response (since validation was removed from the function)
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
@@ -412,7 +488,7 @@ func TestSendRequest_EmptyMachineIDWithMessageReturnsError(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify error is returned even when there's an error message
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
@@ -438,7 +514,7 @@ func TestSendRequest_EmptyMachineIDWithStatusReturnsError(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify error is returned even with a status
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
@@ -465,7 +541,7 @@ func TestSendRequest_EmptyMachineIDWithOKStatusCodeReturnsError(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	resp, err := sendRequest(ctx, server.URL, req, "")
 
 	// Verify error is returned despite success status
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
