@@ -27,7 +27,8 @@ Following defines the response types for the GPUd APIs above:
 - [OpenAPI spec in JSON](https://github.com/leptonai/gpud/blob/main/docs/apis/swagger.json)
 - [OpenAPI spec in YAML](https://github.com/leptonai/gpud/blob/main/docs/apis/swagger.yaml)
 
-Or use the [`client/v1`](http://pkg.go.dev/github.com/leptonai/gpud/client/v1) library to interact with GPUd in Go.
+Or use the [`client/v1`](http://pkg.go.dev/github.com/leptonai/gpud/client/v1)
+library to interact with GPUd in Go.
 
 ## CPU topology
 
@@ -106,17 +107,26 @@ must treat an absent entry as unknown. For JSON output, use
 
 The provider section of `gpud machine-info` and login network data report public
 addresses assigned to the machine, not a shared NAT or proxy egress address.
-Provider metadata takes precedence. An IMDS result with no public address stays
-empty; an external IP echo must not replace it.
+Provider metadata takes precedence. If public-address metadata is unavailable,
+unsupported or empty, an external echo is retained only when the address is
+actually assigned to a local interface. Successful provider detection alone
+does not prove that public-address metadata was read.
 
-For non-IMDS hosts, an external echo is retained only when it is a public address
-actually present on a local interface. Private, loopback, link-local and RFC 6598
-shared addresses are not public assignments. If local assignments cannot be
-enumerated, the fallback stays empty rather than guessing.
+Private, loopback, link-local and RFC 6598 shared addresses are not public
+assignments. If local assignments cannot be enumerated, the fallback stays empty
+rather than guessing. A dedicated 1:1 public mapping that is not present on a
+local interface still needs authoritative provider metadata; an echo alone
+cannot distinguish that mapping from shared NAT.
 
 Egress discovery remains available for ASN-based provider identification even
 when no public address is reported. Consumers must treat an empty public address
 as absent or unknown, not as a reason to use the NAT address for inbound access.
+
+Login and the CLI also retain the egress address for internal private-address
+exclusion when no public address is reported. A matching default-route address
+is not reported as private. This comparison does not publish the echo as a
+public address and does not discard non-RFC1918 internal addresses that differ
+from the echo.
 
 ## Lepton-managed diagnostics
 

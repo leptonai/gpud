@@ -106,7 +106,11 @@ func Command(cliContext *cli.Context) error {
 		if machineInfo != nil {
 			nicInfo = machineInfo.NICInfo
 		}
-		providerInfo.PrivateIP = pkgmachineinfo.SelectPrivateIP(providerInfo.PrivateIP, providerInfo.PublicIP, nicInfo)
+		publicIPForPrivateSelection := providerInfo.PublicIP
+		if publicIPForPrivateSelection == "" {
+			publicIPForPrivateSelection = pubIP
+		}
+		providerInfo.PrivateIP = pkgmachineinfo.SelectPrivateIP(providerInfo.PrivateIP, publicIPForPrivateSelection, nicInfo)
 		// Match LoginRequest behavior: when provider metadata cannot provide
 		// a usable region, use DERP/latency-derived machine location.
 		if providerInfo.Region == "" {

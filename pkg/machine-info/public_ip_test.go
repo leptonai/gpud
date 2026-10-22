@@ -27,9 +27,8 @@ func TestProviderPublicIPDoesNotReportNATEgress(t *testing.T) {
 		want         string
 	}{
 		{name: "NAT and overlay addresses are not public assignment", egress: "1.2.3.4", addrs: []net.Addr{ipNet("10.48.0.106"), ipNet("100.64.0.162"), ipNet("10.50.0.1")}},
-		{name: "metadata absence is authoritative", egress: "1.2.3.4", imds: true, addrs: []net.Addr{ipNet("1.2.3.4")}},
 		{name: "metadata address wins over different egress", egress: "9.9.9.9", metadata: "1.2.3.4", imds: true, addrs: []net.Addr{ipNet("10.0.0.1")}, want: "1.2.3.4"},
-		{name: "bare metal assigned public IPv4 is retained", egress: "1.2.3.4", addrs: []net.Addr{ipNet("1.2.3.4")}, want: "1.2.3.4"},
+		{name: "assigned public IPv4 survives missing metadata", egress: "1.2.3.4", imds: true, addrs: []net.Addr{ipNet("1.2.3.4")}, want: "1.2.3.4"},
 		{name: "assigned public IPv6 is retained", egress: "2001:4860:4860::8888", addrs: []net.Addr{&net.IPAddr{IP: net.ParseIP("2001:4860:4860::8888")}}, want: "2001:4860:4860::8888"},
 		{name: "unavailable assignments remain unknown", egress: "1.2.3.4", addressError: errors.New("interface enumeration unavailable")},
 		{name: "private echo is not public", egress: "10.48.0.106", addrs: []net.Addr{ipNet("10.48.0.106")}},
