@@ -19,26 +19,42 @@ import (
 
 var imdsRetryBackoffs = []time.Duration{0, 100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond}
 
+var ociDetector = pkgprovidersoci.New()
+
 var All = []pkgproviders.Detector{
 	pkgprovidersnscale.New(),
 	pkgprovidersnebius.New(),
 	pkgprovidersaws.New(),
 	pkgprovidersazure.New(),
 	pkgprovidersgcp.New(),
-	pkgprovidersoci.New(),
+	ociDetector,
 }
 
 // Detect detects the provider and returns the provider info.
 func Detect(ctx context.Context) (*pkgproviders.Info, error) {
-	return DetectWithRegionOverride(ctx, "")
+	return DetectWithOverrides(ctx, "", "")
 }
 
-// DetectWithRegionOverride skips provider-region metadata when regionOverride is set.
-func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgproviders.Info, error) {
+// DetectWithOverrides uses nonempty overrides for the returned region and instance
+// ID, skipping their discovery during identity collection. The instance ID override
+// is preserved exactly; provider detection and other metadata collection still run.
+func DetectWithOverrides(ctx context.Context, regionOverride, instanceIDOverride string) (*pkgproviders.Info, error) {
 	var detector pkgproviders.Detector
 	for _, d := range All {
 		cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		provider, err := d.Provider(cctx)
+		var provider string
+		var err error
+		// OCI normally probes its instance ID to identify the provider. With an
+		// explicit ID, identify the registry detector through region metadata instead.
+		if instanceIDOverride != "" && d == ociDetector {
+			var region string
+			region, err = d.(pkgproviders.RegionDetector).Region(cctx)
+			if region != "" && err == nil {
+				provider = d.Name()
+			}
+		} else {
+			provider, err = d.Provider(cctx)
+		}
 		cancel()
 		if err != nil {
 			if d != nil {
@@ -58,26 +74,30 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 
 	if detector == nil {
 		return &pkgproviders.Info{
-			Provider: "unknown",
-			Region:   strings.TrimSpace(regionOverride),
+			Provider:   "unknown",
+			Region:     strings.TrimSpace(regionOverride),
+			InstanceID: instanceIDOverride,
 		}, nil
 	}
 
 	info := &pkgproviders.Info{
 		Provider:     detector.Name(),
 		IMDSDetected: pkgproviders.SupportsIMDS(detector),
+		InstanceID:   instanceIDOverride,
 	}
 
 	// Fetch the required identity fields first: when the metadata service is
 	// slow or hanging, the optional best-effort fetches (public IP, VM
 	// environment, private IP) must not consume the shared context budget
 	// that the login-gating instance ID and region need.
-	instanceID, err := fetchProviderMetadata(ctx, detector, "instance ID", detector.InstanceID, false)
-	if err != nil {
-		log.Logger.Warnw("failed to get instance ID", "provider", detector.Name(), "error", err)
-	} else {
-		info.InstanceID = instanceID
-		log.Logger.Infow("successfully detected instance ID", "provider", detector.Name(), "instanceID", instanceID)
+	if instanceIDOverride == "" {
+		instanceID, err := fetchProviderMetadata(ctx, detector, "instance ID", detector.InstanceID, false)
+		if err != nil {
+			log.Logger.Warnw("failed to get instance ID", "provider", detector.Name(), "error", err)
+		} else {
+			info.InstanceID = instanceID
+			log.Logger.Infow("successfully detected instance ID", "provider", detector.Name(), "instanceID", instanceID)
+		}
 	}
 
 	if regionOverride = strings.TrimSpace(regionOverride); regionOverride != "" {

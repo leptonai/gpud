@@ -144,6 +144,11 @@ nohup sudo gpud run &>> <your log file path> &
 					Name:  "gpu-count",
 					Usage: "(optional) specify count of gpu (leave empty to auto-detect)",
 				},
+				cli.StringFlag{
+					Name:  "instance-id",
+					Usage: "(optional) override the provider instance ID for login only, skipping instance-ID discovery",
+					Value: "",
+				},
 			},
 		},
 		{

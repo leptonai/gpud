@@ -345,16 +345,16 @@ func GetProvider(publicIP string) *providers.Info {
 
 // GetProviderWithContext passes the caller's context to metadata provider detection.
 func GetProviderWithContext(ctx context.Context, publicIP string) *providers.Info {
-	return getProviderWithContext(ctx, publicIP, pkgprovidersall.Detect)
+	return getProviderWithContext(ctx, publicIP, "", pkgprovidersall.Detect)
 }
 
-func getProviderForLogin(publicIP, region string) *providers.Info {
-	return getProviderWithContext(context.Background(), publicIP, func(ctx context.Context) (*providers.Info, error) {
-		return pkgprovidersall.DetectWithRegionOverride(ctx, region)
+func getProviderForLogin(publicIP, region, instanceID string) *providers.Info {
+	return getProviderWithContext(context.Background(), publicIP, instanceID, func(ctx context.Context) (*providers.Info, error) {
+		return pkgprovidersall.DetectWithOverrides(ctx, region, instanceID)
 	})
 }
 
-func getProviderWithContext(ctx context.Context, publicIP string, detect func(context.Context) (*providers.Info, error)) *providers.Info {
+func getProviderWithContext(ctx context.Context, publicIP, instanceIDOverride string, detect func(context.Context) (*providers.Info, error)) *providers.Info {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	providerInfo, err := detect(ctx)
@@ -369,6 +369,9 @@ func getProviderWithContext(ctx context.Context, publicIP string, detect func(co
 		providerInfo = &providers.Info{
 			Provider: "unknown",
 		}
+	}
+	if instanceIDOverride != "" {
+		providerInfo.InstanceID = instanceIDOverride
 	}
 	// Detection success alone does not establish public-IP metadata support or read success.
 	if providerInfo.PublicIP == "" {

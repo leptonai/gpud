@@ -23,15 +23,16 @@ import (
 const RegionUnknown = "unknown"
 
 func CreateLoginRequest(token string, machineID string, nodeGroup string, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
-	return CreateLoginRequestWithRegion(token, machineID, nodeGroup, gpuCount, "", nvmlInstance)
+	return CreateLoginRequestWithOverrides(token, machineID, nodeGroup, gpuCount, "", "", nvmlInstance)
 }
 
-func CreateLoginRequestWithRegion(token string, machineID string, nodeGroup string, gpuCount string, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
-	return CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region, nvmlInstance, configcommon.ContainerdConfig{})
+// CreateLoginRequestWithOverrides applies explicit region and instance ID values only during enrollment.
+func CreateLoginRequestWithOverrides(token, machineID, nodeGroup, gpuCount, region, instanceID string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+	return CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region, instanceID, nvmlInstance, configcommon.ContainerdConfig{})
 }
 
 // CreateLoginRequestWithContainerd uses the configured runtime for enrollment metadata.
-func CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance, cfg configcommon.ContainerdConfig) (*apiv1.LoginRequest, error) {
+func CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region, instanceID string, nvmlInstance nvidianvml.Instance, cfg configcommon.ContainerdConfig) (*apiv1.LoginRequest, error) {
 	return createLoginRequest(
 		token,
 		machineID,
@@ -43,7 +44,7 @@ func CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, reg
 		func(instance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 			return GetMachineInfoWithContainerd(instance, cfg)
 		},
-		func(ip string) *providers.Info { return getProviderForLogin(ip, region) },
+		func(ip string) *providers.Info { return getProviderForLogin(ip, region, instanceID) },
 		GetSystemResourceRootVolumeTotal,
 		GetSystemResourceGPUCount,
 		netutil.DefaultRouteHostIPv4,

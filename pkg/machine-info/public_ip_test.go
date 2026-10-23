@@ -42,7 +42,7 @@ func TestProviderPublicIPDoesNotReportNATEgress(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockey.PatchConvey(tc.name, t, func() {
 				mockey.Mock(net.InterfaceAddrs).To(func() ([]net.Addr, error) { return tc.addrs, tc.addressError }).Build()
-				got := getProviderWithContext(context.Background(), tc.egress, func(context.Context) (*providers.Info, error) {
+				got := getProviderWithContext(context.Background(), tc.egress, "", func(context.Context) (*providers.Info, error) {
 					return &providers.Info{Provider: "aws", PublicIP: tc.metadata, IMDSDetected: tc.imds}, nil
 				})
 				require.Equal(t, tc.want, got.PublicIP)

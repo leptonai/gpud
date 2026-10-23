@@ -80,9 +80,10 @@ func Command(cliContext *cli.Context) (retErr error) {
 			GPUCount:   gpuCountStr,
 			NodeLabels: nodeLabels,
 
-			PublicIP:  cliContext.String("public-ip"),
-			PrivateIP: cliContext.String("private-ip"),
-			Region:    cliContext.String("region"),
+			PublicIP:   cliContext.String("public-ip"),
+			PrivateIP:  cliContext.String("private-ip"),
+			Region:     cliContext.String("region"),
+			InstanceID: cliContext.String("instance-id"),
 		}
 
 		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {
