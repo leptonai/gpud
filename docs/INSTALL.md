@@ -34,6 +34,25 @@ An instance ID from provider metadata takes precedence over the host file.
 NScale does not use this fallback because its cloud-init UUID differs from
 its API instance ID.
 
+If the host has no usable instance ID, provide the provider's canonical ID during enrollment:
+
+```bash
+sudo gpud up \
+  --token <REGISTRATION_TOKEN> \
+  --endpoint <CONTROL_PLANE_ENDPOINT> \
+  --node-group <NODE_GROUP> \
+  --instance-id <PROVIDER_INSTANCE_ID>
+```
+
+`--instance-id` defaults to an empty string. A nonempty value is sent unchanged as
+`providerInstanceID` in the login request and skips instance-ID discovery, including
+provider metadata and host-file fallbacks. An empty or omitted value keeps normal discovery.
+Provider, region, and network discovery still run; use `--region` separately if needed.
+
+The override applies only when login runs. It is not stored in local metadata or
+the systemd environment and does not change later machine-info collection.
+It does not replace `--machine-id`, which identifies the control-plane Machine record.
+
 ## Build
 
 To build and run locally:

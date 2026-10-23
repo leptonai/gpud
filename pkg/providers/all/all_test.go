@@ -292,7 +292,7 @@ func TestDetect_NoProviderDetected(t *testing.T) {
 
 func TestDetect_RegionOverrideSkipsFallbackForUnknownProvider(t *testing.T) {
 	withTemporaryDetectors(nil, func() {
-		info, err := DetectWithRegionOverride(context.Background(), "eu-north-1")
+		info, err := DetectWithOverrides(context.Background(), "eu-north-1", "")
 		assert.NoError(t, err)
 		assert.Equal(t, "unknown", info.Provider)
 		assert.Equal(t, "eu-north-1", info.Region)
@@ -513,13 +513,111 @@ func TestDetect_RegionOverrideSkipsIMDSAndKeepsInstanceID(t *testing.T) {
 	)
 
 	withTemporaryDetectors([]providers.Detector{detector}, func() {
-		info, err := DetectWithRegionOverride(context.Background(), " eu-north-1 ")
+		info, err := DetectWithOverrides(context.Background(), " eu-north-1 ", "")
 		assert.NoError(t, err)
 		assert.Equal(t, "eu-north-1", info.Region)
 		assert.Equal(t, "instance-1", info.InstanceID)
 		assert.Zero(t, regionCalls)
 		assert.Equal(t, 1, instanceIDCalls)
 	})
+}
+
+func TestDetect_InstanceIDOverride(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	tests := []struct {
+		name            string
+		override        string
+		instanceIDErr   error
+		wantInstanceID  string
+		wantInstanceIDs int
+	}{
+		{
+			name:           "override wins over discovered ID",
+			override:       "  explicit/ID  ",
+			wantInstanceID: "  explicit/ID  ",
+		},
+		{
+			name:           "override bypasses failing metadata",
+			override:       "explicit-ID",
+			instanceIDErr:  errors.New("instance ID unavailable"),
+			wantInstanceID: "explicit-ID",
+		},
+		{
+			name:            "empty override discovers ID",
+			wantInstanceID:  "metadata-ID",
+			wantInstanceIDs: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			providerCalls, instanceIDCalls, regionCalls := 0, 0, 0
+			publicIPCalls, privateIPCalls, vmEnvironmentCalls := 0, 0, 0
+			detector := providers.NewIMDSWithRegion(
+				"test-cloud",
+				func(context.Context) (string, error) {
+					providerCalls++
+					return "detected", nil
+				},
+				func(context.Context) (string, error) {
+					publicIPCalls++
+					return "1.2.3.4", nil
+				},
+				func(context.Context) (string, error) {
+					privateIPCalls++
+					return "10.0.1.100", nil
+				},
+				func(context.Context) (string, error) {
+					regionCalls++
+					return "metadata-region", nil
+				},
+				func(context.Context) (string, error) {
+					vmEnvironmentCalls++
+					return "TEST-CLOUD", nil
+				},
+				func(context.Context) (string, error) {
+					instanceIDCalls++
+					return "metadata-ID", tt.instanceIDErr
+				},
+			)
+
+			withTemporaryDetectors([]providers.Detector{detector}, func() {
+				info, err := DetectWithOverrides(context.Background(), "", tt.override)
+				assert.NoError(t, err)
+				assert.Equal(t, "test-cloud", info.Provider)
+				assert.True(t, info.IMDSDetected)
+				assert.Equal(t, tt.wantInstanceID, info.InstanceID)
+				assert.Equal(t, "metadata-region", info.Region)
+				assert.Equal(t, "1.2.3.4", info.PublicIP)
+				assert.Equal(t, "10.0.1.100", info.PrivateIP)
+				assert.Equal(t, "TEST-CLOUD", info.VMEnvironment)
+				assert.Equal(t, tt.wantInstanceIDs, instanceIDCalls)
+				assert.Equal(t, 1, providerCalls)
+				assert.Equal(t, 1, regionCalls)
+				assert.Equal(t, 1, publicIPCalls)
+				assert.Equal(t, 1, privateIPCalls)
+				assert.Equal(t, 1, vmEnvironmentCalls)
+			})
+		})
+	}
+}
+
+func TestDetect_InstanceIDOverrideForUnknownProvider(t *testing.T) {
+	for _, instanceID := range []string{"", "  explicit/ID  "} {
+		t.Run(instanceID, func(t *testing.T) {
+			withTemporaryDetectors(nil, func() {
+				info, err := DetectWithOverrides(context.Background(), " eu-north-1 ", instanceID)
+				assert.NoError(t, err)
+				assert.Equal(t, "unknown", info.Provider)
+				assert.Equal(t, instanceID, info.InstanceID)
+				assert.Equal(t, "eu-north-1", info.Region)
+				assert.False(t, info.IMDSDetected)
+			})
+		})
+	}
 }
 
 func TestDetect_IMDSRetryStopsOnContextCancellation(t *testing.T) {
@@ -750,6 +848,91 @@ func TestDetect_PublicIPv4HTTPOutcomes(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestDetect_OCIInstanceIDOverrideSkipsIMDSInstanceID(t *testing.T) {
+	tests := []struct {
+		name              string
+		instanceID        string
+		region            string
+		wantInstanceID    string
+		wantRegion        string
+		wantInstanceCalls int32
+		wantRegionCalls   int32
+	}{
+		{name: "empty override keeps instance discovery", wantInstanceID: "ocid1.instance.oc1.phx.example", wantRegion: "us-phoenix-1", wantInstanceCalls: 2, wantRegionCalls: 1},
+		{name: "override bypasses failing instance endpoint", instanceID: "  explicit/ID  ", wantInstanceID: "  explicit/ID  ", wantRegion: "us-phoenix-1", wantRegionCalls: 2},
+		{name: "both overrides retain OCI provider detection", instanceID: "explicit-ID", region: " eu-north-1 ", wantInstanceID: "explicit-ID", wantRegion: "eu-north-1", wantRegionCalls: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var instanceCalls, regionCalls, privateCalls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "Bearer Oracle", r.Header.Get("Authorization"))
+				switch r.URL.Path {
+				case "/opc/v2/instance/id":
+					instanceCalls.Add(1)
+					if tt.instanceID != "" {
+						http.Error(w, "instance metadata unavailable", http.StatusServiceUnavailable)
+						return
+					}
+					_, _ = fmt.Fprint(w, "ocid1.instance.oc1.phx.example")
+				case "/opc/v2/instance/canonicalRegionName":
+					regionCalls.Add(1)
+					_, _ = fmt.Fprint(w, "us-phoenix-1")
+				case "/opc/v2/vnics/0/privateIp":
+					privateCalls.Add(1)
+					_, _ = fmt.Fprint(w, "203.0.113.10")
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			proxyURL, err := url.Parse(server.URL)
+			require.NoError(t, err)
+			transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+			originalTransport := http.DefaultTransport
+			http.DefaultTransport = transport
+			defer func() {
+				http.DefaultTransport = originalTransport
+				transport.CloseIdleConnections()
+			}()
+			originalBackoffs := imdsRetryBackoffs
+			imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+			defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+			withTemporaryDetectors([]providers.Detector{ociDetector}, func() {
+				info, err := DetectWithOverrides(context.Background(), tt.region, tt.instanceID)
+				require.NoError(t, err)
+				assert.Equal(t, oci.Name, info.Provider)
+				assert.True(t, info.IMDSDetected)
+				assert.Equal(t, tt.wantInstanceID, info.InstanceID)
+				assert.Equal(t, tt.wantRegion, info.Region)
+				assert.Equal(t, "203.0.113.10", info.PrivateIP)
+				assert.Equal(t, tt.wantInstanceCalls, instanceCalls.Load())
+				assert.Equal(t, tt.wantRegionCalls, regionCalls.Load())
+				assert.Equal(t, int32(1), privateCalls.Load())
+			})
+		})
+	}
+}
+
+func TestDetect_InstanceIDOverrideKeepsCustomOCIDetector(t *testing.T) {
+	detector := &mockDetector{
+		name:          oci.Name,
+		provider:      oci.Name,
+		region:        "custom-region",
+		privateIP:     "10.0.1.100",
+		instanceIDErr: errors.New("instance ID unavailable"),
+	}
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := DetectWithOverrides(context.Background(), "", "explicit-ID")
+		require.NoError(t, err)
+		assert.Equal(t, oci.Name, info.Provider)
+		assert.Equal(t, "explicit-ID", info.InstanceID)
+		assert.Equal(t, "custom-region", info.Region)
+		assert.Equal(t, "10.0.1.100", info.PrivateIP)
+	})
 }
 
 func TestDetect_PublicIPv4TimeoutRecovery(t *testing.T) {

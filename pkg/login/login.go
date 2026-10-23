@@ -70,6 +70,9 @@ type LoginConfig struct {
 	PublicIP  string // optional: overrides detected public IP
 	PrivateIP string // optional: overrides detected private IP
 
+	// InstanceID overrides the provider instance ID only for login and skips its discovery.
+	InstanceID string
+
 	// Region overrides the login region and skips provider-region IMDS and DERP lookup.
 	Region     string
 	Containerd configcommon.ContainerdConfig
@@ -297,13 +300,13 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	// otherwise, the control plane will assign a new machine ID
 	loginCreatedAt := time.Now()
 	log.Logger.Debugw("creating login request")
-	createRequest := pkgmachineinfo.CreateLoginRequestWithRegion
+	createRequest := pkgmachineinfo.CreateLoginRequestWithOverrides
 	if !cfg.Containerd.IsZero() {
-		createRequest = func(token, machineID, nodeGroup, gpuCount, region string, instance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
-			return pkgmachineinfo.CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region, instance, cfg.Containerd)
+		createRequest = func(token, machineID, nodeGroup, gpuCount, region, instanceID string, instance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			return pkgmachineinfo.CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region, instanceID, instance, cfg.Containerd)
 		}
 	}
-	req, err := createRequest(cfg.Token, cfg.MachineID, cfg.NodeGroup, cfg.GPUCount, cfg.Region, nvmlInstance)
+	req, err := createRequest(cfg.Token, cfg.MachineID, cfg.NodeGroup, cfg.GPUCount, cfg.Region, cfg.InstanceID, nvmlInstance)
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}

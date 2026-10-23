@@ -867,8 +867,8 @@ func TestGetProvider_NscaleASNFallback(t *testing.T) {
 	mockey.PatchConvey("getProviderForLogin with nscale from ASN preserves explicit region override", t, func() {
 		setInstanceIDFallbackPaths(t, []string{writeInstanceIDFile(t, "d54e980a-3f27-46c2-bb18-bb10100dc730\n")})
 
-		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(ctx context.Context, regionOverride string) (*providers.Info, error) {
-			return &providers.Info{Provider: "unknown", Region: regionOverride}, nil
+		mockey.Mock(pkgprovidersall.DetectWithOverrides).To(func(ctx context.Context, regionOverride, instanceIDOverride string) (*providers.Info, error) {
+			return &providers.Info{Provider: "unknown", Region: regionOverride, InstanceID: instanceIDOverride}, nil
 		}).Build()
 		mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
 			return &asn.ASLookupResponse{
@@ -893,7 +893,7 @@ func TestGetProvider_NscaleASNFallback(t *testing.T) {
 			return "7.247.35.91", nil
 		}).Build()
 
-		provider := getProviderForLogin("46.148.114.35", "eu-north-1")
+		provider := getProviderForLogin("46.148.114.35", "eu-north-1", "")
 		require.NotNil(t, provider)
 		assert.Equal(t, "nscale", provider.Provider)
 		assert.True(t, provider.IMDSDetected)
@@ -908,8 +908,8 @@ func TestGetProvider_NscaleASNFallback(t *testing.T) {
 		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
 			return &providers.Info{Provider: "unknown"}, nil
 		}).Build()
-		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(ctx context.Context, regionOverride string) (*providers.Info, error) {
-			return &providers.Info{Provider: "unknown", Region: regionOverride}, nil
+		mockey.Mock(pkgprovidersall.DetectWithOverrides).To(func(ctx context.Context, regionOverride, instanceIDOverride string) (*providers.Info, error) {
+			return &providers.Info{Provider: "unknown", Region: regionOverride, InstanceID: instanceIDOverride}, nil
 		}).Build()
 		mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
 			return &asn.ASLookupResponse{
@@ -943,7 +943,7 @@ func TestGetProvider_NscaleASNFallback(t *testing.T) {
 			func() (string, error) { return "46.148.114.35", nil },
 			func() *apiv1.MachineLocation { return &apiv1.MachineLocation{Region: "eu-west-2"} },
 			func(nvidianvml.Instance) (*apiv1.MachineInfo, error) { return nil, nil },
-			func(ip string) *providers.Info { return getProviderForLogin(ip, "") },
+			func(ip string) *providers.Info { return getProviderForLogin(ip, "", "") },
 			func() (string, error) { return "100Gi", nil },
 			func(nvidianvml.Instance) (string, error) { return "0", nil },
 			noDefaultRouteHostIPv4,
@@ -1024,6 +1024,82 @@ func TestGetProvider_InstanceIDFileFallback(t *testing.T) {
 		require.NotNil(t, provider)
 		assert.Equal(t, "i-0abc123", provider.InstanceID)
 	})
+}
+
+func TestLoginInstanceIDOverrideDoesNotChangeRuntimeDiscovery(t *testing.T) {
+	for _, providerName := range []string{"nvidia-net", "lambda", "nebius", "nscale"} {
+		mockey.PatchConvey(providerName, t, func() {
+			previousDetectors := pkgprovidersall.All
+			pkgprovidersall.All = nil
+			defer func() { pkgprovidersall.All = previousDetectors }()
+			mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
+				return &asn.ASLookupResponse{AsnName: providerName, IP: ip}, nil
+			}).Build()
+			identityReads := 0
+			readIdentity := func(context.Context) (string, error) {
+				identityReads++
+				return "discoveredID", nil
+			}
+			mockey.Mock(nebius.GetInstanceID).To(readIdentity).Build()
+			mockey.Mock(nscale.GetInstanceID).To(readIdentity).Build()
+			mockey.Mock(readInstanceIDFallback).To(func([]string) string {
+				identityReads++
+				return "discoveredID"
+			}).Build()
+			mockey.Mock(nscale.Region).To(func(context.Context) (string, error) { return "eu-west-2", nil }).Build()
+			mockey.Mock(nscale.PrivateIPv4).To(func(context.Context) (string, error) { return "10.0.0.2", nil }).Build()
+			mockey.Mock(nscale.VMEnvironment).To(func(context.Context) (string, error) { return "nova", nil }).Build()
+
+			// An opaque, case-sensitive ID must not be parsed as a cloud-init UUID
+			// or normalized to Lambda's 32-hex representation.
+			provider := getProviderForLogin("1.2.3.4", "eu-north-1", "IPP-Node-A1")
+			require.Equal(t, "IPP-Node-A1", provider.InstanceID)
+			require.Equal(t, "eu-north-1", provider.Region)
+			require.Zero(t, identityReads, "an explicit ID must skip provider and host-file identity discovery")
+
+			runtimeProvider := GetProvider("1.2.3.4")
+			require.Equal(t, "discoveredID", runtimeProvider.InstanceID)
+			require.Equal(t, 1, identityReads, "the login override must not affect subsequent runtime discovery")
+		})
+	}
+}
+
+func TestCreateLoginRequestInstanceIDOverrideKeepsRegionValidation(t *testing.T) {
+	for _, region := range []string{"", "unknown", "eu-west-2"} {
+		mockey.PatchConvey("region="+region, t, func() {
+			previousDetectors := pkgprovidersall.All
+			pkgprovidersall.All = []providers.Detector{providers.NewIMDSWithRegion(
+				"aws",
+				func(context.Context) (string, error) { return "aws", nil },
+				func(context.Context) (string, error) { return "1.2.3.4", nil },
+				func(context.Context) (string, error) { return "10.0.0.2", nil },
+				func(context.Context) (string, error) { return region, nil },
+				nil,
+				func(context.Context) (string, error) { panic("instance-ID discovery must be skipped") },
+			)}
+			defer func() { pkgprovidersall.All = previousDetectors }()
+			mockey.Mock(netutil.PublicIP).To(func() (string, error) { return "1.2.3.4", nil }).Build()
+			mockey.Mock(GetMachineInfo).To(func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+				return &apiv1.MachineInfo{
+					CPUInfo:    &apiv1.MachineCPUInfo{LogicalCores: 8},
+					MemoryInfo: &apiv1.MachineMemoryInfo{TotalBytes: 1024},
+				}, nil
+			}).Build()
+			mockey.Mock(GetSystemResourceRootVolumeTotal).To(func() (string, error) { return "100Gi", nil }).Build()
+
+			req, err := CreateLoginRequestWithOverrides("token", "machine-id", "", "0", "", "IPP-Node-A1", &mockNvmlInstance{})
+			if region != "eu-west-2" {
+				require.ErrorContains(t, err, "IMDS did not return a region")
+				require.Nil(t, req)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, "IPP-Node-A1", req.ProviderInstanceID)
+			require.Equal(t, "machine-id", req.MachineID)
+			require.Equal(t, "eu-west-2", req.Location.Region)
+			require.Equal(t, "10.0.0.2", req.Network.PrivateIP)
+		})
+	}
 }
 
 // TestGetMachineDiskInfo_WithMockedDisk tests GetMachineDiskInfo on Linux

@@ -270,28 +270,12 @@ func TestGetSystemResourceGPUCount_NoGPU(t *testing.T) {
 }
 
 func TestGetProviderForLogin(t *testing.T) {
-	// Mock the detector: CI runners may themselves be cloud VMs (e.g. Azure),
-	// so the detection result must not depend on the host environment.
-	mockey.PatchConvey("region override flows to detection", t, func() {
-		var gotRegion string
-		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(_ context.Context, region string) (*providers.Info, error) {
-			gotRegion = region
-			return &providers.Info{Provider: "azure", Region: region}, nil
-		}).Build()
-
-		info := getProviderForLogin("1.2.3.4", "eu-north-1")
-		require.NotNil(t, info)
-		assert.Equal(t, "eu-north-1", gotRegion)
-		assert.Equal(t, "azure", info.Provider)
-		assert.Equal(t, "eu-north-1", info.Region)
-	})
-
 	mockey.PatchConvey("detection error still returns a provider info", t, func() {
-		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(_ context.Context, _ string) (*providers.Info, error) {
+		mockey.Mock(pkgprovidersall.DetectWithOverrides).To(func(_ context.Context, _, _ string) (*providers.Info, error) {
 			return nil, errors.New("imds unreachable")
 		}).Build()
 
-		info := getProviderForLogin("", "")
+		info := getProviderForLogin("", "", "")
 		require.NotNil(t, info)
 		assert.Equal(t, "unknown", info.Provider)
 		assert.Empty(t, info.Region)
