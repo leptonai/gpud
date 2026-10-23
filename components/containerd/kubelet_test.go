@@ -370,14 +370,14 @@ func TestListPodsUsingKubeletIdentity_ExecCredential(t *testing.T) {
 	// fake exec credential plugin, same contract as "aws eks get-token"
 	dir := t.TempDir()
 	execPath := filepath.Join(dir, "fake-exec")
-	require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh\nprintf '%s' '{\"kind\":\"ExecCredential\",\"apiVersion\":\"client.authentication.k8s.io/v1beta1\",\"status\":{\"token\":\"test-exec-token\"}}'\n"), 0755))
+	require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh\nprintf '%s' '{\"kind\":\"ExecCredential\",\"apiVersion\":\"client.authentication.k8s.io/v1beta1\",\"status\":{\"token\":\"test-exec-token\"}}'\n"), 0600))
 
 	// EKS layout: CA as a file reference, identity only via the exec plugin
 	caPath := filepath.Join(dir, "ca.crt")
 	require.NoError(t, os.WriteFile(caPath, pki.caPEM, 0644))
 	kubeconfigPath := writeKubeletKubeconfig(t, dir, srv.URL,
 		fmt.Sprintf("    server: %s\n    certificate-authority: %s", srv.URL, caPath),
-		fmt.Sprintf("    exec:\n      apiVersion: client.authentication.k8s.io/v1beta1\n      command: %s", execPath),
+		fmt.Sprintf("    exec:\n      apiVersion: client.authentication.k8s.io/v1beta1\n      command: /bin/sh\n      args: [%q]", execPath),
 	)
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -448,8 +448,8 @@ func TestLoadKubeletAPIConfig_Errors(t *testing.T) {
 	goodCluster := "    server: https://10.0.0.1:6443\n    certificate-authority-data: " + base64.StdEncoding.EncodeToString(pki.caPEM)
 	goodExecUser := func(t *testing.T, dir, body string) string {
 		execPath := filepath.Join(dir, "fake-exec")
-		require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh\n"+body), 0755))
-		return "    exec:\n      apiVersion: client.authentication.k8s.io/v1beta1\n      command: " + execPath
+		require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh\n"+body), 0600))
+		return fmt.Sprintf("    exec:\n      apiVersion: client.authentication.k8s.io/v1beta1\n      command: /bin/sh\n      args: [%q]", execPath)
 	}
 
 	t.Run("unknown cluster in current-context", func(t *testing.T) {
@@ -597,8 +597,10 @@ func TestRunKubeletExecCredential(t *testing.T) {
 	writeExec := func(t *testing.T, body string) *kubeletExecSpec {
 		t.Helper()
 		path := filepath.Join(t.TempDir(), "fake-exec")
-		require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0755))
-		return &kubeletExecSpec{APIVersion: "client.authentication.k8s.io/v1beta1", Command: path}
+		// Execute the installed shell, not the freshly written file: Linux can
+		// return ETXTBSY when another process still holds the script writable.
+		require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0600))
+		return &kubeletExecSpec{APIVersion: "client.authentication.k8s.io/v1beta1", Command: "/bin/sh", Args: []string{path}}
 	}
 
 	t.Run("success with env passthrough", func(t *testing.T) {
@@ -655,12 +657,12 @@ func TestListPodsUsingKubeletIdentity_ExecNodeNameRejected(t *testing.T) {
 
 	dir := t.TempDir()
 	execPath := filepath.Join(dir, "fake-exec")
-	require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh\nprintf '%s' '{\"status\":{\"token\":\"test-exec-token\"}}'\n"), 0755))
+	require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh\nprintf '%s' '{\"status\":{\"token\":\"test-exec-token\"}}'\n"), 0600))
 	caPath := filepath.Join(dir, "ca.crt")
 	require.NoError(t, os.WriteFile(caPath, pki.caPEM, 0644))
 	kubeconfigPath := writeKubeletKubeconfig(t, dir, srv.URL,
 		fmt.Sprintf("    server: %s\n    certificate-authority: %s", srv.URL, caPath),
-		fmt.Sprintf("    exec:\n      apiVersion: client.authentication.k8s.io/v1beta1\n      command: %s", execPath),
+		fmt.Sprintf("    exec:\n      apiVersion: client.authentication.k8s.io/v1beta1\n      command: /bin/sh\n      args: [%q]", execPath),
 	)
 
 	ctx, cancel := context.WithCancel(t.Context())
