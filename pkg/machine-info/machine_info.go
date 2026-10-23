@@ -370,8 +370,9 @@ func getProviderWithContext(ctx context.Context, publicIP string, detect func(co
 			Provider: "unknown",
 		}
 	}
+	// Detection success alone does not establish public-IP metadata support or read success.
 	if providerInfo.PublicIP == "" {
-		providerInfo.PublicIP = publicIP
+		providerInfo.PublicIP = assignedPublicIP(publicIP)
 	}
 	if providerInfo.Provider == "" {
 		log.Logger.Debugw("providerInfo.Provider is empty, setting to unknown")

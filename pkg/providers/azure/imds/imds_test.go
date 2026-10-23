@@ -231,6 +231,12 @@ func TestFetchPublicIPv4(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name: "missing public metadata returns empty without error",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			},
+		},
+		{
 			name: "invalid JSON response",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)

@@ -3,13 +3,23 @@ package all
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/providers"
+	awsimds "github.com/leptonai/gpud/pkg/providers/aws/imds"
+	azureimds "github.com/leptonai/gpud/pkg/providers/azure/imds"
+	gcpimds "github.com/leptonai/gpud/pkg/providers/gcp/imds"
 	"github.com/leptonai/gpud/pkg/providers/nebius"
+	nscaleimds "github.com/leptonai/gpud/pkg/providers/nscale/imds"
 	"github.com/leptonai/gpud/pkg/providers/oci"
 )
 
@@ -673,5 +683,121 @@ func TestDetect_IMDSPrivateIPv4RetryExhaustion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Empty(t, info.PrivateIP)
 		assert.Equal(t, 4, privateCalls)
+	})
+}
+
+func TestDetect_PublicIPv4HTTPOutcomes(t *testing.T) {
+	cases := []struct {
+		name      string
+		fetch     func(context.Context) (string, error)
+		path      string
+		body      string
+		statuses  []int
+		wantIP    string
+		wantCalls int32
+	}{
+		{name: "AWS recovers from 503", fetch: awsimds.FetchPublicIPv4, path: "/latest/meta-data/public-ipv4", body: "203.0.113.10", statuses: []int{503, 200}, wantIP: "203.0.113.10", wantCalls: 2},
+		{name: "GCP recovers from 503", fetch: gcpimds.FetchPublicIPv4, path: "/computeMetadata/v1/instance/network-interfaces/", body: `[{"accessConfigs":[{"externalIp":"203.0.113.10"}]}]`, statuses: []int{503, 200}, wantIP: "203.0.113.10", wantCalls: 2},
+		{name: "Azure recovers from 503", fetch: azureimds.FetchPublicIPv4, path: "/metadata/instance/network/interface", body: `[{"ipv4":{"ipAddress":[{"publicIpAddress":"203.0.113.10"}]}}]`, statuses: []int{503, 200}, wantIP: "203.0.113.10", wantCalls: 2},
+		{name: "NScale recovers from 503", fetch: nscaleimds.FetchPublicIPv4, path: "/latest/meta-data/public-ipv4", body: "203.0.113.10", statuses: []int{503, 200}, wantIP: "203.0.113.10", wantCalls: 2},
+		{name: "AWS 404 is terminal", fetch: awsimds.FetchPublicIPv4, path: "/latest/meta-data/public-ipv4", statuses: []int{404}, wantCalls: 1},
+		{name: "NScale 404 is terminal", fetch: nscaleimds.FetchPublicIPv4, path: "/latest/meta-data/public-ipv4", statuses: []int{404}, wantCalls: 1},
+		{name: "AWS empty answer is terminal", fetch: awsimds.FetchPublicIPv4, path: "/latest/meta-data/public-ipv4", statuses: []int{200}, wantCalls: 1},
+		{name: "GCP no access configs is terminal", fetch: gcpimds.FetchPublicIPv4, path: "/computeMetadata/v1/instance/network-interfaces/", body: `[{"accessConfigs":[]}]`, statuses: []int{200}, wantCalls: 1},
+		{name: "Azure empty instance-level public address is terminal", fetch: azureimds.FetchPublicIPv4, path: "/metadata/instance/network/interface", body: `[{"ipv4":{"ipAddress":[{"privateIpAddress":"10.0.0.4","publicIpAddress":""}]}}]`, statuses: []int{200}, wantCalls: 1},
+		{name: "persistent 503 leaves public address unknown", fetch: awsimds.FetchPublicIPv4, path: "/latest/meta-data/public-ipv4", statuses: []int{503}, wantCalls: 4},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/latest/api/token" {
+					_, _ = fmt.Fprint(w, "test-token")
+					return
+				}
+				if r.URL.Path != tc.path {
+					http.NotFound(w, r)
+					return
+				}
+				index := min(int(calls.Add(1))-1, len(tc.statuses)-1)
+				w.WriteHeader(tc.statuses[index])
+				_, _ = fmt.Fprint(w, tc.body)
+			}))
+			defer server.Close()
+			proxyURL, err := url.Parse(server.URL)
+			require.NoError(t, err)
+			transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+			originalTransport := http.DefaultTransport
+			http.DefaultTransport = transport
+			defer func() {
+				http.DefaultTransport = originalTransport
+				transport.CloseIdleConnections()
+			}()
+			originalBackoffs := imdsRetryBackoffs
+			imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+			defer func() { imdsRetryBackoffs = originalBackoffs }()
+			detector := providers.NewIMDSWithRegion(
+				"test-cloud", func(context.Context) (string, error) { return "test-cloud", nil },
+				tc.fetch, nil,
+				func(context.Context) (string, error) { return "region-1", nil }, nil,
+				func(context.Context) (string, error) { return "instance-1", nil },
+			)
+			withTemporaryDetectors([]providers.Detector{detector}, func() {
+				info, err := Detect(context.Background())
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantIP, info.PublicIP)
+				assert.Equal(t, tc.wantCalls, calls.Load())
+			})
+		})
+	}
+}
+
+func TestDetect_PublicIPv4TimeoutRecovery(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+	calls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud", func(context.Context) (string, error) { return "test-cloud", nil },
+		func(context.Context) (string, error) {
+			calls++
+			if calls == 1 {
+				return "", context.DeadlineExceeded
+			}
+			return "203.0.113.10", nil
+		}, nil, nil, nil, nil,
+	)
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "203.0.113.10", info.PublicIP)
+		assert.Equal(t, 2, calls)
+	})
+}
+
+func TestDetect_PublicIPv4CancellationPreservesIdentity(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, time.Hour}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	calls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud", func(context.Context) (string, error) { return "test-cloud", nil },
+		func(context.Context) (string, error) {
+			calls++
+			cancel()
+			return "", context.DeadlineExceeded
+		}, nil,
+		func(ctx context.Context) (string, error) { return "region-1", ctx.Err() }, nil,
+		func(ctx context.Context) (string, error) { return "instance-1", ctx.Err() },
+	)
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, info.PublicIP)
+		assert.Equal(t, "instance-1", info.InstanceID)
+		assert.Equal(t, "region-1", info.Region)
+		assert.Equal(t, 1, calls)
 	})
 }

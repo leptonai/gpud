@@ -171,6 +171,44 @@ func TestCreateLoginRequest_FailsFastOnMissingRequiredIMDSIdentity(t *testing.T)
 	}
 }
 
+func TestCreateLoginRequest_PublicIPExclusion(t *testing.T) {
+	for _, tc := range []struct {
+		name, egress, reported, route, private string
+	}{
+		{"unknown public address excludes matching egress", "1.2.3.4", "", "1.2.3.4", ""},
+		{"metadata address wins over different egress", "9.9.9.9", "1.2.3.4", "1.2.3.4", ""},
+		{"non-RFC1918 internal route is retained", "9.9.9.9", "", "7.246.0.10", "7.246.0.10"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := createLoginRequest(
+				"token", "machine-id", "node-group", "0", &mockNvmlInstance{},
+				func() (string, error) { return tc.egress, nil },
+				func() *apiv1.MachineLocation { return nil },
+				func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+					return &apiv1.MachineInfo{
+						CPUInfo:    &apiv1.MachineCPUInfo{LogicalCores: 4},
+						MemoryInfo: &apiv1.MachineMemoryInfo{TotalBytes: 1024},
+						NICInfo:    &apiv1.MachineNICInfo{},
+					}, nil
+				},
+				func(string) *providers.Info {
+					return &providers.Info{Provider: "nebius", PublicIP: tc.reported, Region: "eu-north1", InstanceID: "instance-1", IMDSDetected: true}
+				},
+				func() (string, error) { return "100Gi", nil },
+				func(nvidianvml.Instance) (string, error) { return "0", nil },
+				func() (netutil.InterfaceAddr, error) {
+					return netutil.InterfaceAddr{Addr: netip.MustParseAddr(tc.route)}, nil
+				},
+			)
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Equal(t, tc.reported, req.Network.PublicIP)
+			assert.Equal(t, tc.private, req.Network.PrivateIP)
+		})
+	}
+}
+
 func TestCreateLoginRequest_ValidIMDSIdentitySkipsDERP(t *testing.T) {
 	locationCalled := false
 	req, err := createLoginRequest(

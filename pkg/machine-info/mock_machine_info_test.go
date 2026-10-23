@@ -334,7 +334,6 @@ func TestGetProvider_WithMockedProviderDetection(t *testing.T) {
 		provider := GetProvider("8.8.8.8")
 		require.NotNil(t, provider)
 		assert.Equal(t, "gcp", provider.Provider)
-		assert.Equal(t, "8.8.8.8", provider.PublicIP)
 	})
 
 	mockey.PatchConvey("GetProvider with nil provider info returns unknown", t, func() {
@@ -349,7 +348,6 @@ func TestGetProvider_WithMockedProviderDetection(t *testing.T) {
 		provider := GetProvider("192.168.1.1")
 		require.NotNil(t, provider)
 		assert.Equal(t, "unknown", provider.Provider)
-		assert.Equal(t, "192.168.1.1", provider.PublicIP)
 	})
 
 	mockey.PatchConvey("GetProvider with empty public IP", t, func() {

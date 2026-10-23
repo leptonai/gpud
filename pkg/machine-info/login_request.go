@@ -90,14 +90,13 @@ func createLoginRequest(
 		Resources: map[string]string{},
 	}
 
-	var err error
-	req.Network.PublicIP, err = getPublicIPFunc()
+	egressIP, err := getPublicIPFunc()
 	if err != nil {
 		log.Logger.Errorw("failed to get public ip", "error", err)
 	}
-	log.Logger.Debugw("detected public IP", "publicIP", req.Network.PublicIP)
+	log.Logger.Debugw("detected egress IP", "egressIP", egressIP)
 
-	detectedProvider := getProviderFunc(req.Network.PublicIP)
+	detectedProvider := getProviderFunc(egressIP)
 	if detectedProvider.IMDSDetected {
 		if strings.TrimSpace(detectedProvider.InstanceID) == "" {
 			return nil, fmt.Errorf("provider %q IMDS did not return an instance ID after retries; aborting login", detectedProvider.Provider)
@@ -137,7 +136,11 @@ func createLoginRequest(
 	if req.MachineInfo != nil {
 		nicInfo = req.MachineInfo.NICInfo
 	}
-	req.Network.PrivateIP = selectPrivateIP(detectedProvider.PrivateIP, req.Network.PublicIP, nicInfo, getDefaultRouteHostIPv4Func)
+	publicIPForPrivateSelection := req.Network.PublicIP
+	if publicIPForPrivateSelection == "" {
+		publicIPForPrivateSelection = egressIP
+	}
+	req.Network.PrivateIP = selectPrivateIP(detectedProvider.PrivateIP, publicIPForPrivateSelection, nicInfo, getDefaultRouteHostIPv4Func)
 
 	if req.Network.PrivateIP == "" {
 		log.Logger.Warnw("no private ip found", "provider", req.Provider, "providerPrivateIP", detectedProvider.PrivateIP)

@@ -269,47 +269,6 @@ func TestGetSystemResourceGPUCount_NoGPU(t *testing.T) {
 	assert.Equal(t, "0", count, "GPU count should be 0 when no devices are present")
 }
 
-// TestGetProvider tests provider detection
-func TestGetProvider(t *testing.T) {
-	tests := []struct {
-		name     string
-		ip       string
-		expected string
-	}{
-		{
-			name:     "empty IP",
-			ip:       "",
-			expected: "unknown", // GetProvider returns "unknown" for empty IP
-		},
-		{
-			name:     "localhost",
-			ip:       "127.0.0.1",
-			expected: "unknown", // GetProvider returns "unknown" for localhost
-		},
-		{
-			name:     "private IP",
-			ip:       "192.168.1.1",
-			expected: "unknown", // GetProvider returns "unknown" for private IP
-		},
-		{
-			name:     "public IP",
-			ip:       "8.8.8.8",
-			expected: "unknown", // Will be "unknown" unless we're actually on a cloud provider
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			provider := GetProvider(tt.ip)
-			// We can't assert specific values since it depends on the actual environment
-			// Just ensure it doesn't panic and returns a valid provider info
-			assert.NotNil(t, provider)
-			assert.IsType(t, "", provider.Provider)
-			t.Logf("Provider for IP %s: %s", tt.ip, provider.Provider)
-		})
-	}
-}
-
 func TestGetProviderForLogin(t *testing.T) {
 	// Mock the detector: CI runners may themselves be cloud VMs (e.g. Azure),
 	// so the detection result must not depend on the host environment.
@@ -325,8 +284,6 @@ func TestGetProviderForLogin(t *testing.T) {
 		assert.Equal(t, "eu-north-1", gotRegion)
 		assert.Equal(t, "azure", info.Provider)
 		assert.Equal(t, "eu-north-1", info.Region)
-		// The caller's public IP is filled in when detection did not set one.
-		assert.Equal(t, "1.2.3.4", info.PublicIP)
 	})
 
 	mockey.PatchConvey("detection error still returns a provider info", t, func() {
