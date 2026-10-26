@@ -13,10 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/httputil"
 )
 
 func newLocalHTTPServer(t *testing.T, handler http.Handler) *httptest.Server {
@@ -33,6 +35,85 @@ func newLocalHTTPServer(t *testing.T, handler http.Handler) *httptest.Server {
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func TestSendRequest_RegistrationScope(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		request   apiv1.LoginRequest
+		path      string
+		workspace string
+	}{
+		{name: "legacy new machine", request: apiv1.LoginRequest{NodeGroup: "shared-group"}, path: "/api/v1/login"},
+		{name: "existing machine", request: apiv1.LoginRequest{MachineID: "existing-machine"}, path: "/api/v1/login"},
+		{name: "explicit workspace", request: apiv1.LoginRequest{WorkspaceID: "workspace-b", NodeGroup: "shared-group", NodeLabels: map[string]string{}}, path: "/api/v2/login", workspace: "workspace-b"},
+	} {
+		mockey.PatchConvey(tc.name, t, func() {
+			// Keep production HTTPS construction unchanged; only fixtures use loopback HTTP.
+			mockey.Mock(httputil.CreateURL).To(func(_ string, endpoint, path string) (string, error) {
+				return endpoint + path, nil
+			}).Build()
+			tc.request.Token = "registration-key"
+			server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, tc.path, r.URL.Path)
+				assert.Equal(t, "Bearer registration-key", r.Header.Get("Authorization"))
+				var body map[string]json.RawMessage
+				assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				if tc.workspace == "" {
+					assert.NotContains(t, body, "workspaceID")
+				} else {
+					assert.JSONEq(t, `"workspace-b"`, string(body["workspaceID"]))
+					assert.JSONEq(t, `"shared-group"`, string(body["nodeGroup"]))
+					assert.NotContains(t, body, "machineID")
+					assert.JSONEq(t, `{}`, string(body["nodeLabels"]))
+				}
+				_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: "assigned-machine", Token: "session-key", MachineProof: "machine-proof"})
+			}))
+			response, err := SendRequest(t.Context(), server.URL, tc.request, "")
+			require.NoError(t, err)
+			assert.Equal(t, "assigned-machine", response.MachineID)
+			assert.Equal(t, "session-key", response.Token)
+			assert.Equal(t, "machine-proof", response.MachineProof)
+		})
+	}
+}
+
+func TestSendRequest_ContextualFailureNeverFallsBack(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusServiceUnavailable, http.StatusTemporaryRedirect} {
+		mockey.PatchConvey(http.StatusText(status), t, func() {
+			mockey.Mock(httputil.CreateURL).To(func(_ string, endpoint, path string) (string, error) {
+				return endpoint + path, nil
+			}).Build()
+			var paths []string
+			server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				paths = append(paths, r.URL.Path)
+				if r.URL.Path == "/api/v1/login" {
+					_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: "wrong-workspace-machine"})
+					return
+				}
+				w.Header().Set("Location", "/api/v1/login")
+				w.WriteHeader(status)
+				_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{Message: "contextual registration rejected"})
+			}))
+			_, err := SendRequest(t.Context(), server.URL, apiv1.LoginRequest{Token: "registration-key", WorkspaceID: "workspace-b", NodeGroup: "shared-group"}, "")
+			require.Error(t, err)
+			assert.Equal(t, []string{"/api/v2/login"}, paths)
+		})
+	}
+}
+
+func TestSendRequest_InvalidContextDoesNotSend(t *testing.T) {
+	for _, request := range []apiv1.LoginRequest{
+		{WorkspaceID: "*", NodeGroup: "shared-group"},
+		{WorkspaceID: "workspace-b"},
+		{WorkspaceID: "workspace-b", NodeGroup: "shared-group", MachineID: "existing-machine"},
+	} {
+		request.Token = "registration-key"
+		_, err := SendRequest(t.Context(), "not-a-valid-endpoint", request, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "workspace-aware registration")
+	}
 }
 
 func TestSendRequest_Success(t *testing.T) {

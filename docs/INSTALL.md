@@ -15,6 +15,34 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh -s $(curl -fsSL https://pkg.gpud
 
 Then open [localhost:15132](https://localhost:15132) for the local web UI.
 
+## Register with a workspace
+
+Workspace-aware registration requires a control plane with `POST /api/v2/login`
+support. Use the canonical workspace name, not a workspace display name or wildcard:
+
+```bash
+sudo gpud up \
+  --token <REGISTRATION_TOKEN> \
+  --endpoint <CONTROL_PLANE_ENDPOINT> \
+  --workspace-id <CANONICAL_WORKSPACE_NAME> \
+  --node-group <NODE_GROUP>
+```
+
+`--workspace-id` requires a nonempty `--token` and `--node-group`.
+Do not combine it with `--machine-id`; neither selector accepts `*`.
+GPUd validates these inputs before root checks, discovery, or systemd changes.
+Workspace-aware registration does not fall back to legacy login if the server
+rejects the request or lacks v2 support. Omit `--workspace-id` for legacy enrollment.
+
+This flag applies only to new registration through `gpud up`, not `gpud run` or
+workspace migration. An already-registered machine normally reuses its persisted
+identity without login. A forced session refresh uses `/api/v1/login` with that
+identity and its machine proof, without the workspace selector.
+Neither the registration token nor workspace selector enters the systemd environment.
+
+See [the integration contract](INTEGRATION.md#workspace-aware-registration) for
+request routing and server requirements.
+
 ## Instance IDs without a metadata service
 
 If provider metadata does not supply an instance ID, GPUd reads the host's

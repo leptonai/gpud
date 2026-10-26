@@ -98,6 +98,10 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "(optional) https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton workspace token for checking in",
 				},
 				cli.StringFlag{
+					Name:  "workspace-id",
+					Usage: "(optional) canonical workspace name for new registration; requires --token and --node-group, forbids --machine-id; requires control-plane v2 login support",
+				},
+				cli.StringFlag{
 					Name:  "private-ip",
 					Usage: "(optional) can specify private ip for internal network",
 				},

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -32,6 +33,10 @@ type LoginConfig struct {
 	Endpoint  string
 	MachineID string // optional: can be empty
 	NodeGroup string // optional
+
+	// WorkspaceID is the canonical workspace name for new-machine registration only.
+	// Existing-machine refreshes use the persisted machine ID and omit this selector.
+	WorkspaceID string
 
 	// MachineIDOverwrite, when true, allows an explicitly-supplied MachineID that
 	// differs from the locally-persisted one to replace it: the persisted login
@@ -76,6 +81,29 @@ type LoginConfig struct {
 	// Region overrides the login region and skips provider-region IMDS and DERP lookup.
 	Region     string
 	Containerd configcommon.ContainerdConfig
+}
+
+// ValidateWorkspaceRegistration rejects invalid enrollment selectors before discovery or state changes.
+func (cfg LoginConfig) ValidateWorkspaceRegistration() error {
+	if cfg.WorkspaceID == "" {
+		return nil
+	}
+	if strings.TrimSpace(cfg.Token) == "" {
+		return ErrEmptyToken
+	}
+	if strings.TrimSpace(cfg.WorkspaceID) == "" {
+		return errors.New("workspace ID cannot be blank")
+	}
+	if cfg.MachineID != "" {
+		return errors.New("workspace ID cannot be combined with machine ID")
+	}
+	if strings.TrimSpace(cfg.NodeGroup) == "" {
+		return errors.New("node group is required with workspace ID")
+	}
+	if strings.TrimSpace(cfg.WorkspaceID) == "*" || strings.TrimSpace(cfg.NodeGroup) == "*" {
+		return errors.New("workspace registration does not support wildcard selectors")
+	}
+	return nil
 }
 
 // Login performs the login operation with the control plane.
@@ -166,6 +194,9 @@ func reconcileMachineID(ctx context.Context, dbRW *sql.DB, prevMachineID, reques
 func Login(ctx context.Context, cfg LoginConfig) error {
 	if cfg.Token == "" {
 		return ErrEmptyToken
+	}
+	if err := cfg.ValidateWorkspaceRegistration(); err != nil {
+		return err
 	}
 
 	normalizedNodeLabels, err := normalizeNodeLabels(cfg.NodeLabels)
@@ -311,6 +342,9 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}
 	req.NodeLabels = cfg.NodeLabels
+	if req.MachineID == "" {
+		req.WorkspaceID = cfg.WorkspaceID
+	}
 	log.Logger.Debugw("successfully created login request", "duration", time.Since(loginCreatedAt))
 
 	machineProof := ""

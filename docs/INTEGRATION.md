@@ -30,6 +30,42 @@ Following defines the response types for the GPUd APIs above:
 Or use the [`client/v1`](http://pkg.go.dev/github.com/leptonai/gpud/client/v1)
 library to interact with GPUd in Go.
 
+## Workspace-aware registration
+
+Use `gpud up --workspace-id` to select a workspace for new machine registration:
+
+```bash
+sudo gpud up \
+  --token <REGISTRATION_TOKEN> \
+  --endpoint <CONTROL_PLANE_ENDPOINT> \
+  --workspace-id <CANONICAL_WORKSPACE_NAME> \
+  --node-group <NODE_GROUP>
+```
+
+The control plane must implement `POST /api/v2/login`. The workspace selector is
+the canonical workspace name. The server must authorize the registration token
+for that workspace and node group.
+
+- New registration with a workspace selector sends `POST /api/v2/login` with
+  `workspaceID` and `nodeGroup`. It does not send `machineID`.
+- A nonempty registration token and node group are required. An explicit
+  `--machine-id`, including an empty value, is forbidden. `*` is forbidden for
+  either selector. Invalid CLI input fails before root checks or discovery.
+- The response uses the existing login fields: `machineID`, session `token`,
+  and `machineProof`. GPUd persists these credentials for later sessions.
+- Without a workspace selector, registration keeps using `/api/v1/login`.
+  Workspace-aware failures, including unavailable v2 endpoints or redirects,
+  never trigger legacy fallback.
+- An existing persisted machine normally skips login. Forced session refresh
+  uses `/api/v1/login` with the existing identity and machine proof, without
+  `workspaceID`. Session reconnect keeps its configured session transport.
+  The selector does not migrate an enrolled machine.
+
+`--workspace-id` is enrollment-only and is not a `gpud run` flag or a session
+transport setting. Neither it nor the registration token is written to the
+systemd environment. `--session-protocol` continues to select session transport
+independently of the login endpoint.
+
 ## CPU topology
 
 `gpud machine-info` and `/machine-info` report CPU topology in `cpuInfo`.

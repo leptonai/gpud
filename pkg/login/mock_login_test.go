@@ -4,7 +4,12 @@ package login
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/bytedance/mockey"
@@ -2067,5 +2072,230 @@ func TestLogin_OpenReadOnlyStateFileError(t *testing.T) {
 		err := Login(ctx, cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to open state file")
+	})
+}
+
+func TestLogin_WorkspaceRegistrationLifecycle(t *testing.T) {
+	tests := []struct {
+		name      string
+		workspace string
+		persisted bool
+		refresh   bool
+		labels    map[string]string
+		status    int
+		wantPath  string
+		wantCalls int
+	}{
+		{name: "initial workspace registration", workspace: "tenant-a", status: http.StatusOK, wantPath: "/api/v2/login", wantCalls: 1},
+		{name: "initial legacy registration", status: http.StatusOK, wantPath: "/api/v1/login", wantCalls: 1},
+		{name: "persisted identity skips", workspace: "different-workspace", persisted: true, status: http.StatusOK},
+		{name: "persisted identity refresh", workspace: "different-workspace", persisted: true, refresh: true, status: http.StatusOK, wantPath: "/api/v1/login", wantCalls: 1},
+		{name: "persisted label refresh", workspace: "different-workspace", persisted: true, labels: map[string]string{"team": "new"}, status: http.StatusOK, wantPath: "/api/v1/login", wantCalls: 1},
+		{name: "registration failure does not persist success", workspace: "tenant-a", status: http.StatusForbidden, wantPath: "/api/v2/login", wantCalls: 1},
+		{name: "refresh failure preserves identity", workspace: "different-workspace", persisted: true, refresh: true, status: http.StatusForbidden, wantPath: "/api/v1/login", wantCalls: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockey.PatchConvey(tc.name, t, func() {
+				// Only the fixture scheme changes; public routing, HTTP and state writes are real.
+				mockey.Mock(httputil.CreateURL).To(func(_ string, endpoint, path string) (string, error) {
+					return endpoint + path, nil
+				}).Build()
+				ctx := context.Background()
+				dataDir := t.TempDir()
+				db, err := sqlite.Open(config.StateFilePath(dataDir))
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = db.Close() })
+				require.NoError(t, pkgmetadata.CreateTableMetadata(ctx, db))
+				before := map[string]string{}
+				if tc.persisted {
+					before = map[string]string{
+						pkgmetadata.MetadataKeyMachineID:                "assigned-machine",
+						pkgmetadata.MetadataKeyToken:                    "stored-session-token",
+						pkgmetadata.MetadataKeyMachineProof:             "stored-proof",
+						pkgmetadata.MetadataKeyEndpoint:                 "https://previous.example.com",
+						pkgmetadata.MetadataKeyControlPlaneLoginSuccess: "123",
+					}
+					for key, value := range before {
+						require.NoError(t, pkgmetadata.SetMetadata(ctx, db, key, value))
+					}
+				}
+
+				type observation struct {
+					path    string
+					method  string
+					proof   string
+					payload map[string]any
+					err     error
+				}
+				requests := make(chan observation, 4)
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var payload map[string]any
+					decodeErr := json.NewDecoder(r.Body).Decode(&payload)
+					requests <- observation{path: r.URL.Path, method: r.Method, proof: r.Header.Get(httputil.RequestHeaderMachineProof), payload: payload, err: decodeErr}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(tc.status)
+					if tc.status != http.StatusOK {
+						_, _ = w.Write([]byte(`{"code":"FORBIDDEN","message":"workspace registration denied"}`))
+						return
+					}
+					_, _ = w.Write([]byte(`{"machineID":"assigned-machine","token":"fresh-session-token","machineProof":"fresh-proof"}`))
+				}))
+				defer srv.Close()
+
+				discoveries := 0
+				mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+					discoveries++
+					return nvidianvml.NewNoOp(), nil
+				}).Build()
+				mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error { return nil }).Build()
+				mockey.Mock(pkgmachineinfo.CreateLoginRequestWithOverrides).To(func(token, machineID, nodeGroup, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+					return &apiv1.LoginRequest{Token: token, MachineID: machineID, NodeGroup: nodeGroup, Network: &apiv1.MachineNetwork{}}, nil
+				}).Build()
+				mockey.Mock(serverRunning).To(func() bool { return false }).Build()
+
+				err = Login(ctx, LoginConfig{
+					Token: "registration-token", Endpoint: srv.URL, DataDir: dataDir,
+					WorkspaceID: tc.workspace, NodeGroup: "ng-a", RefreshSessionToken: tc.refresh, NodeLabels: tc.labels,
+				})
+				if tc.status == http.StatusOK {
+					require.NoError(t, err)
+				} else {
+					require.ErrorContains(t, err, "workspace registration denied")
+				}
+				require.Len(t, requests, tc.wantCalls)
+				assert.Equal(t, tc.wantCalls, discoveries)
+				if tc.wantCalls != 0 {
+					got := <-requests
+					require.NoError(t, got.err)
+					assert.Equal(t, http.MethodPost, got.method)
+					assert.Equal(t, tc.wantPath, got.path)
+					assert.Equal(t, "registration-token", got.payload["token"])
+					if tc.persisted {
+						assert.Equal(t, "assigned-machine", got.payload["machineID"])
+						assert.NotContains(t, got.payload, "workspaceID")
+						assert.Equal(t, "stored-proof", got.proof)
+					} else if tc.workspace != "" {
+						assert.Equal(t, tc.workspace, got.payload["workspaceID"])
+						assert.NotContains(t, got.payload, "machineID")
+						assert.Empty(t, got.proof)
+					} else {
+						assert.NotContains(t, got.payload, "workspaceID")
+						assert.Equal(t, "", got.payload["machineID"])
+					}
+				}
+
+				keys := []string{pkgmetadata.MetadataKeyMachineID, pkgmetadata.MetadataKeyToken, pkgmetadata.MetadataKeyMachineProof, pkgmetadata.MetadataKeyEndpoint, pkgmetadata.MetadataKeyControlPlaneLoginSuccess}
+				for _, key := range keys {
+					value, readErr := pkgmetadata.ReadMetadata(ctx, db, key)
+					require.NoError(t, readErr)
+					if tc.status != http.StatusOK || tc.wantCalls == 0 {
+						assert.Equal(t, before[key], value, "metadata %s must remain unchanged", key)
+						continue
+					}
+					switch key {
+					case pkgmetadata.MetadataKeyMachineID:
+						assert.Equal(t, "assigned-machine", value)
+					case pkgmetadata.MetadataKeyToken:
+						assert.Equal(t, "fresh-session-token", value)
+					case pkgmetadata.MetadataKeyMachineProof:
+						assert.Equal(t, "fresh-proof", value)
+					case pkgmetadata.MetadataKeyEndpoint:
+						assert.Equal(t, srv.URL, value)
+					case pkgmetadata.MetadataKeyControlPlaneLoginSuccess:
+						assert.NotEmpty(t, value)
+						assert.NotEqual(t, "123", value)
+					}
+				}
+				after, readErr := pkgmetadata.ReadAllMetadata(ctx, db)
+				require.NoError(t, readErr)
+				if tc.status != http.StatusOK || tc.wantCalls == 0 {
+					assert.Equal(t, before, after, "skip and failed login must not mutate any metadata")
+				} else {
+					for _, value := range after {
+						assert.NotEqual(t, "registration-token", value, "registration credentials must not be persisted")
+						if tc.workspace != "" {
+							assert.NotEqual(t, tc.workspace, value, "workspace selector must remain enrollment-only")
+						}
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestLogin_InvalidWorkspaceRegistrationDoesNotTouchState(t *testing.T) {
+	tests := []struct {
+		name      string
+		workspace string
+		nodeGroup string
+		machineID string
+		token     string
+		wantError string
+	}{
+		{name: "explicit machine ID", workspace: "tenant-a", nodeGroup: "ng-a", machineID: "replacement-machine", token: "token", wantError: "cannot be combined"},
+		{name: "missing node group", workspace: "tenant-a", token: "token", wantError: "node group is required"},
+		{name: "blank node group", workspace: "tenant-a", nodeGroup: " \t", token: "token", wantError: "node group is required"},
+		{name: "blank workspace", workspace: " \t", nodeGroup: "ng-a", token: "token", wantError: "workspace ID cannot be blank"},
+		{name: "wildcard workspace", workspace: "*", nodeGroup: "ng-a", token: "token", wantError: "wildcard"},
+		{name: "wildcard node group", workspace: "tenant-a", nodeGroup: " * ", token: "token", wantError: "wildcard"},
+		{name: "blank registration token", workspace: "tenant-a", nodeGroup: "ng-a", token: " \t", wantError: "token is empty"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockey.PatchConvey(tc.name, t, func() {
+				dataDir := filepath.Join(t.TempDir(), "must-not-be-created")
+				resolveCalls := 0
+				discoveryCalls := 0
+				mockey.Mock(config.ResolveDataDir).To(func(string) (string, error) {
+					resolveCalls++
+					return "", errors.New("unexpected data directory resolution")
+				}).Build()
+				mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+					discoveryCalls++
+					return nil, errors.New("unexpected discovery")
+				}).Build()
+				err := Login(context.Background(), LoginConfig{
+					Token: tc.token, WorkspaceID: tc.workspace, NodeGroup: tc.nodeGroup,
+					MachineID: tc.machineID, MachineIDOverwrite: true, RefreshSessionToken: true, DataDir: dataDir,
+				})
+				require.ErrorContains(t, err, tc.wantError)
+				assert.Zero(t, resolveCalls)
+				assert.Zero(t, discoveryCalls)
+				_, statErr := os.Stat(dataDir)
+				assert.True(t, os.IsNotExist(statErr), "invalid registration must not create state")
+			})
+		})
+	}
+}
+
+func TestLogin_InvalidWorkspaceRegistrationCannotOverwriteIdentity(t *testing.T) {
+	mockey.PatchConvey("invalid workspace registration preserves existing identity even with overwrite", t, func() {
+		ctx := context.Background()
+		dataDir := t.TempDir()
+		db, err := sqlite.Open(config.StateFilePath(dataDir))
+		require.NoError(t, err)
+		defer db.Close()
+		require.NoError(t, pkgmetadata.CreateTableMetadata(ctx, db))
+		before := map[string]string{
+			pkgmetadata.MetadataKeyMachineID:                "assigned-machine",
+			pkgmetadata.MetadataKeyToken:                    "stored-session-token",
+			pkgmetadata.MetadataKeyMachineProof:             "stored-proof",
+			pkgmetadata.MetadataKeyEndpoint:                 "https://previous.example.com",
+			pkgmetadata.MetadataKeyControlPlaneLoginSuccess: "123",
+		}
+		for key, value := range before {
+			require.NoError(t, pkgmetadata.SetMetadata(ctx, db, key, value))
+		}
+		err = Login(ctx, LoginConfig{
+			Token: "registration-token", WorkspaceID: "different-workspace", NodeGroup: "ng-a",
+			MachineID: "replacement-machine", MachineIDOverwrite: true, RefreshSessionToken: true, DataDir: dataDir,
+		})
+		require.ErrorContains(t, err, "cannot be combined")
+		for key, value := range before {
+			got, readErr := pkgmetadata.ReadMetadata(ctx, db, key)
+			require.NoError(t, readErr)
+			assert.Equal(t, value, got, "metadata %s must survive invalid enrollment", key)
+		}
 	})
 }

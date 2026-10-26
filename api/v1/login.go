@@ -4,9 +4,11 @@ import "encoding/json"
 
 // LoginRequest is the request for the login request.
 type LoginRequest struct {
-	Token              string            `json:"token"`
-	MachineID          string            `json:"machineID"`
-	NodeGroup          string            `json:"nodeGroup,omitempty"`
+	Token     string `json:"token"`
+	MachineID string `json:"machineID"`
+	NodeGroup string `json:"nodeGroup,omitempty"`
+	// WorkspaceID selects the target workspace for new registrations via /api/v2/login.
+	WorkspaceID        string            `json:"workspaceID,omitempty"`
 	NodeLabels         map[string]string `json:"nodeLabels,omitempty"`
 	Network            *MachineNetwork   `json:"network,omitempty"`
 	Location           *MachineLocation  `json:"location,omitempty"`
@@ -20,12 +22,17 @@ type LoginRequest struct {
 func (r LoginRequest) MarshalJSON() ([]byte, error) {
 	payload := make(map[string]any, 10)
 	payload["token"] = r.Token
-	payload["machineID"] = r.MachineID
+	if r.MachineID != "" || r.WorkspaceID == "" {
+		payload["machineID"] = r.MachineID
+	}
 	payload["provider"] = r.Provider
 	payload["providerInstanceID"] = r.ProviderInstanceID
 
 	if r.NodeGroup != "" {
 		payload["nodeGroup"] = r.NodeGroup
+	}
+	if r.WorkspaceID != "" {
+		payload["workspaceID"] = r.WorkspaceID
 	}
 	if r.NodeLabels != nil {
 		payload["nodeLabels"] = r.NodeLabels

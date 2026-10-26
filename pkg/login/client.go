@@ -66,11 +66,18 @@ func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) err
 //   - Node Group Error
 //   - ID Generation Error
 //
-// machineProof is the proof from this machine's previous login, or empty. It is
-// sent in the X-GPUD-Machine-Proof header and never in the JSON body, which is
-// debug-logged.
+// machineProof is the proof from this machine's previous login, or empty.
+// It is sent only in the X-GPUD-Machine-Proof header, never in the JSON body.
 func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
-	url, err := httputil.CreateURL("https", endpoint, "/api/v1/login")
+	path := "/api/v1/login"
+	if req.WorkspaceID != "" {
+		cfg := LoginConfig{Token: req.Token, WorkspaceID: req.WorkspaceID, NodeGroup: req.NodeGroup, MachineID: req.MachineID}
+		if err := cfg.ValidateWorkspaceRegistration(); err != nil {
+			return nil, fmt.Errorf("invalid workspace-aware registration: %w", err)
+		}
+		path = "/api/v2/login"
+	}
+	url, err := httputil.CreateURL("https", endpoint, path)
 	if err != nil {
 		return nil, fmt.Errorf("error creating URL: %w", err)
 	}
@@ -111,6 +118,12 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		},
 		CheckRedirect: dropMachineProofOnRedirect,
 	}
+	if req.WorkspaceID != "" {
+		// A redirect must not turn an explicitly scoped registration into a legacy login.
+		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
@@ -137,6 +150,6 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		return &resp, ErrEmptyMachineID
 	}
 
-	log.Logger.Debugw("login request processed", "data", string(b), "endpointURL", endpointURL, "machineID", resp.MachineID)
+	log.Logger.Debugw("login request processed", "endpointURL", endpointURL, "machineID", resp.MachineID)
 	return &resp, nil
 }

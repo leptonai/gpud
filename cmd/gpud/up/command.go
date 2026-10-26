@@ -23,6 +23,25 @@ import (
 )
 
 func Command(cliContext *cli.Context) (retErr error) {
+	workspaceID := cliContext.String("workspace-id")
+	token := cliContext.String("token")
+	if cliContext.IsSet("workspace-id") || workspaceID != "" {
+		if workspaceID == "" {
+			return fmt.Errorf("--workspace-id must not be empty")
+		}
+		if cliContext.IsSet("machine-id") {
+			return fmt.Errorf("--workspace-id cannot be combined with --machine-id")
+		}
+		if err := (login.LoginConfig{
+			Token:       token,
+			WorkspaceID: workspaceID,
+			MachineID:   cliContext.String("machine-id"),
+			NodeGroup:   cliContext.String("node-group"),
+		}).ValidateWorkspaceRegistration(); err != nil {
+			return err
+		}
+	}
+
 	logLevel := cliContext.String("log-level")
 	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -43,7 +62,6 @@ func Command(cliContext *cli.Context) (retErr error) {
 	}
 
 	gpuCountStr := cliContext.String("gpu-count")
-	token := cliContext.String("token")
 
 	var nodeLabels map[string]string
 	if cliContext.IsSet("node-labels") {
@@ -71,6 +89,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 		loginCfg := login.LoginConfig{
 			Token:               token,
 			Endpoint:            cliContext.String("endpoint"),
+			WorkspaceID:         workspaceID,
 			MachineID:           cliContext.String("machine-id"),
 			MachineIDOverwrite:  cliContext.Bool("machine-id-overwrite"),
 			RefreshSessionToken: cliContext.Bool("refresh-session-token"),
@@ -128,8 +147,8 @@ func Command(cliContext *cli.Context) (retErr error) {
 	// This works because login and credential storage always use the persistent file system,
 	// only the server's runtime database respects the --db-in-memory flag.
 	//
-	// IMPORTANT: The --token flag is NEVER written to the env file.
-	// The env file only contains: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
+	// Enrollment flags (--token and --workspace-id) are NEVER written to the env file.
+	// Only runtime configuration is passed to systemdInit below.
 	// Session credentials are stored in the persistent state file, not the systemd env file.
 
 	if err := systemdInit(endpoint, dataDir, dbInMemory, cliContext.String("session-protocol")); err != nil {
@@ -182,8 +201,8 @@ func recordLoginSuccessState(ctx context.Context, dataDir string) error {
 
 func systemdInit(endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 	// Always create/overwrite env file (consistent with v0.8.0 behavior).
-	// IMPORTANT: The --token flag is NEVER written to the env file.
-	// Only runtime configuration flags are written: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
+	// Enrollment flags (--token and --workspace-id) are NEVER written to the env file.
+	// Only runtime configuration is passed to CreateDefaultEnvFile.
 	if err := systemd.CreateDefaultEnvFile(endpoint, dataDir, dbInMemory, sessionProtocol...); err != nil {
 		return err
 	}
