@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/bytedance/mockey"
@@ -38,6 +39,7 @@ func newMockeyCLIContext(t *testing.T, args []string) *cli.Context {
 	_ = flags.String("log-file", "", "")
 	_ = flags.String("data-dir", "", "")
 	_ = flags.String("token", "", "")
+	_ = flags.String("workspace-id", "", "")
 	_ = flags.String("endpoint", "", "")
 	_ = flags.String("session-protocol", config.DefaultSessionProtocol, "")
 	_ = flags.String("machine-id", "", "")
@@ -52,6 +54,34 @@ func newMockeyCLIContext(t *testing.T, args []string) *cli.Context {
 
 	require.NoError(t, flags.Parse(args))
 	return cli.NewContext(app, flags, nil)
+}
+
+func TestCommand_WorkspaceRegistrationValidationBeforeEffects(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"missing token", []string{"--workspace-id", "workspace", "--node-group", "group"}, "token is empty"},
+		{"blank token", []string{"--workspace-id", "workspace", "--node-group", "group", "--token", " "}, "token is empty"},
+		{"empty workspace", []string{"--workspace-id="}, "--workspace-id must not be empty"},
+		{"blank workspace", []string{"--workspace-id", " ", "--token", "token", "--node-group", "group"}, "workspace ID cannot be blank"},
+		{"missing node group", []string{"--workspace-id", "workspace", "--token", "token"}, "node group is required"},
+		{"blank node group", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", " "}, "node group is required"},
+		{"wildcard workspace", []string{"--workspace-id", " * ", "--token", "token", "--node-group", "group"}, "wildcard selectors"},
+		{"wildcard node group", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", " * "}, "wildcard selectors"},
+		{"explicit machine", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", "group", "--machine-id", "machine"}, "cannot be combined with --machine-id"},
+		{"explicit empty machine", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", "group", "--machine-id="}, "cannot be combined with --machine-id"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataDir := filepath.Join(t.TempDir(), "state")
+			args := append([]string{"--data-dir", dataDir}, tt.args...)
+			err := Command(newMockeyCLIContext(t, args))
+			require.ErrorContains(t, err, tt.want)
+			require.NoDirExists(t, dataDir)
+		})
+	}
 }
 
 // TestCommand_InvalidLogLevel tests the command with invalid log level.

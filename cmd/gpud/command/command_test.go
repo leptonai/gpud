@@ -3,7 +3,6 @@ package command
 import (
 	"flag"
 	"io"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,39 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
 )
-
-func TestAppWorkspaceRegistrationValidationBeforeEffects(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"missing token", []string{"--workspace-id", "workspace", "--node-group", "group"}, "token is empty"},
-		{"blank token", []string{"--workspace-id", "workspace", "--node-group", "group", "--token", " "}, "token is empty"},
-		{"empty workspace", []string{"--workspace-id="}, "--workspace-id must not be empty"},
-		{"blank workspace", []string{"--workspace-id", " ", "--token", "token", "--node-group", "group"}, "workspace ID cannot be blank"},
-		{"missing node group", []string{"--workspace-id", "workspace", "--token", "token"}, "node group is required"},
-		{"blank node group", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", " "}, "node group is required"},
-		{"wildcard workspace", []string{"--workspace-id", " * ", "--token", "token", "--node-group", "group"}, "wildcard selectors"},
-		{"wildcard node group", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", " * "}, "wildcard selectors"},
-		{"explicit machine", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", "group", "--machine-id", "machine"}, "cannot be combined with --machine-id"},
-		{"explicit empty machine", []string{"--workspace-id", "workspace", "--token", "token", "--node-group", "group", "--machine-id="}, "cannot be combined with --machine-id"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dataDir := filepath.Join(t.TempDir(), "state")
-			app := App()
-			app.Writer = io.Discard
-			app.ErrWriter = io.Discard
-			// An invalid log level stops accepted input before discovery or systemd.
-			// Invalid enrollment must fail even before logger initialization.
-			args := append([]string{"gpud", "up", "--log-level", "invalid-level", "--data-dir", dataDir}, tt.args...)
-			err := app.Run(args)
-			require.ErrorContains(t, err, tt.want)
-			require.NoDirExists(t, dataDir)
-		})
-	}
-}
 
 func TestAppRunRejectsWorkspaceRegistrationFlag(t *testing.T) {
 	app := App()

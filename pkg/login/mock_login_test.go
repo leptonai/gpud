@@ -2275,7 +2275,7 @@ func TestLogin_InvalidWorkspaceRegistrationCannotOverwriteIdentity(t *testing.T)
 		dataDir := t.TempDir()
 		db, err := sqlite.Open(config.StateFilePath(dataDir))
 		require.NoError(t, err)
-		defer db.Close()
+		t.Cleanup(func() { require.NoError(t, db.Close()) })
 		require.NoError(t, pkgmetadata.CreateTableMetadata(ctx, db))
 		before := map[string]string{
 			pkgmetadata.MetadataKeyMachineID:                "assigned-machine",

@@ -65,3 +65,41 @@ func TestLoginRequestNodeLabelsJSON(t *testing.T) {
 		}
 	})
 }
+
+func TestLoginRequestWorkspaceRegistrationJSON(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		workspace string
+	}{
+		{name: "legacy registration"},
+		{name: "contextual registration", workspace: "tenant-a"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := json.Marshal(LoginRequest{
+				Token: "registration-token", WorkspaceID: tc.workspace, NodeGroup: "group-a",
+			})
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(b, &fields); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if tc.workspace == "" {
+				if string(fields["machineID"]) != `""` {
+					t.Fatalf("legacy registration must retain empty machineID: %s", b)
+				}
+				if _, exists := fields["workspaceID"]; exists {
+					t.Fatalf("legacy registration must omit workspaceID: %s", b)
+				}
+			} else {
+				if _, exists := fields["machineID"]; exists {
+					t.Fatalf("contextual registration must omit empty machineID: %s", b)
+				}
+				if string(fields["workspaceID"]) != `"tenant-a"` || string(fields["nodeGroup"]) != `"group-a"` {
+					t.Fatalf("contextual registration lost target placement: %s", b)
+				}
+			}
+		})
+	}
+}
