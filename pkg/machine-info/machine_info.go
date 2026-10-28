@@ -355,6 +355,13 @@ func getProviderForLogin(publicIP, region, instanceID string) *providers.Info {
 }
 
 func getProviderWithContext(ctx context.Context, publicIP, instanceIDOverride string, detect func(context.Context) (*providers.Info, error)) *providers.Info {
+	// Read local identity before network discovery so ASN availability cannot
+	// prevent recovery. Select it only after applying provider-specific rules.
+	fallbackInstanceID := ""
+	if instanceIDOverride == "" {
+		fallbackInstanceID = readInstanceIDFallback(instanceIDFallbackPaths)
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	providerInfo, err := detect(ctx)
@@ -399,19 +406,18 @@ func getProviderWithContext(ctx context.Context, publicIP, instanceIDOverride st
 		asnResult, err := asn.GetASLookup(publicIP)
 		if err != nil {
 			log.Logger.Warnw("ASN lookup failed", "error", err, "publicIP", publicIP)
-			return providerInfo
-		}
-
-		normalizedProvider := asn.NormalizeASNName(asnResult.AsnName)
-		log.Logger.Debugw("ASN lookup result", "asnResult", asnResult, "asnName", asnResult.AsnName, "normalizedProvider", normalizedProvider)
-
-		// Ensure we don't set an empty provider
-		if normalizedProvider != "" {
-			providerInfo.Provider = normalizedProvider
 		} else {
-			// as lookup succeeded but normalized provider is empty
-			providerInfo.Provider = asnResult.AsnName
-			log.Logger.Warnw("normalized provider is empty -- fallback to raw asn name for provider name", "asnName", asnResult.AsnName)
+			normalizedProvider := asn.NormalizeASNName(asnResult.AsnName)
+			log.Logger.Debugw("ASN lookup result", "asnResult", asnResult, "asnName", asnResult.AsnName, "normalizedProvider", normalizedProvider)
+
+			// Ensure we don't set an empty provider
+			if normalizedProvider != "" {
+				providerInfo.Provider = normalizedProvider
+			} else {
+				// as lookup succeeded but normalized provider is empty
+				providerInfo.Provider = asnResult.AsnName
+				log.Logger.Warnw("normalized provider is empty -- fallback to raw asn name for provider name", "asnName", asnResult.AsnName)
+			}
 		}
 	} else {
 		log.Logger.Warnw("no public IP provided for ASN lookup")
@@ -441,14 +447,12 @@ func getProviderWithContext(ctx context.Context, publicIP, instanceIDOverride st
 	// to /var/lib/cloud/data/instance-id, whereas nscale's topology and breakfix
 	// APIs identify machines by the "i-<hex>" ID from 169.254.169.254.
 	if providerInfo.InstanceID == "" && providerInfo.Provider != nscale.Name {
-		if instanceID := readInstanceIDFallback(instanceIDFallbackPaths); instanceID != "" {
-			// Lambda's API and Kubernetes providerID ("lambda://<id>") use the
-			// 32-hex form of the ID that cloud-init stores as a UUID.
-			if providerInfo.Provider == "lambda" {
-				instanceID = strings.ReplaceAll(instanceID, "-", "")
-			}
-			providerInfo.InstanceID = instanceID
+		// Lambda's API and Kubernetes providerID ("lambda://<id>") use the
+		// 32-hex form of the ID that cloud-init stores as a UUID.
+		if providerInfo.Provider == "lambda" {
+			fallbackInstanceID = strings.ReplaceAll(fallbackInstanceID, "-", "")
 		}
+		providerInfo.InstanceID = fallbackInstanceID
 	}
 
 	log.Logger.Debugw("GetProvider returning",
