@@ -1026,6 +1026,66 @@ func TestGetProvider_InstanceIDFileFallback(t *testing.T) {
 	})
 }
 
+func TestGetProvider_InstanceIDFileFallbackWithoutASN(t *testing.T) {
+	const instanceID = "2b1434ed-d9fc-489f-9fd4-7859292d309f"
+	tests := []struct {
+		name         string
+		publicIP     string
+		file         string
+		detectionErr error
+		wantID       string
+	}{
+		{name: "ASN failure keeps local UUID", publicIP: "1.2.3.4", file: instanceID, wantID: instanceID},
+		{name: "ASN failure keeps Firebird ID", publicIP: "1.2.3.4", file: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X", wantID: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X"},
+		{name: "detection and ASN failure keep local ID", publicIP: "1.2.3.4", file: instanceID, detectionErr: errors.New("detection failed"), wantID: instanceID},
+		{name: "no public IP keeps local ID", file: instanceID, wantID: instanceID},
+		{name: "ASN failure ignores placeholder", publicIP: "1.2.3.4", file: "iid-datasource-none"},
+		{name: "ASN failure tolerates missing file", publicIP: "1.2.3.4"},
+	}
+	for _, tt := range tests {
+		mockey.PatchConvey(tt.name, t, func() {
+			paths := []string{filepath.Join(t.TempDir(), "missing")}
+			if tt.file != "" {
+				paths = append(paths, writeInstanceIDFile(t, tt.file))
+			}
+			setInstanceIDFallbackPaths(t, paths)
+			mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
+				require.NotEmpty(t, tt.publicIP, "ASN lookup needs a public IP")
+				return nil, errors.New("ASN lookup unavailable")
+			}).Build()
+
+			provider := getProviderWithContext(context.Background(), tt.publicIP, "", func(context.Context) (*providers.Info, error) {
+				if tt.detectionErr != nil {
+					return nil, tt.detectionErr
+				}
+				return &providers.Info{Provider: "unknown"}, nil
+			})
+			require.NotNil(t, provider)
+			assert.Equal(t, "unknown", provider.Provider)
+			assert.Equal(t, tt.wantID, provider.InstanceID)
+		})
+	}
+}
+
+func TestGetProvider_ReadsInstanceIDFileBeforeDetection(t *testing.T) {
+	mockey.PatchConvey("network discovery cannot hide an already readable local ID", t, func() {
+		const instanceID = "2b1434ed-d9fc-489f-9fd4-7859292d309f"
+		path := writeInstanceIDFile(t, instanceID)
+		setInstanceIDFallbackPaths(t, []string{path})
+		mockey.Mock(asn.GetASLookup).To(func(string) (*asn.ASLookupResponse, error) {
+			return &asn.ASLookupResponse{AsnName: "mistral"}, nil
+		}).Build()
+
+		provider := getProviderWithContext(context.Background(), "1.2.3.4", "", func(context.Context) (*providers.Info, error) {
+			require.NoError(t, os.Remove(path))
+			return &providers.Info{Provider: "unknown"}, nil
+		})
+		require.NotNil(t, provider)
+		assert.Equal(t, "mistral", provider.Provider)
+		assert.Equal(t, instanceID, provider.InstanceID)
+	})
+}
+
 func TestLoginInstanceIDOverrideDoesNotChangeRuntimeDiscovery(t *testing.T) {
 	for _, providerName := range []string{"nvidia-net", "lambda", "nebius", "nscale"} {
 		mockey.PatchConvey(providerName, t, func() {
@@ -1042,8 +1102,9 @@ func TestLoginInstanceIDOverrideDoesNotChangeRuntimeDiscovery(t *testing.T) {
 			}
 			mockey.Mock(nebius.GetInstanceID).To(readIdentity).Build()
 			mockey.Mock(nscale.GetInstanceID).To(readIdentity).Build()
+			hostIdentityReads := 0
 			mockey.Mock(readInstanceIDFallback).To(func([]string) string {
-				identityReads++
+				hostIdentityReads++
 				return "discoveredID"
 			}).Build()
 			mockey.Mock(nscale.Region).To(func(context.Context) (string, error) { return "eu-west-2", nil }).Build()
@@ -1056,10 +1117,16 @@ func TestLoginInstanceIDOverrideDoesNotChangeRuntimeDiscovery(t *testing.T) {
 			require.Equal(t, "IPP-Node-A1", provider.InstanceID)
 			require.Equal(t, "eu-north-1", provider.Region)
 			require.Zero(t, identityReads, "an explicit ID must skip provider and host-file identity discovery")
+			require.Zero(t, hostIdentityReads, "an explicit ID must skip host-file identity discovery")
 
 			runtimeProvider := GetProvider("1.2.3.4")
 			require.Equal(t, "discoveredID", runtimeProvider.InstanceID)
-			require.Equal(t, 1, identityReads, "the login override must not affect subsequent runtime discovery")
+			require.Equal(t, 1, hostIdentityReads, "runtime discovery must read a local candidate before network lookup")
+			if providerName == "nebius" || providerName == "nscale" {
+				require.Equal(t, 1, identityReads, "the login override must not affect subsequent provider identity discovery")
+			} else {
+				require.Zero(t, identityReads)
+			}
 		})
 	}
 }

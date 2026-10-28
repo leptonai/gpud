@@ -55,7 +55,7 @@ func readInstanceIDFallback(paths []string) string {
 			log.Logger.Warnw("ignoring invalid instance ID fallback file", "path", p, "error", err)
 			continue
 		}
-		log.Logger.Infow("using instance ID from host file", "path", p, "instanceID", id)
+		log.Logger.Infow("found instance ID in host file", "path", p, "instanceID", id)
 		return id
 	}
 	return ""
