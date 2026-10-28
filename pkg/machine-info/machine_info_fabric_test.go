@@ -3,6 +3,7 @@ package machineinfo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -45,8 +46,91 @@ func newFabricMachineInfoDevice(fabricState nvidiadevice.FabricState, fabricErr 
 	}
 }
 
+func completedFabricState(clusterUUID string, cliqueID uint32) nvidiadevice.FabricState {
+	return nvidiadevice.FabricState{
+		CliqueID:    cliqueID,
+		ClusterUUID: clusterUUID,
+		State:       nvml.GPU_FABRIC_STATE_COMPLETED,
+		Status:      nvml.SUCCESS,
+	}
+}
+
+func newFabricMachineInfoInstance(states ...nvidiadevice.FabricState) *mockNvmlInstanceForMockey {
+	devices := make(map[string]nvidiadevice.Device, len(states))
+	for i, state := range states {
+		dev := newFabricMachineInfoDevice(state, nil)
+		dev.uuid = fmt.Sprintf("GPU-test-uuid-%d", i)
+		devices[dev.uuid] = dev
+	}
+	return &mockNvmlInstanceForMockey{devices: devices}
+}
+
 func TestGetGPUFabricIdentifiers(t *testing.T) {
-	t.Run("returns identifiers from the first readable device", func(t *testing.T) {
+	t.Run("returns identifiers when all devices agree", func(t *testing.T) {
+		nvmlInstance := newFabricMachineInfoInstance(
+			completedFabricState("cluster-uuid-123", 32766),
+			completedFabricState("cluster-uuid-123", 32766),
+			completedFabricState("cluster-uuid-123", 32766),
+			completedFabricState("cluster-uuid-123", 32766),
+		)
+
+		clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
+		assert.Equal(t, "cluster-uuid-123", clusterUUID)
+		assert.Equal(t, ptr.To(uint32(32766)), cliqueID)
+	})
+
+	t.Run("omits identifiers unless all devices agree on a completed registration", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			states []nvidiadevice.FabricState
+		}{
+			{
+				// While a rack's NVLink partition is down, each GPU reports a clique of its own.
+				name: "different clique ids",
+				states: []nvidiadevice.FabricState{
+					completedFabricState("cluster-uuid-123", 101),
+					completedFabricState("cluster-uuid-123", 102),
+					completedFabricState("cluster-uuid-123", 103),
+					completedFabricState("cluster-uuid-123", 104),
+				},
+			},
+			{
+				name: "different cluster uuids",
+				states: []nvidiadevice.FabricState{
+					completedFabricState("cluster-uuid-123", 32766),
+					completedFabricState("cluster-uuid-456", 32766),
+				},
+			},
+			{
+				name: "registration in progress on one device",
+				states: []nvidiadevice.FabricState{
+					completedFabricState("cluster-uuid-123", 32766),
+					{CliqueID: 32766, ClusterUUID: "cluster-uuid-123", State: nvml.GPU_FABRIC_STATE_IN_PROGRESS, Status: nvml.SUCCESS},
+				},
+			},
+			{
+				name: "registration failed on one device",
+				states: []nvidiadevice.FabricState{
+					completedFabricState("cluster-uuid-123", 32766),
+					{CliqueID: 32766, ClusterUUID: "cluster-uuid-123", State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: nvml.ERROR_UNKNOWN},
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				nvmlInstance := newFabricMachineInfoInstance(tt.states...)
+
+				// Devices are iterated in random map order; no order may produce a value.
+				for i := 0; i < 20; i++ {
+					clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
+					assert.Empty(t, clusterUUID)
+					assert.Nil(t, cliqueID)
+				}
+			})
+		}
+	})
+
+	t.Run("returns identifiers of a single fabric device", func(t *testing.T) {
 		dev := newFabricMachineInfoDevice(nvidiadevice.FabricState{
 			CliqueID:    42,
 			ClusterUUID: "cluster-uuid-123",
