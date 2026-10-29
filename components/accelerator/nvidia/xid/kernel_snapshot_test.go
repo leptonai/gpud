@@ -13,6 +13,7 @@ import (
 )
 
 func TestKernelSnapshotUsesHealthValidation(t *testing.T) {
+	t.Setenv("KMSG_FILE_PATH", "")
 	mockey.PatchConvey("full history, partial errors, and GPUd content dedup", t, func() {
 		failure := errors.New("partial kernel read")
 		mockey.Mock(kmsgsource.ReadAll).To(func(context.Context) ([]kmsgsource.Message, error) {
@@ -29,4 +30,18 @@ func TestKernelSnapshotUsesHealthValidation(t *testing.T) {
 		assert.Equal(t, 0, records[0].SequenceNumber)
 		assert.Equal(t, 4999, records[len(records)-1].SequenceNumber)
 	})
+}
+
+func TestKernelSnapshotRejectsUnsupportedSourceAndCancellation(t *testing.T) {
+	t.Setenv("KMSG_FILE_PATH", "/tmp/legacy-kmsg")
+	records, err := readKernelMessages(t.Context())
+	require.ErrorContains(t, err, "unsupported")
+	require.Empty(t, records)
+
+	t.Setenv("KMSG_FILE_PATH", "/dev/kmsg")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	records, err = readKernelMessages(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, records)
 }
