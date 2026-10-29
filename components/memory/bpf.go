@@ -1,15 +1,17 @@
 package memory
 
 import (
-	"bufio"
-	"bytes"
+	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"runtime"
-	"strconv"
-)
 
-const vmallocInfoFile = "/proc/vmallocinfo"
+	"github.com/dsx-ai-factory/health-validation/collect"
+	"github.com/dsx-ai-factory/health-validation/collect/observation"
+	memorysensor "github.com/dsx-ai-factory/health-validation/collect/sensors/memory"
+	memorysignals "github.com/dsx-ai-factory/health-validation/collect/signals/memory"
+)
 
 func isLinux() bool {
 	return runtime.GOOS == "linux"
@@ -24,7 +26,7 @@ func getCurrentBPFJITBufferBytes() (uint64, error) {
 		return 0, nil
 	}
 
-	b, err := readBPFJITBufferBytes(vmallocInfoFile)
+	b, err := readBPFJITBufferBytes(nil)
 
 	// if not root, this can fail
 	// e.g.,
@@ -36,57 +38,32 @@ func getCurrentBPFJITBufferBytes() (uint64, error) {
 	return b, err
 }
 
-// readBPFJITBufferBytes reads the current BPF JIT buffer size in bytes.
-func readBPFJITBufferBytes(file string) (uint64, error) {
-	// e.g.,
-	// cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'
-	if _, err := os.Stat(file); err != nil {
-		return 0, err
-	}
-
-	//nolint:gosec // caller controls the procfs/test file path for this helper.
-	f, err := os.Open(file)
+// readBPFJITBufferBytes selects only BPF accounting; it does not read /proc/meminfo.
+// A nil filesystem reads the host's /proc/vmallocinfo.
+func readBPFJITBufferBytes(files fs.FS) (uint64, error) {
+	batch, err := memorysensor.New(files).Measure(context.Background(), collect.WithSignalID(memorysignals.BPFJITBytes.ID()))
 	if err != nil {
 		return 0, err
 	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	totalSize := uint64(0)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		size, err := processLineBPFJITAllocExec(line)
-		if err != nil {
-			return 0, err
-		}
-		totalSize += size
-	}
-
-	return totalSize, nil
+	return bpfJITBytesFromObservations(batch)
 }
 
-// e.g.,
-// 0xffffffffc1032000-0xffffffffc1036000   16384 bpf_jit_alloc_exec+0xe/0x20 pages=3 vmalloc N0=3
-//
-// e.g.,
-// cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'
-func processLineBPFJITAllocExec(line []byte) (uint64, error) {
-	if !bytes.Contains(line, []byte("bpf_jit_alloc_exec")) {
-		return 0, nil
+// bpfJITBytesFromObservations is the memory component's shim from sensor output
+// to GPUd's byte count. It performs no collection or health evaluation.
+func bpfJITBytesFromObservations(batch *observation.ObservationBatch) (uint64, error) {
+	if len(batch.GetObservations()) != 1 {
+		return 0, fmt.Errorf("BPF JIT sensor returned %d observations, expected one", len(batch.GetObservations()))
 	}
-
-	// split line by whitespace
-	fields := bytes.Fields(line)
-	if len(fields) < 2 {
-		return 0, fmt.Errorf("invalid line: %q (expected at least 2 fields)", line)
+	reading := batch.Observations[0]
+	if reading.GetSignalId() != memorysignals.BPFJITBytes.ID() {
+		return 0, fmt.Errorf("BPF JIT sensor returned unexpected signal %q", reading.GetSignalId())
 	}
-
-	// Parse the size field (second column)
-	size, err := strconv.ParseUint(string(fields[1]), 10, 64)
-	if err != nil {
-		return 0, err
+	if failure := reading.GetCollectionError(); failure != nil {
+		return 0, fmt.Errorf("BPF JIT collection %s: %s", failure.Category, failure.Detail)
 	}
-	return size, nil
+	value, ok := reading.GetValue().GetKind().(*observation.Value_UintValue)
+	if !ok {
+		return 0, fmt.Errorf("BPF JIT sensor returned no unsigned byte count")
+	}
+	return value.UintValue, nil
 }

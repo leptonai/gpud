@@ -2,6 +2,7 @@ package memory
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestGetCurrentBPFJITBufferBytes_SuccessWithMockey(t *testing.T) {
 		mockey.Mock(isLinux).To(func() bool {
 			return true
 		}).Build()
-		mockey.Mock(readBPFJITBufferBytes).To(func(_ string) (uint64, error) {
+		mockey.Mock(readBPFJITBufferBytes).To(func(_ fs.FS) (uint64, error) {
 			return expected, nil
 		}).Build()
 
@@ -34,7 +35,7 @@ func TestGetCurrentBPFJITBufferBytes_NonRootReadErrorWithMockey(t *testing.T) {
 		mockey.Mock(isLinux).To(func() bool {
 			return true
 		}).Build()
-		mockey.Mock(readBPFJITBufferBytes).To(func(_ string) (uint64, error) {
+		mockey.Mock(readBPFJITBufferBytes).To(func(_ fs.FS) (uint64, error) {
 			return 0, readErr
 		}).Build()
 		mockey.Mock(os.Geteuid).To(func() int {
@@ -54,7 +55,7 @@ func TestGetCurrentBPFJITBufferBytes_RootReadErrorWithMockey(t *testing.T) {
 		mockey.Mock(isLinux).To(func() bool {
 			return true
 		}).Build()
-		mockey.Mock(readBPFJITBufferBytes).To(func(_ string) (uint64, error) {
+		mockey.Mock(readBPFJITBufferBytes).To(func(_ fs.FS) (uint64, error) {
 			return 0, readErr
 		}).Build()
 		mockey.Mock(os.Geteuid).To(func() int {

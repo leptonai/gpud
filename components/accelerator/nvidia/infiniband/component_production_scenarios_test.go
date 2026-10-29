@@ -253,7 +253,7 @@ func TestDormantPortHandling(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				// 8 healthy ports (meeting threshold) + 4 dormant ports
 				return createMixedDevices(8, 4), nil
 			},
@@ -299,7 +299,7 @@ func TestDormantPortHandling(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				// Only 7 healthy ports (threshold failure)
 				return createMixedDevices(7, 5), nil
 			},
@@ -330,7 +330,7 @@ func createTestComponent(checkTime time.Time, store infinibandstore.Store, stick
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}

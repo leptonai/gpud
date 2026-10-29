@@ -21,6 +21,8 @@ import (
 	"path"
 	"regexp"
 	"strconv"
+
+	memorysignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg/memory"
 )
 
 // OOMEventName is emitted when the kernel reports an out-of-memory kill event.
@@ -37,7 +39,7 @@ func createMatchFunc() func(line string) (eventName string, message string) {
 		// Always check if the current line is the start of a new OOM sequence.
 		// This handles cases where a new OOM event begins before the previous one
 		// was fully parsed (e.g., incomplete legacy event or missing lines).
-		isNewOomStart := checkIfStartOfOomMessages(line)
+		isNewOomStart := firstLineRegexp.MatchString(line)
 
 		if isNewOomStart {
 			// A new OOM event has started. This could be the first one, or it could
@@ -140,20 +142,10 @@ func (o *OOMInstance) Summary() string {
 }
 
 var (
-	legacyContainerRegexp = regexp.MustCompile(`Task in (.*) killed as a result of limit of (.*)`)
-
-	// Starting in 5.0 linux kernels, the OOM message changed
-	// e.g.,
-	// oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
-	containerRegexp = regexp.MustCompile(`oom-kill:constraint=(.*),nodemask=(.*),cpuset=(.*),mems_allowed=(.*),oom_memcg=(.*),task_memcg=(.*),task=(.*),pid=(.*),uid=(.*)`)
-
-	// e.g.,
-	// Out of memory: Killed process 123, UID 48, (httpd).
-	lastLineRegexp = regexp.MustCompile(`Killed process ([0-9]+) \((.+)\)`)
-
-	// e.g.,
-	// postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
-	firstLineRegexp = regexp.MustCompile(`invoked oom-killer:`)
+	legacyContainerRegexp = regexp.MustCompile(memorysignals.DefaultPatterns()[memorysignals.OOMLegacyContainer])
+	containerRegexp       = regexp.MustCompile(memorysignals.DefaultPatterns()[memorysignals.OOMContainer])
+	lastLineRegexp        = regexp.MustCompile(memorysignals.DefaultPatterns()[memorysignals.OOMKilledProcess])
+	firstLineRegexp       = regexp.MustCompile(memorysignals.DefaultPatterns()[memorysignals.OOM])
 )
 
 // gets the container name from a line and adds it to the oomInstance.
@@ -201,10 +193,4 @@ func getProcessNamePid(line string, currentOomInstance *OOMInstance) (bool, erro
 	currentOomInstance.Pid = pid
 	currentOomInstance.ProcessName = reList[2]
 	return true, nil
-}
-
-// uses regex to see if line is the start of a kernel oom log
-func checkIfStartOfOomMessages(line string) bool {
-	potentialOomStart := firstLineRegexp.MatchString(line)
-	return potentialOomStart
 }

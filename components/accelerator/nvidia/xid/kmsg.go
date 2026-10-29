@@ -5,49 +5,14 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-)
 
-const (
-	// RegexNVRMXidCombined matches standard NVRM XID messages and captures the device ID and XID code.
-	// e.g.,
-	// [...] NVRM: Xid (0000:03:00): 14, Channel 00000001
-	// [...] NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.
-	// NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus.
-	//
-	// ref.
-	// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
-	//
-	// Group 1: Device UUID (with or without PCI: prefix)
-	// Group 2: Xid error code
-	RegexNVRMXidCombined = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\).*?: (\d+),`
-
-	// RegexNVRMXidExtended matches NVLink5 XID messages with subcode fields.
-	// Extended regex for NVLink5 errors (XIDs 144-150) with subcode information
-	// Captures: PCI address, XID, optional pid/name, subcode name, severity, XC type, injection, link, intrinfo, errorstatus
-	// Example: NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 ...)
-	// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
-	RegexNVRMXidExtended = `NVRM: Xid \(PCI:([0-9a-fA-F:]+)\): (\d+)(?:, pid=(\d+), name=([^,]+))?, ([A-Z_]+(?:/[A-Z_]+)?)\s+(Nonfatal|Fatal)\s+(XC[01])\s+(i\d+)\s+Link\s+(-?\d+)\s+\((0x[0-9a-fA-F]+)\s+(0x[0-9a-fA-F]+)(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?`
-
-	// RegexNVRMFallenOffBusMultiline matches multiline fallen-off-the-bus logs that imply XID 79.
-	// Fallback signatures for "GPU has fallen off the bus" logs that do not include
-	// explicit "NVRM: Xid (...)" text.
-	//
-	// Multiline example:
-	// NVRM: The NVIDIA GPU 0000:18:00.0
-	// NVRM: ... fallen off the bus and is not responding to commands.
-	RegexNVRMFallenOffBusMultiline = `(?s)NVRM:\s+The NVIDIA GPU ((?:[0-9a-fA-F]{4}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2})\.0.*?fallen off the bus and is not responding to commands\.`
-
-	// RegexNVRMFallenOffBusSingleLine matches single-line fallen-off-the-bus logs that imply XID 79.
-	// Single-line example:
-	// NVRM: GPU 0000:18:00.0: GPU has fallen off the bus.
-	RegexNVRMFallenOffBusSingleLine = `NVRM:\s+GPU ((?:[0-9a-fA-F]{4}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2})\.0:\s+GPU has fallen off the bus\.?`
+	xidsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg/xid"
 )
 
 var (
-	compiledRegexNVRMXidCombined            = regexp.MustCompile(RegexNVRMXidCombined)
-	compiledRegexNVRMXidExtended            = regexp.MustCompile(RegexNVRMXidExtended)
-	compiledRegexNVRMFallenOffBusMultiline  = regexp.MustCompile(RegexNVRMFallenOffBusMultiline)
-	compiledRegexNVRMFallenOffBusSingleLine = regexp.MustCompile(RegexNVRMFallenOffBusSingleLine)
+	compiledRegexNVRMXidExtended            = regexp.MustCompile(xidsignals.DefaultPatterns()[xidsignals.NVRMXidExtended])
+	compiledRegexNVRMFallenOffBusMultiline  = regexp.MustCompile(xidsignals.DefaultPatterns()[xidsignals.NVRMFallenOffBusMultiline])
+	compiledRegexNVRMFallenOffBusSingleLine = regexp.MustCompile(xidsignals.DefaultPatterns()[xidsignals.NVRMFallenOffBusSingleLine])
 )
 
 const (
@@ -66,26 +31,6 @@ const (
 )
 
 const nvrmXidRegexIdxOptionalHexEnd = nvrmXidRegexIdxOptionalHexStart + 3
-
-// ExtractNVRMXidInfo extracts both the nvidia Xid error code and device UUID from the dmesg log line.
-// Returns (xidCode, deviceUUID) or (0, "") if not found.
-// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
-func ExtractNVRMXidInfo(line string) (int, string) {
-	if match := compiledRegexNVRMXidCombined.FindStringSubmatch(line); match != nil {
-		if id, err := strconv.Atoi(match[2]); err == nil {
-			return id, match[1]
-		}
-	}
-	return 0, ""
-}
-
-// ExtractNVRMXid extracts the nvidia Xid error code from the dmesg log line.
-// Returns 0 if the error code is not found.
-// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
-func ExtractNVRMXid(line string) int {
-	id, _ := ExtractNVRMXidInfo(line)
-	return id
-}
 
 // ExtractedInfo contains detailed information extracted from NVLink5 XID error logs (XIDs 144-150).
 // Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
@@ -214,7 +159,7 @@ func Match(line string) *Error {
 		}
 	}
 
-	extractedID, deviceUUID := ExtractNVRMXidInfo(line)
+	extractedID, deviceUUID := xidsignals.ExtractNVRMXidInfo(line)
 	if extractedID != 0 {
 		detail, ok := GetDetail(extractedID)
 		if !ok {

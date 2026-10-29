@@ -73,7 +73,7 @@ func TestFlapAutoClearWindowDisabledIsAlwaysSticky(t *testing.T) {
 		},
 	}
 	c := newFlapTestComponent(mockStore, 0, &now)
-	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(context.Context) (infinibandclass.Devices, error) {
 		return createHealthyDevices(8, 400), nil // all ports healthy now
 	}
 
@@ -102,7 +102,7 @@ func TestFlapAutoClearWindowOptInRecovers(t *testing.T) {
 	c := newFlapTestComponent(mockStore, 10*time.Minute, &now)
 
 	// Step 1: port currently DOWN (thresholds failing) -> flap surfaced.
-	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(context.Context) (infinibandclass.Devices, error) {
 		return sevenActiveOneDown(), nil
 	}
 	cr := requireCheckResult(t, c.Check())
@@ -111,7 +111,7 @@ func TestFlapAutoClearWindowOptInRecovers(t *testing.T) {
 
 	// Step 2: port recovers (8/8). The failing->passing transition starts the
 	// recovery timer; within the window the flap is still surfaced.
-	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(context.Context) (infinibandclass.Devices, error) {
 		return createHealthyDevices(8, 400), nil
 	}
 	cr = requireCheckResult(t, c.Check())
@@ -143,7 +143,7 @@ func TestFlapAutoClearWindowOptInSurfacesRecentFlapAfterRestart(t *testing.T) {
 		},
 	}
 	c := newFlapTestComponent(mockStore, 10*time.Minute, &now)
-	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(context.Context) (infinibandclass.Devices, error) {
 		return createHealthyDevices(8, 400), nil
 	}
 
@@ -168,7 +168,7 @@ func TestFlapAutoClearWindowOptInClearsOldRecoveredFlapAfterRestart(t *testing.T
 		},
 	}
 	c := newFlapTestComponent(mockStore, 10*time.Minute, &now)
-	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(context.Context) (infinibandclass.Devices, error) {
 		return createHealthyDevices(8, 400), nil
 	}
 
@@ -194,8 +194,8 @@ func TestFlapAutoClearWindowOptInStaysStickyWhileFlapping(t *testing.T) {
 	}
 	c := newFlapTestComponent(mockStore, 10*time.Minute, &now)
 
-	down := func(_ map[string]struct{}) (infinibandclass.Devices, error) { return sevenActiveOneDown(), nil }
-	up := func(_ map[string]struct{}) (infinibandclass.Devices, error) { return createHealthyDevices(8, 400), nil }
+	down := func(context.Context) (infinibandclass.Devices, error) { return sevenActiveOneDown(), nil }
+	up := func(context.Context) (infinibandclass.Devices, error) { return createHealthyDevices(8, 400), nil }
 
 	// Flap a few cycles, each separated by less than the window, and confirm it
 	// never reports Healthy: the recovery timer resets on every dip.

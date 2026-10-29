@@ -39,7 +39,7 @@ type nicFunction struct {
 
 // collectNICs reports one instance per physical ConnectX-8 or BlueField-3 card.
 //
-// It does not reuse infiniband/class.LoadDevices: that skips names without the
+// It does not reuse infiniband/class.Reader: that skips names without the
 // "mlx" prefix (OCI GB300 rails are rdma_rail*), reads every port counter, and
 // fails the whole load on one bad device. It also does not apply
 // ExcludedInfinibandDevices: the files read here are attributes cached by the

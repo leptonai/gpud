@@ -27,12 +27,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/host"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -290,43 +290,18 @@ func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message, dedu
 }
 
 func parseLine(bootTime time.Time, line string) (*Message, error) {
-	// Format:
-	//   PRIORITY,SEQUENCE_NUM,TIMESTAMP,-;MESSAGE
-	parts := strings.SplitN(line, ";", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid kmsg; must contain a ';'")
-	}
-
-	metadata, message := parts[0], parts[1]
-
-	metadataParts := strings.Split(metadata, ",")
-	if len(metadataParts) < 3 {
-		return nil, fmt.Errorf("invalid kmsg: must contain at least 3 ',' separated pieces at the start")
-	}
-
-	priority, sequence, timestamp := metadataParts[0], metadataParts[1], metadataParts[2]
-
-	prioNum, err := strconv.Atoi(priority)
+	msg, err := kmsgsource.Parse(bootTime, line)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse %q as priority: %v", priority, err)
+		return nil, err
 	}
-
-	sequenceNum, err := strconv.Atoi(sequence)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse %q as sequence number: %v", priority, err)
+	sequence := int(msg.Sequence)
+	if int64(sequence) != msg.Sequence {
+		return nil, fmt.Errorf("kmsg sequence number %d overflows int", msg.Sequence)
 	}
-
-	timestampUsFromBoot, err := strconv.ParseInt(timestamp, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse %q as timestamp: %v", priority, err)
-	}
-	// timestamp is offset in microsecond from boottime.
-	msgTime := bootTime.Add(time.Duration(timestampUsFromBoot) * time.Microsecond)
-
 	return &Message{
-		Priority:       prioNum,
-		SequenceNumber: sequenceNum,
-		Timestamp:      metav1.NewTime(msgTime),
-		Message:        message,
+		Priority:       msg.Priority,
+		SequenceNumber: sequence,
+		Timestamp:      metav1.NewTime(msg.Timestamp),
+		Message:        msg.Body,
 	}, nil
 }

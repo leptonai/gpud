@@ -45,7 +45,7 @@ func TestDebugThresholdFailingOldDrop(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return 7 healthy ports (below threshold)
 			return createHealthyDevices(7, 400), nil
 		},
@@ -174,7 +174,7 @@ func TestThreeConditionsIndependently(t *testing.T) {
 						AtLeastRate:  400,
 					}
 				},
-				getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+				getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 					devices := createHealthyDevices(healthyPorts, 400)
 					if healthyPorts > 0 {
 						devices[healthyPorts-1].Name = "mlx5_test"

@@ -7,100 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	xidsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg/xid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestExtractNVRMXid(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    string
-		expected int
-	}{
-		{
-			name:     "No match",
-			input:    "Regular log content without Xid errors",
-			expected: 0,
-		},
-		{
-			name:     "NVRM Xid with non-numeric value",
-			input:    "NVRM: Xid error: xyz, invalid data",
-			expected: 0,
-		},
-		{
-			name:     "error example with PCI prefix",
-			input:    "[111111111.111] NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.",
-			expected: 79,
-		},
-		{
-			name:     "error example without timestamp",
-			input:    "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus.",
-			expected: 79,
-		},
-		{
-			name:     "error example with channel",
-			input:    "[...] NVRM: Xid (0000:03:00): 14, Channel 00000001",
-			expected: 14,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, _ := ExtractNVRMXidInfo(tt.input)
-			assert.Equalf(t, tt.expected, result, "ExtractNVRMXidInfo(%q) mismatch", tt.input)
-		})
-	}
-}
-
-func TestExtractNVRMXidDeviceUUID(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "device ID without PCI prefix",
-			input:    "[...] NVRM: Xid (0000:03:00): 14, Channel 00000001",
-			expected: "0000:03:00",
-		},
-		{
-			name:     "device ID with PCI prefix",
-			input:    "[...] NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.",
-			expected: "PCI:0000:05:00",
-		},
-		{
-			name:     "device ID without PCI prefix without timestamp",
-			input:    "NVRM: Xid (0000:03:00): 14, Channel 00000001",
-			expected: "0000:03:00",
-		},
-		{
-			name:     "device ID with PCI prefix without timestamp",
-			input:    "NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.",
-			expected: "PCI:0000:05:00",
-		},
-		{
-			name:     "no device ID",
-			input:    "Regular log content without Xid",
-			expected: "",
-		},
-		{
-			name:     "malformed device ID",
-			input:    "NVRM: Xid (invalid): some error",
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, result := ExtractNVRMXidInfo(tt.input)
-			assert.Equalf(t, tt.expected, result, "ExtractNVRMXidInfo(%q) device mismatch", tt.input)
-		})
-	}
-}
 
 func TestMatch(t *testing.T) {
 	t.Parallel()
@@ -438,7 +348,7 @@ func TestGetMessageToInject_XidExtraction(t *testing.T) {
 	for _, xid := range knownXids {
 		t.Run(fmt.Sprintf("known_xid_%d", xid), func(t *testing.T) {
 			msg := GetMessageToInject(xid)
-			extractedXid := ExtractNVRMXid(msg.Message)
+			extractedXid := xidsignals.ExtractNVRMXid(msg.Message)
 
 			require.NotZero(t, extractedXid, "ExtractNVRMXid failed to extract XID from message: %s", msg.Message)
 			require.Equal(t, xid, extractedXid)
@@ -451,7 +361,7 @@ func TestGetMessageToInject_XidExtraction(t *testing.T) {
 	for _, xid := range unknownXids {
 		t.Run(fmt.Sprintf("unknown_xid_%d", xid), func(t *testing.T) {
 			msg := GetMessageToInject(xid)
-			extractedXid := ExtractNVRMXid(msg.Message)
+			extractedXid := xidsignals.ExtractNVRMXid(msg.Message)
 
 			require.NotZero(t, extractedXid, "ExtractNVRMXid failed to extract XID from message: %s", msg.Message)
 			require.Equal(t, xid, extractedXid)
@@ -496,7 +406,7 @@ func TestAllKnownXidsHaveValidMessages(t *testing.T) {
 	for xid := range xidExampleMsgs {
 		t.Run(fmt.Sprintf("xid_%d", xid), func(t *testing.T) {
 			msg := GetMessageToInject(xid)
-			extractedXid := ExtractNVRMXid(msg.Message)
+			extractedXid := xidsignals.ExtractNVRMXid(msg.Message)
 
 			require.NotZero(t, extractedXid, "XID %d: ExtractNVRMXid failed to extract XID from message: %s", xid, msg.Message)
 			require.Equal(t, xid, extractedXid)
@@ -508,7 +418,7 @@ func TestExamplesWithExtractNVRMXid(t *testing.T) {
 	t.Parallel()
 	for xid, m := range xidExampleMsgs {
 		t.Run(fmt.Sprintf("xid_%s", m.Message), func(t *testing.T) {
-			extractedXid := ExtractNVRMXid(m.Message)
+			extractedXid := xidsignals.ExtractNVRMXid(m.Message)
 			require.Equal(t, xid, extractedXid)
 		})
 	}

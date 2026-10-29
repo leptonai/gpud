@@ -298,10 +298,9 @@ func TestComponent_Start_WithMockey(t *testing.T) {
 				// Zero threshold - Check() returns early but we detect it via getTimeNowFunc
 				return types.ExpectedPortStates{}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				return infinibandclass.Devices{}, nil
 			},
-			ignoreFiles: make(map[string]struct{}),
 		}
 
 		err := comp.Start()
@@ -341,11 +340,10 @@ func TestComponent_Start_WithContextCancel(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return types.ExpectedPortStates{}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				checkCount++
 				return infinibandclass.Devices{}, nil
 			},
-			ignoreFiles: make(map[string]struct{}),
 		}
 
 		err := comp.Start()
@@ -716,11 +714,10 @@ func TestCheck_ClassDevicesError_WithMockey(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return types.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				return nil, errors.New("failed to load class devices")
 			},
 			nvmlInstance: mockInst,
-			ignoreFiles:  make(map[string]struct{}),
 		}
 
 		result := comp.Check()
@@ -755,11 +752,10 @@ func TestCheck_ConcurrentAccess_WithMockey(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return types.ExpectedPortStates{} // Zero threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				return infinibandclass.Devices{}, nil
 			},
 			nvmlInstance: mockInst,
-			ignoreFiles:  make(map[string]struct{}),
 		}
 
 		// Run concurrent access

@@ -95,7 +95,7 @@ type component struct {
 
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() types.ExpectedPortStates
-	getClassDevicesFunc func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error)
+	getClassDevicesFunc func(context.Context) (infinibandclass.Devices, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -103,10 +103,6 @@ type component struct {
 	// Track when thresholds last recovered for sticky window logic
 	thresholdRecoveryTimeMu sync.RWMutex
 	thresholdRecoveryTime   *time.Time
-
-	// ignoreFiles tracks the files that failed to read (e.g. EINVAL)
-	// to avoid reading them again and causing kernel log spam
-	ignoreFiles map[string]struct{}
 
 	// nvsSource is the optional NVSentinel event source. When set, the
 	// component prefers NVSentinel NIC driver data points and suppresses
@@ -143,19 +139,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		getThresholdsFunc: GetDefaultExpectedPortStates,
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-			opts := []infinibandclass.OpOption{
-				infinibandclass.WithIgnoreFiles(ignoreFiles),
-			}
-			// Exclude devices that have restricted PFs and cause ACCESS_REG errors.
-			// ref. https://github.com/prometheus/node_exporter/issues/3434
-			// ref. https://github.com/leptonai/gpud/issues/1164
-			if len(gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices) > 0 {
-				opts = append(opts, infinibandclass.WithExcludedDevices(gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices))
-			}
-			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir, opts...)
-		},
-		ignoreFiles: make(map[string]struct{}),
+		getClassDevicesFunc: infinibandclass.New(
+			gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir,
+			gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices...,
+		).Read,
 		nicPCICache: make(map[string]string),
 	}
 
@@ -386,7 +373,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	var err error
-	cr.ClassDevices, err = c.getClassDevicesFunc(c.ignoreFiles)
+	cr.ClassDevices, err = c.getClassDevicesFunc(c.ctx)
 	if err != nil {
 		log.Logger.Warnw("error loading infiniband class devices", "devices", len(cr.ClassDevices), "error", err)
 		cr.health = apiv1.HealthStateTypeUnhealthy

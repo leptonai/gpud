@@ -465,3 +465,15 @@ func Test_DescribeTimestamp(t *testing.T) {
 		})
 	}
 }
+
+func TestParseLineRejectsTimestampOverflow(t *testing.T) {
+	boot := time.Unix(1700000000, 0)
+	for _, raw := range []string{
+		"6,1,9223372036854776,-;overflow",
+		"6,1,-9223372036854776,-;underflow",
+	} {
+		msg, err := parseLine(boot, raw)
+		require.ErrorContains(t, err, "overflows time.Duration")
+		require.Nil(t, msg)
+	}
+}
