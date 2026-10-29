@@ -14,7 +14,6 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
@@ -29,11 +28,11 @@ func TestRecoveryRepeatedTransitionSurvivesDelivery(t *testing.T) {
 		for _, awaitInsert := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%v/await-insert=%t", producers, awaitInsert), func(t *testing.T) {
 				c, _ := newTestComponentWithNVSentinel(t, nvsentineltest.NewFakeSource())
-				ch := make(chan kmsg.Message, 3)
+				ch := make(chan apiv1.KernelMessage, 3)
 				if producers[0] == "nvsentinel" {
 					ch = nil
 				}
-				go c.start(ch, time.Hour)
+				go c.startKernelTest(ch, time.Hour)
 				now := time.Now().UTC().Truncate(time.Second).Add(-10 * time.Second)
 				request := "NVRM: Xid (PCI:0000:01:00): 154, GPU recovery action changed from 0x0 (None) to 0x1 (GPU Reset Required)"
 				none := "NVRM: Xid (PCI:0000:01:00): 154, GPU recovery action changed from 0x1 (GPU Reset Required) to 0x0 (None)"
@@ -47,7 +46,7 @@ func TestRecoveryRepeatedTransitionSurvivesDelivery(t *testing.T) {
 				for i, line := range []string{request, none, request} {
 					ts := now.Add(time.Duration(i) * time.Second)
 					if producers[i] == "kmsg" {
-						ch <- kmsg.Message{Timestamp: metav1.NewTime(ts), Message: line}
+						ch <- apiv1.KernelMessage{Timestamp: metav1.NewTime(ts), Message: line}
 					} else {
 						ev := newNVSentinelXidEvent("154", "PCI:0000:01:00")
 						ev.ID = fmt.Sprintf("transition-%d", i)

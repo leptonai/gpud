@@ -246,3 +246,27 @@ func nodeLabelsFlagUsage(flag cli.Flag) string {
 		return strings.TrimSpace(flag.String())
 	}
 }
+
+func TestExperimentalHealthValidationFlag(t *testing.T) {
+	for _, name := range []string{"up", "run"} {
+		for _, args := range [][]string{nil, {"--experimental-health-validation"}, {"--experimental-health-validation=false"}} {
+			app := App()
+			found := false
+			for _, command := range app.Commands {
+				if command.Name != name {
+					continue
+				}
+				found = true
+				set := flag.NewFlagSet(name, flag.ContinueOnError)
+				for _, f := range command.Flags {
+					f.Apply(set)
+				}
+				require.NotNil(t, set.Lookup("experimental-health-validation"))
+				require.Equal(t, "false", set.Lookup("experimental-health-validation").DefValue)
+				require.NoError(t, set.Parse(args))
+				require.Equal(t, len(args) == 1 && args[0] == "--experimental-health-validation", cli.NewContext(app, set, nil).Bool("experimental-health-validation"))
+			}
+			require.True(t, found)
+		}
+	}
+}

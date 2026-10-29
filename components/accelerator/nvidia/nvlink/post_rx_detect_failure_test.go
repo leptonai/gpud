@@ -14,7 +14,6 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
@@ -204,7 +203,7 @@ func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing
 		},
 	))
 	baseTime := time.Date(2026, 2, 3, 3, 0, 0, 0, time.UTC)
-	reportedKmsgs := []kmsg.Message{
+	reportedKmsgs := []apiv1.KernelMessage{
 		{Timestamp: metav1.NewTime(baseTime), Message: "[6619715.535712] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
 		{Timestamp: metav1.NewTime(baseTime.Add(18 * time.Microsecond)), Message: "[6619715.535730] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
 		{Timestamp: metav1.NewTime(baseTime.Add(4*time.Second + 2771*time.Microsecond)), Message: "[6619719.538483] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
@@ -217,7 +216,7 @@ func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing
 		assert.Equal(t, EventNamePostRxDetectFailure, eventName, message.Message)
 		assert.Equal(t, postRxDetectFailureMessage, eventMessage, message.Message)
 	}
-	c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
+	c.readAllKmsg = func(context.Context) ([]apiv1.KernelMessage, error) {
 		return reportedKmsgs, nil
 	}
 
@@ -231,7 +230,7 @@ func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing
 	require.NotNil(t, state.SuggestedActions)
 	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
 
-	reportedKmsgs = append(reportedKmsgs, kmsg.Message{
+	reportedKmsgs = append(reportedKmsgs, apiv1.KernelMessage{
 		Timestamp: metav1.NewTime(baseTime.Add(defaultKmsgEventDedupWindow)),
 		Message:   "NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!",
 	})
@@ -241,14 +240,14 @@ func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing
 func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 	tests := []struct {
 		name       string
-		readAll    func(context.Context) ([]kmsg.Message, error)
+		readAll    func(context.Context) ([]apiv1.KernelMessage, error)
 		wantHealth apiv1.HealthStateType
 		wantReason string
 		wantString string
 	}{
 		{
 			name: "read failure",
-			readAll: func(context.Context) ([]kmsg.Message, error) {
+			readAll: func(context.Context) ([]apiv1.KernelMessage, error) {
 				return nil, errors.New("read failed")
 			},
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
@@ -257,8 +256,8 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 		},
 		{
 			name: "no matching message",
-			readAll: func(context.Context) ([]kmsg.Message, error) {
-				return []kmsg.Message{{Message: "unrelated kernel message"}}, nil
+			readAll: func(context.Context) ([]apiv1.KernelMessage, error) {
+				return []apiv1.KernelMessage{{Message: "unrelated kernel message"}}, nil
 			},
 			wantHealth: apiv1.HealthStateTypeHealthy,
 			wantReason: "all 0 GPU(s) were checked, no nvlink issue found",

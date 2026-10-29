@@ -52,9 +52,7 @@ func TestComponentReadClass(t *testing.T) {
 		getThresholdsFunc: func() types.ExpectedPortStates {
 			return threshold
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-			return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-		},
+		getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 	}
 
 	// Test case 1: Basic healthy scenario with sufficient ports and rate
@@ -337,9 +335,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Initial state - all ports active
@@ -400,9 +396,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Simulate rapid flapping on multiple ports
@@ -452,9 +446,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Port flaps with increasing error counters
@@ -522,9 +514,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Set multiple ports down to trigger unhealthy state
@@ -576,9 +566,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Simulate rapidly increasing error counters (packet drops)
@@ -624,9 +612,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Ports go down
@@ -702,9 +688,7 @@ func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Set some ports persistently down (drop scenario)
@@ -796,9 +780,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Simulate rapid increase in receive errors (1000 errors per 30 seconds)
@@ -836,9 +818,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Multiple error counters increasing
@@ -886,9 +866,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Burst of errors
@@ -950,9 +928,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Set high counter values
@@ -1000,9 +976,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(subClassRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(subClassRootDir).Read,
 		}
 
 		// All InfiniBand ports go down simultaneously (excluding Ethernet bond)
@@ -1054,9 +1028,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Degrade rate on multiple ports while keeping them active
@@ -1101,9 +1073,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Change physical state while keeping logical state active
@@ -1219,11 +1189,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				// The test data has 8 InfiniBand ports (mlx5_0, mlx5_1, mlx5_4-9)
-				// We'll modify some to be down but still meet the threshold
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Initial state - all 8 IB ports are active by default in test data
@@ -1319,9 +1285,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Set multiple ports down to breach threshold
@@ -1431,12 +1395,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				// Mock the realistic scenario based on ibstat output
-				// Note: The test data directory might not have all these devices,
-				// so we'll configure the available ones to match the pattern
-				return infinibandclass.LoadDevices(classRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(classRootDir).Read,
 		}
 
 		// Configure ports to match the realistic scenario
@@ -1531,9 +1490,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(subClassRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(subClassRootDir).Read,
 		}
 
 		// Configure same port states as before
@@ -1636,9 +1593,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(subClassRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(subClassRootDir).Read,
 		}
 
 		// Only 4 healthy ports
@@ -1727,9 +1682,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-				return infinibandclass.LoadDevices(subClassRootDir, infinibandclass.WithIgnoreFiles(ignoreFiles))
-			},
+			getClassDevicesFunc: infinibandclass.New(subClassRootDir).Read,
 		}
 
 		// All ports healthy

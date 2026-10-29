@@ -13,7 +13,6 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
@@ -226,15 +225,15 @@ func TestRecoveryProducersPersistPolicy(t *testing.T) {
 		} {
 			t.Run(producer+"/"+tc.to, func(t *testing.T) {
 				c, _ := newTestComponentWithNVSentinel(t, nil)
-				ch := make(chan kmsg.Message, 1)
+				ch := make(chan apiv1.KernelMessage, 1)
 				if producer == "nvsentinel" {
 					ch = nil
 				}
-				go c.start(ch, time.Hour)
+				go c.startKernelTest(ch, time.Hour)
 				now := time.Now().UTC()
 				line := recoveryLine("0000:01:00", tc.to)
 				if producer == "kmsg" {
-					ch <- kmsg.Message{Timestamp: metav1.NewTime(now), Message: line}
+					ch <- apiv1.KernelMessage{Timestamp: metav1.NewTime(now), Message: line}
 				} else {
 					ev := newNVSentinelXidEvent("154", "GPU-recovery")
 					ev.Message = line

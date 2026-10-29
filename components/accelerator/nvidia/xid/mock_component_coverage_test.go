@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dsx-ai-factory/health-validation/collect/observation"
+
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +17,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
@@ -134,7 +137,7 @@ func TestNew_Branches_WithMockey(t *testing.T) {
 	defer cancel()
 
 	mockey.PatchConvey("New returns event bucket error", t, func() {
-		gpudInstance := &components.GPUdInstance{
+		gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 			RootCtx:    ctx,
 			EventStore: &stubEventStore{err: errors.New("bucket failed")},
 		}
@@ -146,11 +149,11 @@ func TestNew_Branches_WithMockey(t *testing.T) {
 
 	mockey.PatchConvey("New returns watcher error when running as root", t, func() {
 		mockey.Mock(os.Geteuid).To(func() int { return 0 }).Build()
-		mockey.Mock(kmsg.NewWatcher).To(func(...kmsg.OpOption) (kmsg.Watcher, error) {
+		mockey.Mock((*componentkmsg.Stream).Subscribe).To(func(*componentkmsg.Stream, context.Context, func(context.Context, *observation.ObservationBatch), func()) (func(), error) {
 			return nil, errors.New("watcher failed")
 		}).Build()
 
-		gpudInstance := &components.GPUdInstance{
+		gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 			RootCtx:    ctx,
 			EventStore: &stubEventStore{bucket: &stubEventBucket{}},
 		}
@@ -220,7 +223,7 @@ func TestComponent_start_Branches_WithMockey(t *testing.T) {
 	defer cancel()
 
 	extraCh := make(chan pendingEvent, 2)
-	kmsgCh := make(chan kmsg.Message, 2)
+	kmsgCh := make(chan apiv1.KernelMessage, 2)
 
 	c := &component{
 		ctx:          ctx,
@@ -235,13 +238,13 @@ func TestComponent_start_Branches_WithMockey(t *testing.T) {
 
 		done := make(chan struct{})
 		go func() {
-			c.start(kmsgCh, 5*time.Millisecond)
+			c.startKernelTest(kmsgCh, 5*time.Millisecond)
 			close(done)
 		}()
 
 		extraCh <- pendingEvent{}
 		extraCh <- pendingEvent{event: &eventstore.Event{Name: "test", Time: time.Now()}}
-		kmsgCh <- kmsg.Message{
+		kmsgCh <- apiv1.KernelMessage{
 			Timestamp: metav1.Now(),
 			Message:   "this is not an xid message",
 		}
@@ -345,14 +348,14 @@ func TestCheck_EarlyBranches_WithMockey(t *testing.T) {
 		c := &component{
 			ctx:          context.Background(),
 			nvmlInstance: newNVML(true, "GPU", nil),
-			readAllKmsg: func(context.Context) ([]kmsg.Message, error) {
-				return []kmsg.Message{
+			readAllKmsg: kernelReaderForTest(func(context.Context) ([]apiv1.KernelMessage, error) {
+				return []apiv1.KernelMessage{
 					{
 						Timestamp: metav1.Now(),
 						Message:   "this line has no xid content",
 					},
 				}, nil
-			},
+			}),
 			getTimeNowFunc: func() time.Time {
 				return now
 			},
@@ -390,13 +393,13 @@ func TestStart_RetryContextDoneBranch_WithMockey(t *testing.T) {
 }
 
 func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
-	run := func(t *testing.T, c *component, msg kmsg.Message) {
+	run := func(t *testing.T, c *component, msg apiv1.KernelMessage) {
 		t.Helper()
 
-		kmsgCh := make(chan kmsg.Message, 1)
+		kmsgCh := make(chan apiv1.KernelMessage, 1)
 		done := make(chan struct{})
 		go func() {
-			c.start(kmsgCh, time.Hour)
+			c.startKernelTest(kmsgCh, time.Hour)
 			close(done)
 		}()
 
@@ -411,7 +414,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 		}
 	}
 
-	xidMsg := kmsg.Message{
+	xidMsg := apiv1.KernelMessage{
 		Timestamp: metav1.Now(),
 		Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=123",
 	}
@@ -492,7 +495,7 @@ func TestNew_ReadAllKmsgSetOnLinuxRoot_WithMockey(t *testing.T) {
 	mockey.PatchConvey("new sets readAllKmsg when running as root on linux", t, func() {
 		mockey.Mock(os.Geteuid).To(func() int { return 0 }).Build()
 
-		comp, err := New(&components.GPUdInstance{
+		comp, err := New(&components.GPUdInstance{ExperimentalHealthValidation: true,
 			RootCtx: ctx,
 		})
 		require.NoError(t, err)
