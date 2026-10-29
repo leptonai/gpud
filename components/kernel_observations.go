@@ -6,7 +6,6 @@ import (
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
-	xidsignals "github.com/dsx-ai-factory/health-validation/collect/signals/xid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -32,10 +31,6 @@ func KernelMessages(batch *observation.ObservationBatch) ([]apiv1.KernelMessage,
 	indexes := make(map[recordID]int)
 	var resultErr error
 	for _, reading := range batch.Observations {
-		// Xid facts share kernel-record identity but belong to the Xid shim.
-		if xidKernelSignalIDs[reading.GetSignalId()] {
-			continue
-		}
 		if failure := reading.GetCollectionError(); failure != nil {
 			if resultErr == nil {
 				resultErr = fmt.Errorf("kmsg collection %s: %s", failure.Category, failure.Detail)
@@ -85,11 +80,3 @@ func KernelMessages(batch *observation.ObservationBatch) ([]apiv1.KernelMessage,
 	}
 	return records, resultErr
 }
-
-var xidKernelSignalIDs = func() map[string]bool {
-	ids := make(map[string]bool)
-	for _, signal := range xidsignals.EventSignals() {
-		ids[signal.ID()] = true
-	}
-	return ids
-}()

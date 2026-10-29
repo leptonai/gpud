@@ -15,18 +15,16 @@ through `Sensor.Measure`, not `Source.Read`.
 
 The dependency is pinned to
 `github.com/dsx-ai-factory/health-validation` at
-`v0.0.0-20261029211243-87d4fa97acdc` (commit `87d4fa97acdc`).
-This draft assumes [health-validation #247](https://github.com/dsx-ai-factory/health-validation/pull/247)
-will merge and also needs the Xid kmsg-input extension in [health-validation #249](https://github.com/dsx-ai-factory/health-validation/pull/249).
-The pin includes both changes; it must be refreshed to merged upstream history
-before this migration is merged.
+`v0.0.0-20261029220550-542735d3b294` (commit `542735d3b294`),
+which is merged upstream and includes [health-validation #247](https://github.com/dsx-ai-factory/health-validation/pull/247).
+No unmerged health-validation change is required.
 The GPUd base is `24b9e76c`.
 
 | Collection | Imported package |
 | --- | --- |
 | BPF JIT accounting | `collect/sensors/memory` |
 | Kernel records | `collect/sensors/kmsg`, `collect/source/kmsg` |
-| Xid facts | `collect/sensors/xid.NewKmsg`, `collect/signals/xid` |
+| Xid parsing in the component shim | `collect/signals/xid` |
 | OOM and panic | `collect/signals/kmsg/memory` |
 | InfiniBand sysfs | `collect/sensors/infiniband` |
 
@@ -36,11 +34,12 @@ implement that conversion. Kernel-consuming components own `kernel_sensor.go`
 shims that convert observations into their GPUd events or event-loop input. They
 share the pure `components.KernelMessages` decoder and the
 `api/v1.KernelMessage`
-data type. The Xid shim joins parsed facts by boot ID and kernel sequence,
-then applies GPUd's catalog and NVLink recovery rules. GPUd no longer extracts
-Xid fields with its own regex/parser. Shared OOM/panic and fallen-off-bus
-patterns
-support the interpretation that remains in GPUd.
+data type. The Xid shim selects Xid messages and calls the library's
+`xid.Match` and `xid.Parse`, then converts the result and applies GPUd's catalog
+and NVLink recovery rules. Raw boot identity, sequence, timestamp, and body stay
+with the record. GPUd no longer extracts Xid fields with its own regex/parser.
+Shared OOM/panic and fallen-off-bus patterns support the interpretation that
+remains in GPUd.
 
 The InfiniBand adapter retains GPUd's device/port structs for metrics, JSON, and
 history. It preserves nullable counters, byte units, numeric port order, device
@@ -70,15 +69,16 @@ records beyond the old scanner's 64 KiB line limit. It reads the whole vmalloc
 file into memory; large-host memory and timing costs have not been measured.
 
 GPUd's entire `pkg/kmsg` directory is removed. The component runtime owns one
-health-validation `NewStream` and `xid.NewKmsg` sensor per `GPUdInstance`,
+health-validation `NewStream` and generic `kmsg.New` sensor per `GPUdInstance`,
 shared by all registered components. It delivers observation batches to
 component-owned shims;
 there is no replacement GPUd watcher/syncer compatibility API. Native reading,
 boot-time lookup, parsing, and the stream's bounded storage belong to the
 library.
-The Xid sensor composes the generic kmsg sensor and emits both raw records for
-other components and parsed Xid facts from that same measurement. It owns no
-second reader. The journal-based Xid API is unchanged upstream.
+The generic sensor uses a catch-all pattern and selects only `kernel.message`
+and `kernel.priority`, preserving empty messages and continuation lines. The
+same raw observations reach every subscriber; each component chooses which
+messages matter to it. The shared runtime has no Xid-specific interpretation.
 
 `GPUdInstance.ObserveKernel` manages subscriptions and serializes
 `Sensor.Measure`
@@ -100,8 +100,8 @@ library
 already keeps reading after an overrun, but GPUd previously treated its sticky
 loss report as terminal. Deduplication cannot repair a stopped subscription.
 A joined terminal error is not classified as a recoverable overrun and still
-releases subscriptions after delivering partial data. Targeted Xid parse errors
-reach the Xid shim without stopping unrelated components.
+releases subscriptions after delivering partial data. Xid parsing happens only
+inside its component shim, so a malformed Xid cannot stop other subscribers.
 
 Components retain their own matching and health interpretation, including
 multi-record OOM/panic reconstruction and NVSentinel suppression. GPUd event
@@ -110,12 +110,11 @@ Content deduplication remains component-local; InfiniBand and peermem retain
 their
 first-occurrence event windows, and NVLink retains its boot-specific event key.
 
-Xid, SXid, NCCL, and NVLink own `kernel_snapshot.go` shims. Xid uses
-`xid.NewKmsg`;
-the others use the generic kmsg sensor. All use the default `ReadAll` source
-and convert observations into GPUd results. They remain separate from the
-streaming window so
-on-demand checks can see records still in the kernel ring beyond the stream's
+Xid, SXid, NCCL, and NVLink own `kernel_snapshot.go` shims. All use the generic
+kmsg sensor with its default `ReadAll` source, and convert observations into
+GPUd results through the same component shims used by subscriptions.
+They remain separate from the streaming window so on-demand checks can see
+records still in the kernel ring beyond the stream's
 4,096-record window. This is not complete journal/boot history. JSON record
 fields are preserved by `api/v1.KernelMessage`; boot identity is not serialized.
 Xid event addresses now consistently use the `PCI:` prefix, including input

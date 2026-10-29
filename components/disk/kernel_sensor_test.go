@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
-	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
+	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
+	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,19 +29,15 @@ func TestKernelSensorPersistsPartialBatchAndDeduplicatesReplay(t *testing.T) {
 	defer bucket.Close()
 	c := &component{ctx: t.Context(), eventBucket: bucket}
 	at := time.Date(2026, 10, 29, 1, 0, 0, 0, time.UTC)
-	sensor, err := xidsensor.NewKmsg(func(context.Context) ([]kmsgsource.Message, error) {
+	sensor, err := kmsgsensor.New(func(context.Context) ([]kmsgsource.Message, error) {
 		return []kmsgsource.Message{
 			{BootID: "boot", Sequence: 1, Timestamp: at, Priority: 3, Body: "EXT4-fs (md0): Remounting filesystem read-only"},
 			{BootID: "boot", Sequence: 2, Timestamp: at, Priority: 6, Body: "unrelated kernel record"},
 			{BootID: "boot", Sequence: 3, Timestamp: at, Priority: 3, Body: "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus."},
 		}, errors.New("partial kernel read")
-	})
+	}, map[string]string{"gpud.kernel_record": `(?s).*`})
 	require.NoError(t, err)
-	var ids []string
-	for _, signal := range sensor.Signals() {
-		ids = append(ids, signal.ID())
-	}
-	batch, err := components.MeasureSensor(t.Context(), sensor, ids...)
+	batch, err := components.MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
 	require.NoError(t, err)
 	_, err = components.KernelMessages(batch)
 	require.ErrorContains(t, err, "partial kernel read")

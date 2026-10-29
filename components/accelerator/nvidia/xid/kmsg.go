@@ -14,7 +14,7 @@ var (
 )
 
 // nvlinkInfo contains the facts needed by GPUd's NVLink recovery policy.
-// Parsing the driver log is owned by the health-validation Xid sensor.
+// Parsing the driver log is owned by the health-validation Xid parser.
 type nvlinkInfo struct {
 	Xid         int
 	SubCodeName string
@@ -39,7 +39,7 @@ type Error struct {
 	Detail     *Detail `json:"detail,omitempty"`
 }
 
-// errorFromFacts applies GPUd's catalog and recovery policy to sensor facts.
+// errorFromFacts applies GPUd's catalog and recovery policy to parsed facts.
 func errorFromFacts(code int64, address string, extended *nvlinkInfo) *Error {
 	xid := int(code)
 	if int64(xid) != code {

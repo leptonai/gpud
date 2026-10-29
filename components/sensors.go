@@ -11,7 +11,7 @@ import (
 	"github.com/dsx-ai-factory/health-validation/collect"
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
+	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -64,7 +64,7 @@ func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.C
 		// The library's window only advances when immutable kernel identities
 		// change. Avoid matching unchanged records again between component polls.
 		var last recordID
-		sensor, err := xidsensor.NewKmsg(func(ctx context.Context) ([]kmsgsource.Message, error) {
+		sensor, err := kmsgsensor.New(func(ctx context.Context) ([]kmsgsource.Message, error) {
 			records, err := source.Read(ctx)
 			if err == nil && len(records) > 0 {
 				tail := records[len(records)-1]
@@ -75,7 +75,7 @@ func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.C
 				last = id
 			}
 			return records, err
-		})
+		}, map[string]string{"gpud.kernel_record": `(?s).*`})
 		if err != nil {
 			_ = source.Close()
 			g.kernelMu.Unlock()
@@ -146,11 +146,7 @@ func (s *sensorCycle) measure(ctx context.Context) (*observation.ObservationBatc
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.err == nil && !time.Now().Before(s.next) {
-		signals := make([]string, 0, len(s.sensor.Signals()))
-		for _, signal := range s.sensor.Signals() {
-			signals = append(signals, signal.ID())
-		}
-		batch, err := MeasureSensor(ctx, s.sensor, signals...)
+		batch, err := MeasureSensor(ctx, s.sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
 		s.err = err
 		if batch != nil {
 			delivered := &observation.ObservationBatch{CollectionId: batch.CollectionId}
@@ -163,9 +159,7 @@ func (s *sensorCycle) measure(ctx context.Context) (*observation.ObservationBatc
 						}
 						continue
 					}
-					// A malformed Xid belongs to that record's consumer.
-					// Untargeted failures mean the shared reader has failed.
-					if o.GetTarget().GetKernelRecord() == nil && s.err == nil {
+					if s.err == nil {
 						s.err = fmt.Errorf("%s: %s", failure.Category, failure.Detail)
 					}
 				}

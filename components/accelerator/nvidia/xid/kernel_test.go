@@ -5,7 +5,8 @@ import (
 	"errors"
 	"time"
 
-	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
+	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
+	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -15,7 +16,7 @@ import (
 // Existing policy fixtures pass through the same sensor and shim as production.
 func kernelReaderForTest(read func(context.Context) ([]apiv1.KernelMessage, error)) func(context.Context) ([]kernelRecord, error) {
 	return func(ctx context.Context) ([]kernelRecord, error) {
-		sensor, err := xidsensor.NewKmsg(func(ctx context.Context) ([]kmsgsource.Message, error) {
+		sensor, err := kmsgsensor.New(func(ctx context.Context) ([]kmsgsource.Message, error) {
 			messages, err := read(ctx)
 			source := make([]kmsgsource.Message, 0, len(messages))
 			for i, message := range messages {
@@ -26,15 +27,11 @@ func kernelReaderForTest(read func(context.Context) ([]apiv1.KernelMessage, erro
 				source = append(source, kmsgsource.Message{BootID: "fixture-boot", Sequence: int64(i), Timestamp: at, Priority: message.Priority, Body: message.Message})
 			}
 			return source, err
-		})
+		}, map[string]string{"gpud.kernel_record": `(?s).*`})
 		if err != nil {
 			return nil, err
 		}
-		var ids []string
-		for _, sig := range sensor.Signals() {
-			ids = append(ids, sig.ID())
-		}
-		batch, err := components.MeasureSensor(ctx, sensor, ids...)
+		batch, err := components.MeasureSensor(ctx, sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
 		if err != nil {
 			return nil, err
 		}

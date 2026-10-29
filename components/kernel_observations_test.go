@@ -10,9 +10,7 @@ import (
 	"time"
 
 	"github.com/dsx-ai-factory/health-validation/collect"
-	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
-
-	apiv1 "github.com/leptonai/gpud/api/v1"
+	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
@@ -20,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 func TestKernelSensorFixture(t *testing.T) {
@@ -115,7 +115,7 @@ func TestRecordsFromObservations(t *testing.T) {
 }
 
 func newKernelTestSensor(read func(context.Context) ([]kmsgsource.Message, error)) (collect.Sensor, error) {
-	return xidsensor.NewKmsg(read)
+	return kmsgsensor.New(read, map[string]string{"gpud.kernel_record": `(?s).*`})
 }
 func kernelTestRecord(sequence int64, body string) kmsgsource.Message {
 	return kmsgsource.Message{BootID: "boot-a", Sequence: sequence, Timestamp: time.Unix(1700000000, 0), Priority: 6, Body: body}

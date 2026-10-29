@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
-	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
+	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
+	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,15 +92,11 @@ func TestKernelSensorCancellationUnblocksFullQueue(t *testing.T) {
 
 func kernelDeliveryBatch(t *testing.T, records []kmsgsource.Message) *observation.ObservationBatch {
 	t.Helper()
-	sensor, err := xidsensor.NewKmsg(func(context.Context) ([]kmsgsource.Message, error) {
+	sensor, err := kmsgsensor.New(func(context.Context) ([]kmsgsource.Message, error) {
 		return records, errors.New("partial kernel read")
-	})
+	}, map[string]string{"gpud.kernel_record": `(?s).*`})
 	require.NoError(t, err)
-	var ids []string
-	for _, signal := range sensor.Signals() {
-		ids = append(ids, signal.ID())
-	}
-	batch, err := components.MeasureSensor(t.Context(), sensor, ids...)
+	batch, err := components.MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
 	require.NoError(t, err)
 	return batch
 }

@@ -261,13 +261,8 @@ func TestMalformedXidDoesNotStopOtherKernelConsumers(t *testing.T) {
 	records, err := KernelMessages(batch)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
-	failures := 0
-	for _, o := range batch.Observations {
-		if o.GetCollectionError() != nil {
-			failures++
-		}
-	}
-	assert.Positive(t, failures, "the Xid consumer still receives the parse failure")
+	assert.Len(t, batch.Observations, 2, "the shared sensor emits only raw message and priority")
+	assert.Equal(t, source.records[0].Body, records[0].Message, "component parsing must not alter shared records")
 	source.records = append(source.records, kernelTestRecord(5, "other component event"))
 	g.kernel.next = time.Time{}
 	batch, err = g.kernel.measure(t.Context())
