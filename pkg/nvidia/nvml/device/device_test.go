@@ -14,6 +14,10 @@ type stubDevice struct {
 	*mock.Device
 }
 
+func (d *stubDevice) GetAddressingModeAsString() (string, error) {
+	return "", nvml.ERROR_NOT_SUPPORTED
+}
+
 func (d *stubDevice) GetArchitectureAsString() (string, error) {
 	return "", nil
 }

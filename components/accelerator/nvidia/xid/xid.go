@@ -2704,8 +2704,8 @@ var details = map[int]Detail{
 
 	// NVLink XIDs (144-150) MUST have SuggestedActionsByGPUd set for reboot recovery.
 	//
-	// When a kernel message doesn't match RegexNVRMXidExtended (e.g., "Placeholder message"
-	// instead of "NETIR_BER_EVENT Nonfatal XC0 i0 Link 03 (0x00086226 ...)"), Match() falls
+	// When a kernel message doesn't match the extended Xid pattern (e.g., "Placeholder message"
+	// instead of "NETIR_BER_EVENT Nonfatal XC0 i0 Link 03 (0x00086226 ...)"), the Xid shim falls
 	// back to these base catalog entries. Without SuggestedActionsByGPUd, evolveHealthyState()
 	// cannot clear the error on reboot because it requires:
 	//   lastSuggestedAction != nil && RepairActions[0] == RebootSystem

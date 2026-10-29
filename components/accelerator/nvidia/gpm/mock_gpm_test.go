@@ -1422,12 +1422,7 @@ func TestGetGPMMetrics_MetricsCountMismatch(t *testing.T) {
 		mockey.Mock(nvml.GpmSampleAlloc).To(func() (nvml.GpmSample, nvml.Return) {
 			return mockSample, nvml.SUCCESS
 		}).Build()
-		// The condition in code checks:
-		// if len(gpmMetric.Metrics) == len(metricIDs) { return error }
-		// gpmMetric.Metrics is a [210]GpmMetric array, len is always 210
-		// So for 210 metric IDs, this condition would be true
-		// But we can't pass 210 (max is 98), so this error path may not be reachable
-		// We still test the normal case where len(gpmMetric.Metrics) = 210 != len(metricIDs)
+		// The NVML array capacity exceeds the selected metric count.
 		mockey.Mock(nvml.GpmMetricsGet).To(func(metricsGet *nvml.GpmMetricsGetType) nvml.Return {
 			metricsGet.Metrics[0].Value = 80.0
 			return nvml.SUCCESS

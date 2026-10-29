@@ -54,7 +54,7 @@ type component struct {
 	availableThresholdBytes uint64
 
 	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	stopKernel  func()
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -77,6 +77,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		availableThresholdBytes: defaultAvailableThresholdBytes,
 	}
 
+	if gpudInstance.ExperimentalHealthValidation {
+		c.getCurrentBPFJITBufferBytesFunc = getHealthValidationBPFJITBufferBytes
+	}
+
 	if gpudInstance.EventStore != nil {
 		var err error
 		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
@@ -86,7 +90,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, createMatchFunc(), c.eventBucket)
+			if gpudInstance.ExperimentalHealthValidation {
+				c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, createMatchFunc(), eventstore.DedupPolicy{})
+			} else {
+				var syncer *kmsg.Syncer
+				syncer, err = kmsg.NewSyncer(cctx, createMatchFunc(), c.eventBucket)
+				if err == nil {
+					c.stopKernel = syncer.Close
+				}
+			}
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -150,8 +162,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

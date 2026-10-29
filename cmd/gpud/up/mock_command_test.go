@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -45,6 +46,7 @@ func newCLIContext(t *testing.T, args []string) *cli.Context {
 	_ = flags.String("public-ip", "", "")
 	_ = flags.String("private-ip", "", "")
 	_ = flags.Bool("db-in-memory", false, "")
+	_ = flags.Bool("experimental-health-validation", false, "")
 
 	require.NoError(t, flags.Parse(args))
 	return cli.NewContext(app, flags, nil)
@@ -174,7 +176,7 @@ func TestCommand_SystemdInitError(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return errors.New("failed to create env file")
 		}).Build()
 
@@ -199,7 +201,7 @@ func TestCommand_EnableSystemdUnitError(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -233,7 +235,7 @@ func TestCommand_RestartSystemdUnitError(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -268,7 +270,7 @@ func TestCommand_SuccessWithoutToken(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -324,7 +326,7 @@ func TestCommand_SuccessWithToken(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -454,11 +456,11 @@ func TestRecordLoginSuccessState_Success(t *testing.T) {
 // TestSystemdInit_CreateEnvFileError tests systemdInit when creating env file fails.
 func TestSystemdInit_CreateEnvFileError(t *testing.T) {
 	mockey.PatchConvey("systemdInit create env file error", t, func() {
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return errors.New("failed to create env file")
 		}).Build()
 
-		err := systemdInit("http://localhost", "/tmp", false)
+		err := systemdInit("http://localhost", "/tmp", false, false)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create env file")
 	})
@@ -467,7 +469,7 @@ func TestSystemdInit_CreateEnvFileError(t *testing.T) {
 // TestSystemdInit_WriteFileError tests systemdInit when writing unit file fails.
 func TestSystemdInit_WriteFileError(t *testing.T) {
 	mockey.PatchConvey("systemdInit write file error", t, func() {
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -477,7 +479,7 @@ func TestSystemdInit_WriteFileError(t *testing.T) {
 			return errors.New("failed to write file")
 		}).Build()
 
-		err := systemdInit("http://localhost", "/tmp", false)
+		err := systemdInit("http://localhost", "/tmp", false, false)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to write file")
 	})
@@ -486,7 +488,7 @@ func TestSystemdInit_WriteFileError(t *testing.T) {
 // TestSystemdInit_Success tests successful systemdInit.
 func TestSystemdInit_Success(t *testing.T) {
 	mockey.PatchConvey("systemdInit success", t, func() {
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -496,7 +498,28 @@ func TestSystemdInit_Success(t *testing.T) {
 			return nil
 		}).Build()
 
-		err := systemdInit("http://localhost", "/tmp", false)
+		err := systemdInit("http://localhost", "/tmp", false, false)
 		require.NoError(t, err)
 	})
+}
+
+func TestCommandForwardsExperimentalHealthValidation(t *testing.T) {
+	for _, args := range [][]string{nil, {"--experimental-health-validation"}, {"--experimental-health-validation=false"}} {
+		mockey.PatchConvey(fmt.Sprint(args), t, func() {
+			mockey.Mock(common.ResolveDataDir).Return(t.TempDir(), nil).Build()
+			mockey.Mock(osutil.RequireRoot).Return(nil).Build()
+			mockey.Mock(os.Executable).Return("/usr/bin/gpud", nil).Build()
+			mockey.Mock(pkdsystemd.SystemctlExists).Return(true).Build()
+			mockey.Mock(systemd.DefaultBinExists).Return(true).Build()
+			reached := errors.New("captured runtime options")
+			calls := 0
+			mockey.Mock(systemd.CreateDefaultEnvFile).To(func(_, _ string, _ bool, enabled bool, _ ...string) error {
+				calls++
+				require.Equal(t, len(args) == 1 && args[0] == "--experimental-health-validation", enabled)
+				return reached
+			}).Build()
+			require.ErrorIs(t, Command(newCLIContext(t, args)), reached)
+			require.Equal(t, 1, calls)
+		})
+	}
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
 
@@ -103,20 +102,11 @@ func (m *mockEventBucket) Close() {
 	m.Called()
 }
 
-// MockKmsgSyncer implements a mock for kmsg.Syncer's Close method
-type MockKmsgSyncer struct {
-	mock.Mock
-	kmsg.Syncer // Embed Syncer if it has other methods needed, or define them
-}
-
-func (m *MockKmsgSyncer) Close() error {
-	args := m.Called()
-	return args.Error(0)
-}
+// MockKmsgSyncer implements a mock for kernel event subscription's Close method
 
 // createTestComponent creates a test component with the given mount points and targets
 func createTestComponent(ctx context.Context, mountPoints, mountTargets []string) *component {
-	gpudInstance := &components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 		RootCtx:      ctx,
 		MountPoints:  mountPoints,
 		MountTargets: mountTargets,
@@ -683,7 +673,7 @@ func TestMetricsTracking(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
-	comp, err := New(&components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{ExperimentalHealthValidation: true,
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
@@ -1772,7 +1762,7 @@ func TestNewComponentMoreCases(t *testing.T) {
 	mountPoints := []string{"/mnt/data1", "/mnt/data2"}
 	mountTargets := []string{"/mnt/target1", "/mnt/target2"}
 
-	gpudInstance := &components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 		RootCtx:      ctx,
 		MountPoints:  mountPoints,
 		MountTargets: mountTargets,
@@ -1810,7 +1800,7 @@ func TestNew_EventStoreHandling(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("eventStoreIsNil", func(t *testing.T) {
-		gpudInstance := &components.GPUdInstance{
+		gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 			RootCtx:    ctx,
 			EventStore: nil, // Explicitly nil
 		}
@@ -1823,7 +1813,7 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		diskComp, ok := comp.(*component)
 		require.True(t, ok)
 		assert.Nil(t, diskComp.eventBucket, "eventBucket should be nil if EventStore is nil")
-		assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil if EventStore is nil")
+		assert.Nil(t, diskComp.stopKernel, "kmsgSyncer should be nil if EventStore is nil")
 	})
 
 	t.Run("eventStoreBucketSuccess", func(t *testing.T) {
@@ -1835,7 +1825,7 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		// The bucket's Close method will be called when the component is closed
 		mockBucket.On("Close").Return()
 
-		gpudInstance := &components.GPUdInstance{
+		gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 			RootCtx:    ctx,
 			EventStore: mockEventStore,
 		}
@@ -1857,7 +1847,7 @@ func TestNew_EventStoreHandling(t *testing.T) {
 
 		// kmsgSyncer is only created on Linux when running as root
 		if runtime.GOOS != "linux" || os.Geteuid() != 0 {
-			assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil when not on Linux as root")
+			assert.Nil(t, diskComp.stopKernel, "kmsgSyncer should be nil when not on Linux as root")
 		}
 	})
 
@@ -1868,7 +1858,7 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		// Set up the mock to return an error
 		mockEventStore.On("Bucket", Name).Return(nil, expectedErr)
 
-		gpudInstance := &components.GPUdInstance{
+		gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 			RootCtx:    ctx,
 			EventStore: mockEventStore,
 		}
@@ -1880,9 +1870,9 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		mockEventStore.AssertCalled(t, "Bucket", Name)
 	})
 
-	// Note: Testing kmsg.NewSyncer success/failure path requires runtime.GOOS == "linux"
+	// Note: Testing the kernel subscription success/failure path requires runtime.GOOS == "linux"
 	// and os.Geteuid() == 0, which is hard to control portably in tests without
-	// modifying the source code for dependency injection of kmsg.NewSyncer itself or os.Geteuid.
+	// modifying the source code for dependency injection of the kernel subscription itself or os.Geteuid.
 	// The coverage for those lines might be 0 if tests are not run in such an environment.
 }
 
@@ -1973,7 +1963,7 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			},
 			freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 			eventBucket:                     mockBucket,
-			kmsgSyncer:                      nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			stopKernel:                      nil, // Changed from an inactive subscription to nil to avoid panic
 		}
 
 		err := c.Close()
@@ -2000,7 +1990,7 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			},
 			freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 			eventBucket:                     nil,
-			kmsgSyncer:                      nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			stopKernel:                      nil, // Changed from an inactive subscription to nil to avoid panic
 		}
 
 		err := c.Close()
@@ -2731,7 +2721,7 @@ func TestComponent_LookbackPeriodUsage(t *testing.T) {
 	customLookbackPeriod := 6 * time.Hour
 
 	// Create GPUd instance with mock event store
-	gpudInstance := &components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 		RootCtx:          ctx,
 		EventStore:       mockEventStore,
 		RebootEventStore: mockRebootStore,
@@ -3052,7 +3042,7 @@ func TestComponentWithMountPointFiltering(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("filters provider-specific mount points", func(t *testing.T) {
-		gpudInstance := &components.GPUdInstance{
+		gpudInstance := &components.GPUdInstance{ExperimentalHealthValidation: true,
 			RootCtx: ctx,
 		}
 
