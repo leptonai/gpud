@@ -21,56 +21,34 @@ limitations under the License.
 package kmsg
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
+	"github.com/dsx-ai-factory/health-validation/collect"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/dustin/go-humanize"
-	"github.com/shirou/gopsutil/v4/host"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-var (
-	ErrWatcherAlreadyStarted = errors.New("watcher already started")
+var ErrWatcherAlreadyStarted = errors.New("watcher already started")
 
-	kmsgFilePath = cmp.Or(strings.TrimSpace(os.Getenv("KMSG_FILE_PATH")), "/dev/kmsg")
-)
+const streamPollInterval = 100 * time.Millisecond
 
 type Watcher interface {
-	// Watch starts a goroutine to read from kmsg and provide a channel of messages.
-	// Watcher is responsible for closing the channel when the watch is done.
-	// Watcher may be canceled by calling 'Close' on the parser.
-	//
-	// The caller should drain the channel after calling 'Close'.
 	Watch() (<-chan Message, error)
 	Close() error
 }
 
-type watcher struct {
-	kmsgFile *os.File
-	bootTime time.Time
-
-	// set to true when the watcher is started
-	// used to prevent redundant reads on kmsg file
-	watchStarted atomic.Bool
-
-	deduperOpts []OpOption
-}
-
-// Message represents a given kmsg logline, including its timestamp (as
-// calculated based on offset from boot time), its possibly multi-line body,
-// and so on. More information about these mssages may be found here:
-// https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
+// Message is GPUd's kernel-record representation. Collection and parsing belong
+// to health-validation; event interpretation and content deduplication stay here.
 type Message struct {
 	Timestamp      metav1.Time `json:"timestamp"`
 	Priority       int         `json:"priority"`
@@ -82,226 +60,160 @@ func (m Message) DescribeTimestamp(since time.Time) string {
 	return humanize.RelTime(m.Timestamp.Time, since, "ago", "from now")
 }
 
-// ReadAll reads all messages from the kmsg file, with no follow mode.
+// ReadAll collects a snapshot through the sensor and applies GPUd content dedup.
+// A partial collection returns both the available messages and an error.
 func ReadAll(ctx context.Context) ([]Message, error) {
-	kmsgFile, err := os.Open(kmsgFilePath)
+	if err := checkKmsgPath(); err != nil {
+		return nil, err
+	}
+	sensor, err := newSensor(nil)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = kmsgFile.Close()
-	}()
-
-	// upstream "github.com/euank/go-kmsg-parser" uses "syscall.Sysinfo_t"
-	// which breaks darwin builds
-	// use multi-platform library "github.com/shirou/gopsutil/v4/host"
-	// to support darwin builds
-	cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-	bt, err := host.BootTimeWithContext(cctx)
-	ccancel()
-	if err != nil {
-		return nil, err
+	records, err := collectMessages(ctx, sensor)
+	deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval)
+	messages := make([]Message, 0, len(records))
+	for _, record := range records {
+		if deduper.addCache(record) == 1 {
+			messages = append(messages, record)
+		}
 	}
-	bootTime := time.Unix(int64(bt), 0)
-
-	return readAll(
-		kmsgFile,
-		bootTime,
-		newDeduper(defaultCacheExpiration, defaultCachePurgeInterval),
-	)
+	return messages, err
 }
 
-// any value >= PRINTK_MESSAGE_MAX (which is defined as 2048) is fine
-// "dmesg" uses 2048
-// ref. https://github.com/util-linux/util-linux/blob/9c45b256adfc22edbf3783731b7be2b924c8de85/sys-utils/dmesg.c#L212-L217
-const readBufferSize = 8192
+type stream interface {
+	Read(context.Context) ([]kmsgsource.Message, error)
+	Close() error
+}
 
-// readAll reads all messages from the kmsg file, with no follow mode.
-func readAll(kmsgFile *os.File, bootTime time.Time, deduper *deduper) ([]Message, error) {
-	rawReader, err := kmsgFile.SyscallConn()
+type watcher struct {
+	sensor       collect.Sensor
+	stream       stream
+	ctx          context.Context
+	cancel       context.CancelFunc
+	closeOnce    sync.Once
+	closeErr     error
+	watchStarted atomic.Bool
+	deduperOpts  []OpOption
+}
+
+// NewWatcher delegates native reading, boot identity, and parsing to the shared
+// stream. The sensor emits complete records so component matchers can reconstruct
+// multi-record events. The stream retains a bounded window, not a lossless queue.
+func NewWatcher(opts ...OpOption) (Watcher, error) {
+	if err := checkKmsgPath(); err != nil {
+		return nil, err
+	}
+	source, err := kmsgsource.NewStream(0)
 	if err != nil {
 		return nil, err
 	}
+	return newWatcher(source, opts...)
+}
 
-	// we're forced to put the fd into non-blocking mode to be able to detect the
-	// end of the buffer, but to not use go's built-in epoll
-	if ctrlErr := rawReader.Control(func(fd uintptr) {
-		err = syscall.SetNonblock(int(fd), true)
-	}); ctrlErr != nil {
-		return nil, fmt.Errorf("error calling control on kmsg reader: %w", ctrlErr)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("unable to set nonblocking on fd: %w", err)
-	}
-
-	msgs := make([]Message, 0)
-	buf := make([]byte, readBufferSize)
-	for {
-		// Each read call gives us one full message.
-		// https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
-		var err error
-		var n int
-		readErr := rawReader.Read(func(fd uintptr) bool {
-			n, err = syscall.Read(int(fd), buf)
-			return true
-		})
-		if readErr != nil && err == nil {
-			err = readErr
-		}
-
-		switch {
-		case err == nil:
-			// no-op
-
-		case errors.Is(err, syscall.EPIPE):
-			// error that indicates "continuation" of the ring buffer
-			continue
-
-		case errors.Is(err, syscall.EAGAIN):
-			// end of ring buffer in non-follow mode
-			return msgs, nil
-
-		default:
-			return nil, fmt.Errorf("unexpected kmsg reading error: %w", err)
-		}
-
-		line := string(buf[:n])
-		if len(line) == 0 {
-			continue
-		}
-
-		msg, err := parseLine(bootTime, line)
-		if err != nil {
-			return nil, fmt.Errorf("malformed kmsg message: %w (%q)", err, line)
-		}
-
-		if deduper != nil {
-			if occurrences := deduper.addCache(*msg); occurrences > 1 {
-				log.Logger.Debugw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
+func newWatcher(source stream, opts ...OpOption) (*watcher, error) {
+	// Stream.Read returns a copy of its retained window. Consume each identity
+	// once before sensor matching so unchanged windows do not rebuild observations.
+	var cursor recordCursor
+	sensor, err := newSensor(func(ctx context.Context) ([]kmsgsource.Message, error) {
+		records, err := source.Read(ctx)
+		fresh := records[:0]
+		for _, record := range records {
+			// Preserve invalid records for the sensor to report as collection failures.
+			if record.BootID == "" || record.Sequence < 0 {
+				fresh = append(fresh, record)
 				continue
 			}
+			accept, gap := cursor.advance(recordID{bootID: record.BootID, sequence: record.Sequence})
+			if gap != nil {
+				log.Logger.Errorw("kmsg records lost before collection", "error", gap)
+			}
+			if accept {
+				fresh = append(fresh, record)
+			}
 		}
-
-		msgs = append(msgs, *msg)
-	}
-}
-
-// NewWatcher creates a new watcher that will read from /dev/kmsg.
-func NewWatcher(opts ...OpOption) (Watcher, error) {
-	kmsgFile, err := os.Open(kmsgFilePath)
+		return fresh, err
+	})
 	if err != nil {
+		_ = source.Close()
 		return nil, err
 	}
-
-	// upstream "github.com/euank/go-kmsg-parser" uses "syscall.Sysinfo_t"
-	// which breaks darwin builds
-	// use multi-platform library "github.com/shirou/gopsutil/v4/host"
-	// to support darwin builds
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	ut, err := host.UptimeWithContext(ctx)
-	cancel()
-	if err != nil {
-		return nil, err
-	}
-	bootTime := time.Now().Add(-1 * (time.Duration(ut) * time.Second))
-
-	return &watcher{
-		kmsgFile:    kmsgFile,
-		bootTime:    bootTime,
-		deduperOpts: append([]OpOption(nil), opts...),
-	}, nil
+	ctx, cancel := context.WithCancel(context.Background())
+	return &watcher{sensor: sensor, stream: source, ctx: ctx, cancel: cancel, deduperOpts: append([]OpOption(nil), opts...)}, nil
 }
 
-func (w *watcher) errIfStarted() error {
-	if w.watchStarted.CompareAndSwap(false, true) {
-		// has not started yet, thus set to started
-		return nil
+func checkKmsgPath() error {
+	if path := strings.TrimSpace(os.Getenv("KMSG_FILE_PATH")); path != "" && path != "/dev/kmsg" {
+		return fmt.Errorf("health-validation reads /dev/kmsg; KMSG_FILE_PATH=%q is unsupported", path)
 	}
-	return ErrWatcherAlreadyStarted
+	return nil
 }
 
 func (w *watcher) Watch() (<-chan Message, error) {
-	if err := w.errIfStarted(); err != nil {
+	if !w.watchStarted.CompareAndSwap(false, true) {
+		return nil, ErrWatcherAlreadyStarted
+	}
+	if err := w.ctx.Err(); err != nil {
 		return nil, err
 	}
-	kmsgCh := make(chan Message, 2048)
+	messages := make(chan Message, 2048)
 	go func() {
-		deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval, w.deduperOpts...)
-		err := readFollow(w.kmsgFile, w.bootTime, kmsgCh, deduper)
-		if err != nil {
-			log.Logger.Errorw("kmsg watcher error", "err", err)
+		defer close(messages)
+		defer func() { _ = w.Close() }()
+		if err := w.follow(messages); err != nil && w.ctx.Err() == nil {
+			log.Logger.Errorw("kmsg watcher error", "error", err)
 		}
 	}()
-	return kmsgCh, nil
+	return messages, nil
+}
+
+func (w *watcher) follow(messages chan<- Message) error {
+	ticker := time.NewTicker(streamPollInterval)
+	defer ticker.Stop()
+	deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval, w.deduperOpts...)
+	for {
+		records, err := collectMessages(w.ctx, w.sensor)
+		for _, record := range records {
+			if deduper != nil && deduper.addCache(record) > 1 {
+				continue
+			}
+			select {
+			case messages <- record:
+			case <-w.ctx.Done():
+				return w.ctx.Err()
+			}
+		}
+		if err != nil {
+			return err
+		}
+		select {
+		case <-w.ctx.Done():
+			return w.ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (w *watcher) Close() error {
-	return w.kmsgFile.Close()
+	w.closeOnce.Do(func() {
+		w.cancel()
+		w.closeErr = w.stream.Close()
+	})
+	return w.closeErr
 }
 
-// readFollow reads messages from the kmsg file, with follow mode,
-// meaning it will continue to read the file as new messages are written to it.
-func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message, deduper *deduper) error {
-	log.Logger.Infow("reading kmsg with follow mode")
+// The source window is non-destructive. Advance before content deduplication so
+// repeated bodies do not look like missing sequence numbers on the next poll.
+type recordCursor struct{ last recordID }
 
-	defer close(msgs)
-
-	buf := make([]byte, readBufferSize)
-	for {
-		// Each read call gives us one full message.
-		// https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
-		n, err := kmsgFile.Read(buf)
-		switch {
-		case err == nil:
-			// no-op
-
-		case errors.Is(err, syscall.EPIPE):
-			log.Logger.Warnw("kmsg pipe error (short read)")
-			continue
-
-		case errors.Is(err, io.EOF),
-			errors.Is(err, os.ErrClosed):
-			// someone closed the kmsg file
-			return nil
-
-		default:
-			return fmt.Errorf("unexpected kmsg reading error: %w", err)
-		}
-
-		line := string(buf[:n])
-		if len(line) == 0 {
-			continue
-		}
-
-		msg, err := parseLine(bootTime, line)
-		if err != nil {
-			return fmt.Errorf("malformed kmsg message: %w (%q)", err, line)
-		}
-
-		if deduper != nil {
-			if occurrences := deduper.addCache(*msg); occurrences > 1 {
-				log.Logger.Debugw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
-				continue
-			}
-		}
-
-		msgs <- *msg
+func (c *recordCursor) advance(id recordID) (bool, error) {
+	if c.last.bootID == id.bootID && id.sequence <= c.last.sequence {
+		return false, nil
 	}
-}
-
-func parseLine(bootTime time.Time, line string) (*Message, error) {
-	msg, err := kmsgsource.Parse(bootTime, line)
-	if err != nil {
-		return nil, err
+	var err error
+	if c.last.bootID == id.bootID && id.sequence-c.last.sequence > 1 {
+		err = fmt.Errorf("boot %s: missing kernel sequences after %d and before %d", id.bootID, c.last.sequence, id.sequence)
 	}
-	sequence := int(msg.Sequence)
-	if int64(sequence) != msg.Sequence {
-		return nil, fmt.Errorf("kmsg sequence number %d overflows int", msg.Sequence)
-	}
-	return &Message{
-		Priority:       msg.Priority,
-		SequenceNumber: sequence,
-		Timestamp:      metav1.NewTime(msg.Timestamp),
-		Message:        msg.Body,
-	}, nil
+	c.last = id
+	return true, err
 }

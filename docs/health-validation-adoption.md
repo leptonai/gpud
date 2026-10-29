@@ -21,15 +21,15 @@ The GPUd base is `24b9e76c`.
 | Collection | Imported package |
 | --- | --- |
 | BPF JIT accounting | `collect/sensors/memory` |
-| Kernel records | `collect/source/kmsg` |
+| Kernel records | `collect/sensors/kmsg`, `collect/source/kmsg` |
 | Xid extraction | `collect/signals/kmsg/xid` |
 | OOM and panic | `collect/signals/kmsg/memory` |
 | InfiniBand sysfs | `collect/sensors/infiniband` |
 
-Memory's `bpfJITBytesFromObservations` and InfiniBand's
-`devicesFromObservations` implement that conversion. Kernel-record parsing and
-Xid/OOM/panic pattern imports are helper reuse; kernel streaming has not yet
-migrated to a sensor.
+Memory's `bpfJITBytesFromObservations`, InfiniBand's `devicesFromObservations`,
+and the shared kernel-record shim `messagesFromObservations` implement that
+conversion. Xid/OOM/panic pattern imports support the component-specific event
+interpretation that follows kernel-record collection.
 
 The InfiniBand adapter retains GPUd's device/port structs for metrics, JSON, and
 history. It preserves nullable counters, byte units, numeric port order, device
@@ -58,11 +58,27 @@ non-Linux and non-root behavior. The sensor rejects integer overflow and reads
 records beyond the old scanner's 64 KiB line limit. It reads the whole vmalloc
 file into memory; large-host memory and timing costs have not been measured.
 
-The kernel parser retains message bodies, priorities, sequence numbers, and the
-caller-provided boot time. It now rejects timestamp multiplication overflow.
-GPUd keeps its watcher, content deduplication, channels, and event-store syncer.
-Basic Xid extraction preserves PCI identifier spelling. GPUd still reconstructs
-multi-record events and interprets NVLink subcodes, severity, and recovery actions.
+Kernel snapshots use health-validation's `ReadAll`; continuous collection uses
+its `NewStream`. Both feed the kmsg sensor. GPUd's syscall loops, file opening,
+boot-time lookup, and parser wrapper are removed. The shim converts message and
+priority observations into GPUd `Message` values with their original timestamps.
+The sensor selects every record, including empty bodies and continuation lines,
+so existing component matchers can reconstruct multi-record events.
+
+The shared stream retains its default 4,096-record window. GPUd polls it every
+100 ms and tracks boot ID plus sequence before sensor matching to avoid
+replaying records, even when content deduplication is disabled. Sequence gaps
+after the first observed record are logged. Slow consumers or startup bursts can
+still lose records through window eviction; loss before the first snapshot
+cannot be detected by the cursor. Snapshot failures return available messages
+alongside an error. A watcher emits available messages, logs a collection
+failure, then closes its channel and source. Closing a watcher cancels a blocked
+channel send. GPUd keeps content and event deduplication, persistence, severity,
+and recovery policy.
+
+The shared reader opens `/dev/kmsg` on Linux. Non-default `KMSG_FILE_PATH` values
+now return an explicit unsupported-path error; they are not silently ignored.
+Non-Linux reads return the shared reader's unsupported error.
 
 ## Dependency cost
 
@@ -87,8 +103,6 @@ These collectors still require behavior beyond a direct library import:
 - NVML needs GPUd's shared instance lifetime, native-call gate, GPU identity, and
   lost/reset handling. Its instance interface is not interchangeable with the
   sensor's interface.
-- Kernel streaming needs record order and multi-record reconstruction. The
-  shared stream uses a bounded window, which can evict events before polling.
 - Disk and FUSE need GPUd's mount selection and autofs precedence. The shared
   parsers have stricter input validation and different partial-error semantics.
 - Pstore needs GPUd's persisted history, deduplication, and timestamp handling.
@@ -99,22 +113,24 @@ These collectors still require behavior beyond a direct library import:
 
 Local validation passed on macOS arm64 with Go 1.27.3:
 
-- `go build ./...`.
+- `go build ./...` and a Linux amd64 cross-build of `pkg/kmsg`.
 - Repository-wide test compilation with `go test -run '^$'` and mockey's
   `-gcflags='all=-N -l'`. This does not execute the full test suite.
-- Race tests for `components/{memory,os}`, `pkg/kmsg`,
-  `components/accelerator/nvidia/{xid,gpm,infiniband/...}`, and
+- Race tests for `pkg/kmsg/...`, its consuming components, GPM, and
   `pkg/nvidia/nvml/...`, using
   `-gcflags='all=-N -l -d=checkptr=0'` as required by GPUd's test script.
-- The repository's custom golangci-lint 2.14.0 configuration over the same
+- The repository's custom golangci-lint 2.14.0 configuration over the changed
   packages: zero issues.
 - `go mod tidy -diff`, changed-file goimports, `git diff --check`, and
   Markdown lint for this note.
 
 The tests preserve existing kernel/Xid fixtures and the 3,977,216-byte BPF
 fixture. New cases cover malformed and missing BPF data, permission errors,
-integer overflow, long lines, and kernel timestamp overflow. InfiniBand tests
+integer overflow, long lines, and sensor outcome conversion. InfiniBand tests
 check filtered fixture parity, byte units, missing versus zero counters, required
 versus optional errors, exclusions, numeric port order, and EINVAL cache lifetime.
-Existing component tests still cover port flaps and recovery windows.
+Existing component tests still cover port flaps and recovery windows. Kernel
+shim tests cover fixture parsing through the shared parser and sensor, complete
+message/priority conversion, partial failures, replay suppression, sequence
+gaps, and cancellation while the output channel is full.
 Linux GPU hardware, container builds, and live daemon behavior remain untested.
