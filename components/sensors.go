@@ -11,7 +11,7 @@ import (
 	"github.com/dsx-ai-factory/health-validation/collect"
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
+	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -64,7 +64,7 @@ func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.C
 		// The library's window only advances when immutable kernel identities
 		// change. Avoid matching unchanged records again between component polls.
 		var last recordID
-		sensor, err := kmsgsensor.New(func(ctx context.Context) ([]kmsgsource.Message, error) {
+		sensor, err := xidsensor.NewKmsg(func(ctx context.Context) ([]kmsgsource.Message, error) {
 			records, err := source.Read(ctx)
 			if err == nil && len(records) > 0 {
 				tail := records[len(records)-1]
@@ -75,7 +75,7 @@ func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.C
 				last = id
 			}
 			return records, err
-		}, map[string]string{"gpud.kernel_record": `(?s).*`})
+		})
 		if err != nil {
 			_ = source.Close()
 			g.kernelMu.Unlock()
@@ -133,33 +133,51 @@ func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.C
 // sensorCycle serializes a shared sensor's Measure calls and retains the batch
 // for one polling interval. It holds no GPUd data types or event policy.
 type sensorCycle struct {
-	mu     sync.Mutex
-	sensor collect.Sensor
-	close  func() error
-	next   time.Time
-	batch  *observation.ObservationBatch
-	err    error
+	mu              sync.Mutex
+	sensor          collect.Sensor
+	close           func() error
+	next            time.Time
+	batch           *observation.ObservationBatch
+	err             error
+	overrunReported bool
 }
 
 func (s *sensorCycle) measure(ctx context.Context) (*observation.ObservationBatch, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.err == nil && !time.Now().Before(s.next) {
-		batch, err := MeasureSensor(ctx, s.sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
-		// An unchanged source window produces no new observations. Keep its
-		// previous batch available for components that subscribe later.
-		if batch == nil || len(batch.Observations) > 0 || s.batch == nil {
-			s.batch = batch
+		signals := make([]string, 0, len(s.sensor.Signals()))
+		for _, signal := range s.sensor.Signals() {
+			signals = append(signals, signal.ID())
 		}
+		batch, err := MeasureSensor(ctx, s.sensor, signals...)
 		s.err = err
-		if s.batch != nil {
-			for _, o := range s.batch.Observations {
+		if batch != nil {
+			delivered := &observation.ObservationBatch{CollectionId: batch.CollectionId}
+			for _, o := range batch.Observations {
 				if failure := o.GetCollectionError(); failure != nil {
-					s.err = fmt.Errorf("%s: %s", failure.Category, failure.Detail)
-					break
+					if recoverableKernelOverrun(failure) {
+						if !s.overrunReported {
+							log.Logger.Errorw("kernel records lost after source overrun; continuing collection", "error", failure.Detail)
+							s.overrunReported = true
+						}
+						continue
+					}
+					// A malformed Xid belongs to that record's consumer.
+					// Untargeted failures mean the shared reader has failed.
+					if o.GetTarget().GetKernelRecord() == nil && s.err == nil {
+						s.err = fmt.Errorf("%s: %s", failure.Category, failure.Detail)
+					}
 				}
+				delivered.Observations = append(delivered.Observations, o)
+			}
+			// An unchanged source window produces no observations. Preserve
+			// the previous batch for late subscribers, including after EPIPE.
+			if len(delivered.Observations) > 0 || s.batch == nil {
+				s.batch = delivered
 			}
 		}
+
 		s.next = time.Now().Add(sensorPollInterval)
 	}
 	return s.batch, s.err
@@ -194,4 +212,10 @@ func freshKernelObservations(batch *observation.ObservationBatch, seen map[strin
 		seen[boot] = seq
 	}
 	return fresh
+}
+
+// Only the library's typed overrun classification is recoverable. A joined
+// EPIPE and terminal error does not carry this code (health-validation #247).
+func recoverableKernelOverrun(failure *observation.CollectionError) bool {
+	return failure.Category == observation.CollectionErrorCategorySourceError && failure.SourceError == kmsgsensor.SourceErrorOverrun
 }

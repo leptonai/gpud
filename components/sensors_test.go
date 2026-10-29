@@ -3,8 +3,10 @@ package components
 import (
 	"context"
 	"errors"
+	"io"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -191,4 +193,86 @@ func TestFreshKernelObservationsPreservesPairsAndBootIdentity(t *testing.T) {
 	batch, err = MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
 	require.NoError(t, err)
 	assert.NotEmpty(t, freshKernelObservations(batch, seen).Observations)
+}
+
+func TestObserveKernelContinuesAfterOverrun(t *testing.T) {
+	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(4, "retained")}, err: syscall.EPIPE}
+	g := source.instance(t)
+	first, second := make(chan apiv1.KernelMessage, 8), make(chan apiv1.KernelMessage, 8)
+	stop1, err := g.ObserveKernel(t.Context(), kernelConsumer(t, first))
+	require.NoError(t, err)
+	t.Cleanup(stop1)
+	stop2, err := g.ObserveKernel(t.Context(), kernelConsumer(t, second))
+	require.NoError(t, err)
+	t.Cleanup(stop2)
+	assert.Equal(t, 4, receiveKernel(t, first).SequenceNumber)
+	assert.Equal(t, 4, receiveKernel(t, second).SequenceNumber)
+	// The library retains EPIPE for every reader, including on subsequent reads.
+	source.mu.Lock()
+	source.records = append(source.records, kernelTestRecord(5, "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus"))
+	source.mu.Unlock()
+	assert.Equal(t, 5, receiveKernel(t, first).SequenceNumber)
+	assert.Equal(t, 5, receiveKernel(t, second).SequenceNumber)
+	assert.Zero(t, source.closes.Load())
+	// Multiple polls of the sticky error must not replay records.
+	reads := source.reads.Load()
+	require.Eventually(t, func() bool { return source.reads.Load() >= reads+2 }, 5*time.Second, time.Millisecond)
+	assert.Empty(t, first)
+	assert.Empty(t, second)
+	stop1()
+	assert.Zero(t, source.closes.Load())
+	source.mu.Lock()
+	source.records = append(source.records, kernelTestRecord(6, "after peer stopped"))
+	source.mu.Unlock()
+	assert.Equal(t, 6, receiveKernel(t, second).SequenceNumber)
+	stop2()
+	assert.EqualValues(t, 1, source.closes.Load())
+}
+
+func TestKernelOverrunDoesNotHideTerminalOrParseFailure(t *testing.T) {
+	for _, failure := range []error{errors.Join(syscall.EPIPE, syscall.EIO), errors.Join(syscall.EPIPE, io.EOF), errors.Join(syscall.EPIPE, kmsgsource.ErrMalformedRecord)} {
+		source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(4, "retained")}, err: syscall.EPIPE}
+		g := source.instance(t)
+		_, err := g.kernel.measure(t.Context())
+		require.NoError(t, err)
+		source.err = failure
+		g.kernel.next = time.Time{}
+		batch, err := g.kernel.measure(t.Context())
+		require.Error(t, err)
+		records, err := KernelMessages(batch)
+		require.Error(t, err)
+		require.Len(t, records, 1, "terminal failure must retain partial records")
+		reads := source.reads.Load()
+		g.kernel.next = time.Time{}
+		_, err = g.kernel.measure(t.Context())
+		require.Error(t, err)
+		assert.Equal(t, reads, source.reads.Load(), "terminal failure must stop collection")
+	}
+	source := &kernelFixture{records: []kmsgsource.Message{{Body: "missing kernel identity"}}, err: syscall.EPIPE}
+	_, err := source.instance(t).kernel.measure(t.Context())
+	require.Error(t, err, "invalid source records must not be hidden by EPIPE")
+}
+
+func TestMalformedXidDoesNotStopOtherKernelConsumers(t *testing.T) {
+	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(4, "NVRM: Xid (PCI:0000:01:00): invalid")}}
+	g := source.instance(t)
+	batch, err := g.kernel.measure(t.Context())
+	require.NoError(t, err)
+	records, err := KernelMessages(batch)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	failures := 0
+	for _, o := range batch.Observations {
+		if o.GetCollectionError() != nil {
+			failures++
+		}
+	}
+	assert.Positive(t, failures, "the Xid consumer still receives the parse failure")
+	source.records = append(source.records, kernelTestRecord(5, "other component event"))
+	g.kernel.next = time.Time{}
+	batch, err = g.kernel.measure(t.Context())
+	require.NoError(t, err)
+	records, err = KernelMessages(batch)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
 }

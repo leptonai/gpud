@@ -303,7 +303,7 @@ func TestXIDComponent_Events(t *testing.T) {
 
 	// Setup a test channel for events to avoid using kmsg
 	eventCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(eventCh, 1*time.Second)
+	go c.startKernelTest(eventCh, 1*time.Second)
 
 	defer func() {
 		assert.NoError(t, comp.Close())
@@ -536,9 +536,9 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		c := mustComponent(t, comp)
-		c.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
+		c.readAllKmsg = kernelReaderForTest(func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return nil, assert.AnError
-		}
+		})
 
 		result := comp.Check()
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
@@ -557,14 +557,14 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		c := mustComponent(t, comp)
-		c.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
+		c.readAllKmsg = kernelReaderForTest(func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return []apiv1.KernelMessage{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
 					Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=XXX",
 				},
 			}, nil
-		}
+		})
 
 		result := comp.Check()
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
@@ -585,7 +585,7 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		c := mustComponent(t, comp)
-		c.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
+		c.readAllKmsg = kernelReaderForTest(func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return []apiv1.KernelMessage{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -594,7 +594,7 @@ func TestCheck(t *testing.T) {
 						"NVRM: fallen off the bus and is not responding to commands.",
 				},
 			}, nil
-		}
+		})
 
 		result := comp.Check()
 		data := mustCheckResult(t, result)
@@ -617,7 +617,7 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		c := mustComponent(t, comp)
-		c.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
+		c.readAllKmsg = kernelReaderForTest(func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return []apiv1.KernelMessage{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -636,7 +636,7 @@ func TestCheck(t *testing.T) {
 					Message:   "NVRM: Xid (PCI:0000:04:00): 63, Row remapping pending again",
 				},
 			}, nil
-		}
+		})
 
 		result := comp.Check()
 		data := mustCheckResult(t, result)
@@ -665,7 +665,7 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		c := mustComponent(t, comp)
-		c.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
+		c.readAllKmsg = kernelReaderForTest(func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return []apiv1.KernelMessage{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -676,7 +676,7 @@ func TestCheck(t *testing.T) {
 					Message:   "NVRM: Xid (PCI:0000:02:00): 64, Row remapping failure",
 				},
 			}, nil
-		}
+		})
 
 		result := comp.Check()
 		data := mustCheckResult(t, result)
@@ -699,7 +699,7 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		c := mustComponent(t, comp)
-		c.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
+		c.readAllKmsg = kernelReaderForTest(func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return []apiv1.KernelMessage{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -714,7 +714,7 @@ func TestCheck(t *testing.T) {
 					Message:   "NVRM: Xid (PCI:0000:03:00): 31, GPU has fallen off the bus",
 				},
 			}, nil
-		}
+		})
 
 		result := comp.Check()
 		data := mustCheckResult(t, result)
@@ -745,7 +745,7 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		c := mustComponent(t, comp)
-		c.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
+		c.readAllKmsg = kernelReaderForTest(func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return []apiv1.KernelMessage{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -768,7 +768,7 @@ func TestCheck(t *testing.T) {
 					Message:   "NVRM: Xid (PCI:0000:05:00): 94, Contained ECC error",
 				},
 			}, nil
-		}
+		})
 
 		result := comp.Check()
 		data := mustCheckResult(t, result)
@@ -1288,7 +1288,7 @@ func TestHandleEventChannel(t *testing.T) {
 	// Start the component in a goroutine with our test channels
 	wg.Go(func() {
 		// Call start with our test channel and fast ticker period
-		c.start(kmsgCh, 100*time.Millisecond)
+		c.startKernelTest(kmsgCh, 100*time.Millisecond)
 	})
 
 	// Send a test XID kmsg
@@ -1352,7 +1352,7 @@ func TestStartWithFallenOffBusFallback(t *testing.T) {
 	}
 
 	kmsgCh := make(chan apiv1.KernelMessage, 10)
-	go c.start(kmsgCh, 100*time.Millisecond)
+	go c.startKernelTest(kmsgCh, 100*time.Millisecond)
 	defer func() {
 		assert.NoError(t, comp.Close())
 	}()
@@ -1463,7 +1463,7 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 	kmsgCh := make(chan apiv1.KernelMessage, 10)
 
 	// Start the component with a short update period
-	go c.start(kmsgCh, 100*time.Millisecond)
+	go c.startKernelTest(kmsgCh, 100*time.Millisecond)
 
 	defer func() {
 		assert.NoError(t, comp.Close())
@@ -1573,7 +1573,7 @@ func TestStartWithXID63And64NotSkippedWhenNoRowRemapping(t *testing.T) {
 	kmsgCh := make(chan apiv1.KernelMessage, 10)
 
 	// Start the component with a short update period
-	go c.start(kmsgCh, 100*time.Millisecond)
+	go c.startKernelTest(kmsgCh, 100*time.Millisecond)
 
 	defer func() {
 		assert.NoError(t, comp.Close())

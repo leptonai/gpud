@@ -164,7 +164,7 @@ func TestComponent_start_Branches_WithMockey(t *testing.T) {
 
 		done := make(chan struct{})
 		go func() {
-			c.start(kmsgCh, 5*time.Millisecond)
+			c.startKernelTest(kmsgCh, 5*time.Millisecond)
 			close(done)
 		}()
 
@@ -274,14 +274,14 @@ func TestCheck_EarlyBranches_WithMockey(t *testing.T) {
 		c := &component{
 			ctx:          context.Background(),
 			nvmlInstance: newNVML(true, "GPU", nil),
-			readAllKmsg: func(context.Context) ([]apiv1.KernelMessage, error) {
+			readAllKmsg: kernelReaderForTest(func(context.Context) ([]apiv1.KernelMessage, error) {
 				return []apiv1.KernelMessage{
 					{
 						Timestamp: metav1.Now(),
 						Message:   "this line has no xid content",
 					},
 				}, nil
-			},
+			}),
 			getTimeNowFunc: func() time.Time {
 				return now
 			},
@@ -325,7 +325,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 		kmsgCh := make(chan apiv1.KernelMessage, 1)
 		done := make(chan struct{})
 		go func() {
-			c.start(kmsgCh, time.Hour)
+			c.startKernelTest(kmsgCh, time.Hour)
 			close(done)
 		}()
 

@@ -64,11 +64,11 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
-	kernelMessages   <-chan apiv1.KernelMessage
+	kernelMessages   <-chan kernelRecord
 	stopKernel       func()
 	started          atomic.Bool
 
-	readAllKmsg  func(context.Context) ([]apiv1.KernelMessage, error)
+	readAllKmsg  func(context.Context) ([]kernelRecord, error)
 	extraEventCh chan pendingEvent
 
 	lastMu          sync.RWMutex
@@ -298,7 +298,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	for _, kmsg := range kmsgs {
-		xidErr := Match(kmsg.Message)
+		xidErr := kmsg.xid
 		if xidErr == nil {
 			continue
 		}
@@ -319,7 +319,7 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		cr.FoundErrors = append(cr.FoundErrors, FoundError{
-			Kmsg:  kmsg,
+			Kmsg:  kmsg.KernelMessage,
 			Error: *xidErr,
 		})
 	}
@@ -463,7 +463,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-func (c *component) start(kmsgCh <-chan apiv1.KernelMessage, updatePeriod time.Duration) {
+func (c *component) start(kmsgCh <-chan kernelRecord, updatePeriod time.Duration) {
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
@@ -500,7 +500,7 @@ func (c *component) start(kmsgCh <-chan apiv1.KernelMessage, updatePeriod time.D
 				kmsgCh = nil
 				continue
 			}
-			xidErr := Match(message.Message)
+			xidErr := message.xid
 			if xidErr == nil {
 				log.Logger.Debugw("not xid event, skip", "kmsg", message)
 				continue
@@ -572,23 +572,9 @@ func (c *component) start(kmsgCh <-chan apiv1.KernelMessage, updatePeriod time.D
 					EventKeyDeviceUUID: xidErr.DeviceUUID,
 				},
 			}
-			// IMPORTANT: Set event.Type from Match() result to preserve precise unit-based severity.
-			//
-			// Background: Match() calls lookupNVLinkRule() which correctly matches rules by
-			// (Xid, Unit, ErrorStatus, IntrinfoPattern) for precise severity determination.
-			//
-			// Problem: getDetailWithSubCodeAndStatus() (used by addEventDetails) returns pre-built
-			// details from buildNVLinkSubCodeDetails() which merges rules with the same
-			// (Xid, SubCode, ErrorStatus) using maxEventType(). This causes different units
-			// to merge incorrectly. For example:
-			//   - XID 145 RLW_REMAP, ErrorStatus 0x00000001 → "Non-fatal"
-			//   - XID 145 RLW_SRC_TRACK, ErrorStatus 0x00000001 → "Fatal"
-			//   Both have SubCode=0, so they merge to "Fatal" (maxEventType escalates).
-			//
-			// Fix: By setting event.Type here, addEventDetails() will preserve it (see
-			// health_state.go:228-229) instead of overwriting with the incorrectly merged value.
-			//
-			// See also: health_state.go addEventDetails() comment at lines 224-229.
+			// Preserve the shim's unit-specific severity. The historical
+			// subcode table merges different units with the same subcode and
+			// status, so recomputing it there can incorrectly escalate an event.
 			if xidErr.Detail != nil && xidErr.Detail.EventType != "" {
 				event.Type = string(xidErr.Detail.EventType)
 			}

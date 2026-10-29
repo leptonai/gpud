@@ -7,29 +7,31 @@ import (
 	"strings"
 	"time"
 
-	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
+	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
-func readKernelMessages(ctx context.Context) ([]apiv1.KernelMessage, error) {
+func readKernelMessages(ctx context.Context) ([]kernelRecord, error) {
 	if path := strings.TrimSpace(os.Getenv("KMSG_FILE_PATH")); path != "" && path != "/dev/kmsg" {
 		return nil, fmt.Errorf("health-validation reads /dev/kmsg; KMSG_FILE_PATH=%q is unsupported", path)
 	}
-	sensor, err := kmsgsensor.New(nil, map[string]string{"gpud.kernel_record": `(?s).*`})
+	sensor, err := xidsensor.NewKmsg(nil)
 	if err != nil {
 		return nil, err
 	}
-	batch, err := components.MeasureSensor(ctx, sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	signals := make([]string, 0, len(sensor.Signals()))
+	for _, signal := range sensor.Signals() {
+		signals = append(signals, signal.ID())
+	}
+	batch, err := components.MeasureSensor(ctx, sensor, signals...)
 	if err != nil {
 		return nil, err
 	}
-	records, err := components.KernelMessages(batch)
+	records, err := kernelRecords(batch)
 	dedup := eventstore.NewDeduplicator(time.Minute)
-	messages := make([]apiv1.KernelMessage, 0, len(records))
+	messages := make([]kernelRecord, 0, len(records))
 	for _, record := range records {
 		if dedup.Accept(record.Timestamp.Time, record.Message) {
 			messages = append(messages, record)

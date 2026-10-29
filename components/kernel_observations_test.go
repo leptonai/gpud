@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dsx-ai-factory/health-validation/collect"
-	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
+	xidsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/xid"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 
@@ -115,7 +115,7 @@ func TestRecordsFromObservations(t *testing.T) {
 }
 
 func newKernelTestSensor(read func(context.Context) ([]kmsgsource.Message, error)) (collect.Sensor, error) {
-	return kmsgsensor.New(read, map[string]string{"gpud.kernel_record": `(?s).*`})
+	return xidsensor.NewKmsg(read)
 }
 func kernelTestRecord(sequence int64, body string) kmsgsource.Message {
 	return kmsgsource.Message{BootID: "boot-a", Sequence: sequence, Timestamp: time.Unix(1700000000, 0), Priority: 6, Body: body}

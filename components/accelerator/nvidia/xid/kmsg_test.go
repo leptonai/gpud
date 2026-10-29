@@ -62,7 +62,7 @@ func TestMatch(t *testing.T) {
 			input:          "[...] NVRM: Xid (0000:03:00): 14, Channel 00000001",
 			expectNil:      false,
 			expectedXid:    14,
-			expectedDevice: "0000:03:00",
+			expectedDevice: "PCI:0000:03:00",
 		},
 		{
 			name:      "no XID error",

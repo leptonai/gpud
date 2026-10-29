@@ -274,9 +274,9 @@ func TestCheck_ReadKmsgError_WithMockey(t *testing.T) {
 				return time.Now().UTC()
 			},
 			nvmlInstance: mockInst,
-			readAllKmsg: func(ctx context.Context) ([]apiv1.KernelMessage, error) {
+			readAllKmsg: kernelReaderForTest(func(ctx context.Context) ([]apiv1.KernelMessage, error) {
 				return nil, errors.New("failed to read kmsg: permission denied")
-			},
+			}),
 		}
 
 		result := comp.Check()
@@ -309,14 +309,14 @@ func TestCheck_WithXidErrors_WithMockey(t *testing.T) {
 				return time.Now().UTC()
 			},
 			nvmlInstance: mockInst,
-			readAllKmsg: func(ctx context.Context) ([]apiv1.KernelMessage, error) {
+			readAllKmsg: kernelReaderForTest(func(ctx context.Context) ([]apiv1.KernelMessage, error) {
 				return []apiv1.KernelMessage{
 					{
 						Timestamp: metav1.NewTime(time.Now()),
 						Message:   "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus.",
 					},
 				}, nil
-			},
+			}),
 		}
 
 		result := comp.Check()
@@ -352,7 +352,7 @@ func TestCheck_Xid63And64Skipped_WithMockey(t *testing.T) {
 				return time.Now().UTC()
 			},
 			nvmlInstance: mockInst,
-			readAllKmsg: func(ctx context.Context) ([]apiv1.KernelMessage, error) {
+			readAllKmsg: kernelReaderForTest(func(ctx context.Context) ([]apiv1.KernelMessage, error) {
 				return []apiv1.KernelMessage{
 					{
 						Timestamp: metav1.NewTime(time.Now()),
@@ -367,7 +367,7 @@ func TestCheck_Xid63And64Skipped_WithMockey(t *testing.T) {
 						Message:   "NVRM: Xid (PCI:0000:03:00): 31, pid=1234",
 					},
 				}, nil
-			},
+			}),
 		}
 
 		result := comp.Check()

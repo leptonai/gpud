@@ -36,17 +36,18 @@ func Test_NVLinkLogCoverage(t *testing.T) {
 		{"145_RLW_TAGSTATE_nonfatal", "NVRM: Xid (PCI:0000:04:00): 145, RLW_TAGSTATE Nonfatal XC0 i0 Link 00 (0x00000008 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},
 		{"145_RLW_TAGSTATE_fatal", "NVRM: Xid (PCI:0000:04:00): 145, RLW_TAGSTATE Fatal XC0 i0 Link 00 (0x00000008 0x00000002 0x00000000 0x00000000)", apiv1.EventTypeFatal},
 
-		// XID 146 TLW*
+		// XID 146 TLW*. The shared parser also recognizes digits in unit names;
+		// the old extended regex silently discarded their Fatal field.
 		{"146_TLW_CTRL_nonfatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_CTRL Nonfatal XC0 i0 Link 00 (0x00000009 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},
 		{"146_TLW_CTRL_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_CTRL Fatal XC0 i0 Link 00 (0x00000009 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeFatal},
 		{"146_TLW_RX_PIPE0_nonfatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_RX/TLW_RX_PIPE0 Nonfatal XC0 i0 Link 00 (0x0000000a 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},
-		{"146_TLW_RX_PIPE0_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_RX/TLW_RX_PIPE0 Fatal XC0 i0 Link 00 (0x0000000a 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeWarning},
+		{"146_TLW_RX_PIPE0_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_RX/TLW_RX_PIPE0 Fatal XC0 i0 Link 00 (0x0000000a 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeFatal},
 		{"146_TLW_RX_PIPE1_nonfatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_RX/TLW_RX_PIPE1 Nonfatal XC0 i0 Link 00 (0x0000000b 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},
-		{"146_TLW_RX_PIPE1_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_RX/TLW_RX_PIPE1 Fatal XC0 i0 Link 00 (0x0000000b 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeWarning},
+		{"146_TLW_RX_PIPE1_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_RX/TLW_RX_PIPE1 Fatal XC0 i0 Link 00 (0x0000000b 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeFatal},
 		{"146_TLW_TX_PIPE0_nonfatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_TX/TLW_TX_PIPE0 Nonfatal XC0 i0 Link 00 (0x0000000c 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},
-		{"146_TLW_TX_PIPE0_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_TX/TLW_TX_PIPE0 Fatal XC0 i0 Link 00 (0x0000000c 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeWarning},
+		{"146_TLW_TX_PIPE0_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_TX/TLW_TX_PIPE0 Fatal XC0 i0 Link 00 (0x0000000c 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeFatal},
 		{"146_TLW_TX_PIPE1_nonfatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_TX/TLW_TX_PIPE1 Nonfatal XC0 i0 Link 00 (0x0000000d 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},
-		{"146_TLW_TX_PIPE1_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_TX/TLW_TX_PIPE1 Fatal XC0 i0 Link 00 (0x0000000d 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeWarning},
+		{"146_TLW_TX_PIPE1_fatal", "NVRM: Xid (PCI:0000:04:00): 146, TLW_TX/TLW_TX_PIPE1 Fatal XC0 i0 Link 00 (0x0000000d 0x00000004 0x00000000 0x00000000)", apiv1.EventTypeFatal},
 
 		// XID 147 TREX
 		{"147_TREX_nonfatal", "NVRM: Xid (PCI:0000:04:00): 147, TREX Nonfatal XC0 i0 Link 00 (0x0000000e 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},

@@ -102,7 +102,7 @@ func TestNVSentinelEventInsertedWithNVSeverityAndAction(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
 
@@ -147,7 +147,7 @@ func TestNVSentinelHealthyEventNotStored(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	ev := newNVSentinelXidEvent("79", "GPU-abc")
 	ev.IsFatal = false
@@ -168,7 +168,7 @@ func TestKmsgInsertSuppressedWhenNVSentinelCovers(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	// NVSentinel reports the incident first; the kmsg twin is suppressed.
 	src.Send(newNVSentinelXidEvent("79", ""))
@@ -200,7 +200,7 @@ func TestKmsgInsertKeptWhenDevicesDiffer(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	// NVSentinel reported Xid 79 on a different GPU: the kmsg event for
 	// PCI:0000:05:00 is a separate incident and must be stored.
@@ -228,7 +228,7 @@ func TestKmsgInsertKeptWithoutNVSentinel(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, nil)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	kmsgCh <- apiv1.KernelMessage{
 		Timestamp: metav1.Now(),
@@ -247,7 +247,7 @@ func TestNVSentinelEventSkippedWhenGPUdTwinStored(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	// GPUd's kmsg detection wins the race and stores its copy first.
 	kmsgCh <- apiv1.KernelMessage{
@@ -380,7 +380,7 @@ func TestNVSentinelXidNonFatalEvent(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	ev := newNVSentinelXidEvent("79", "GPU-abc")
 	ev.IsFatal = false
@@ -404,7 +404,7 @@ func TestNVSentinelXidUnknownCodeEvent(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	// An Xid code not in the GPUd catalog is still stored.
 	src.Send(newNVSentinelXidEvent("9999", "GPU-xyz"))
@@ -430,7 +430,7 @@ func TestNVSentinelXidNonMatchingEvent(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	// An SXid event is not matched by the xid component.
 	ev := newNVSentinelXidEvent("12028", "")
@@ -481,7 +481,7 @@ func TestNVSentinelXidEventSkippedWhenGPUdTwinStoredWithUUID(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	// GPUd's kmsg detection stores its copy first with a specific device.
 	kmsgCh <- apiv1.KernelMessage{
@@ -652,7 +652,7 @@ func TestNVSentinelXidHealthyEventDoesNotCover(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	ev := newNVSentinelXidEvent("79", "GPU-abc")
 	ev.IsFatal = false
@@ -680,7 +680,7 @@ func TestNVSentinelXidInsertFailureDoesNotCover(t *testing.T) {
 	c.eventBucket = &stubEventBucket{insertErr: errors.New("insert failed")}
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
 
@@ -700,7 +700,7 @@ func TestNVSentinelXidEventCoveredAfterPersist(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
 	kmsgCh := make(chan apiv1.KernelMessage, 1)
-	go c.start(kmsgCh, time.Hour)
+	go c.startKernelTest(kmsgCh, time.Hour)
 
 	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
 

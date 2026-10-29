@@ -8,7 +8,7 @@ require (
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/bytedance/mockey v1.4.8
 	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/dsx-ai-factory/health-validation v0.0.0-20261029153733-0281fe125892
+	github.com/dsx-ai-factory/health-validation v0.0.0-20261029211243-87d4fa97acdc
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-contrib/gzip v1.2.3
