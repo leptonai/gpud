@@ -18,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
@@ -876,7 +877,7 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		// Track the options passed to the kernel subscription
 		var policy eventstore.DedupPolicy
 		mockey.Mock((*component).observeKernel).To(func(
-			_ *component, _ components.KernelObserver, _ func(string) (string, string), configured eventstore.DedupPolicy,
+			_ *component, _ componentkmsg.Observer, _ func(string) (string, string), configured eventstore.DedupPolicy,
 		) (func(), error) {
 			policy = configured
 			return func() {}, nil
@@ -929,7 +930,7 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {
 
 		// Mock the kernel subscription to return an error
 		mockey.Mock((*component).observeKernel).To(func(
-			_ *component, _ components.KernelObserver, _ func(string) (string, string), _ eventstore.DedupPolicy,
+			_ *component, _ componentkmsg.Observer, _ func(string) (string, string), _ eventstore.DedupPolicy,
 		) (func(), error) {
 			return nil, errors.New("failed to open /dev/kmsg")
 		}).Build()

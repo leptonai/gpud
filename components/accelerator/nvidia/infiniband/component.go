@@ -176,7 +176,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				matchFunc = c.matchPreferNVSentinel
 			}
 
-			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, matchFunc, eventstore.DedupPolicy{Window: defaultKmsgEventDedupWindow, EventWindow: c.kmsgEventDedupWindow})
+			c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, matchFunc, eventstore.DedupPolicy{Window: defaultKmsgEventDedupWindow, EventWindow: c.kmsgEventDedupWindow})
 			if err != nil {
 				ccancel()
 				return nil, err

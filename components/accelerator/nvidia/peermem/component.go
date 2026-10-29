@@ -63,7 +63,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, Match, eventstore.DedupPolicy{EventWindow: func(event eventstore.Event) (time.Duration, bool) {
+			c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, Match, eventstore.DedupPolicy{EventWindow: func(event eventstore.Event) (time.Duration, bool) {
 				return peermemEventDedupWindow, event.Name == eventPeermemInvalidContext
 			}})
 			if err != nil {

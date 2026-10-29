@@ -1,4 +1,4 @@
-package components
+package kmsg
 
 import (
 	"bufio"
@@ -103,7 +103,7 @@ func TestRecordsFromObservations(t *testing.T) {
 		{name: "priority first", batch: &observation.ObservationBatch{Observations: []*observation.Observation{priority, message}}, count: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			records, err := KernelMessages(tc.batch)
+			records, err := Messages(tc.batch)
 			if tc.fail {
 				require.Error(t, err)
 			} else {
@@ -121,9 +121,9 @@ func kernelTestRecord(sequence int64, body string) kmsgsource.Message {
 	return kmsgsource.Message{BootID: "boot-a", Sequence: sequence, Timestamp: time.Unix(1700000000, 0), Priority: 6, Body: body}
 }
 func kernelTestMessages(ctx context.Context, sensor collect.Sensor) ([]apiv1.KernelMessage, error) {
-	batch, err := MeasureSensor(ctx, sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	batch, err := Measure(ctx, sensor)
 	if err != nil {
 		return nil, err
 	}
-	return KernelMessages(batch)
+	return Messages(batch)
 }

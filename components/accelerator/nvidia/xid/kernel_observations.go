@@ -9,7 +9,7 @@ import (
 	xidsignals "github.com/dsx-ai-factory/health-validation/collect/signals/xid"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 )
 
 // kernelRecord retains the raw message for event storage and content deduplication.
@@ -21,7 +21,7 @@ type kernelRecord struct {
 // kernelRecords interprets shared raw observations using the library's Xid parser.
 // Parse failures stay local to this component and preserve the original record.
 func kernelRecords(batch *observation.ObservationBatch) ([]kernelRecord, error) {
-	messages, resultErr := components.KernelMessages(batch)
+	messages, resultErr := componentkmsg.Messages(batch)
 	records := make([]kernelRecord, 0, len(messages))
 	for _, message := range messages {
 		record := kernelRecord{KernelMessage: message}

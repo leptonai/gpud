@@ -17,6 +17,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
@@ -129,7 +130,7 @@ func TestNew_Branches_WithMockey(t *testing.T) {
 
 	mockey.PatchConvey("New returns watcher error when running as root", t, func() {
 		mockey.Mock(os.Geteuid).To(func() int { return 0 }).Build()
-		mockey.Mock((*components.GPUdInstance).ObserveKernel).To(func(*components.GPUdInstance, context.Context, func(context.Context, *observation.ObservationBatch)) (func(), error) {
+		mockey.Mock((*componentkmsg.Stream).Subscribe).To(func(*componentkmsg.Stream, context.Context, func(context.Context, *observation.ObservationBatch)) (func(), error) {
 			return nil, errors.New("watcher failed")
 		}).Build()
 

@@ -32,7 +32,7 @@ Memory's `bpfJITBytesFromObservations` and InfiniBand's
 `devicesFromObservations`
 implement that conversion. Kernel-consuming components own `kernel_sensor.go`
 shims that convert observations into their GPUd events or event-loop input. They
-share the pure `components.KernelMessages` decoder and the
+share the pure `components/kmsg.Messages` decoder and the
 `api/v1.KernelMessage`
 data type. The Xid shim selects Xid messages and calls the library's
 `xid.Match` and `xid.Parse`, then converts the result and applies GPUd's catalog
@@ -68,9 +68,11 @@ non-Linux and non-root behavior. The sensor rejects integer overflow and reads
 records beyond the old scanner's 64 KiB line limit. It reads the whole vmalloc
 file into memory; large-host memory and timing costs have not been measured.
 
-GPUd's entire `pkg/kmsg` directory is removed. The component runtime owns one
-health-validation `NewStream` and generic `kmsg.New` sensor per `GPUdInstance`,
-shared by all registered components. It delivers observation batches to
+GPUd's entire `pkg/kmsg` directory is removed. `components/kmsg` owns shared
+collection, subscription lifetimes, overrun handling, and raw record decoding.
+`GPUdInstance.KernelStream()` provides one lazily initialized `kmsg.Stream` to
+all registered components. The stream owns one health-validation `NewStream`
+and generic kmsg sensor per daemon. It delivers observation batches to
 component-owned shims;
 there is no replacement GPUd watcher/syncer compatibility API. Native reading,
 boot-time lookup, parsing, and the stream's bounded storage belong to the
@@ -80,7 +82,7 @@ and `kernel.priority`, preserving empty messages and continuation lines. The
 same raw observations reach every subscriber; each component chooses which
 messages matter to it. The shared runtime has no Xid-specific interpretation.
 
-`GPUdInstance.ObserveKernel` manages subscriptions and serializes
+`kmsg.Stream.Subscribe` manages subscriptions and serializes
 `Sensor.Measure`
 at most once per 100 ms polling interval. Each component receives fresh record
 observations in encounter order, using boot ID and sequence to suppress replay.

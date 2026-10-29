@@ -98,7 +98,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 					bootID = c.getTimeNowFunc().Format(time.RFC3339Nano)
 				}
 			}
-			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, func(line string) (string, string) { return matchWithBootID(line, bootID) }, eventstore.DedupPolicy{Window: defaultKmsgEventDedupWindow})
+			c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, func(line string) (string, string) { return matchWithBootID(line, bootID) }, eventstore.DedupPolicy{Window: defaultKmsgEventDedupWindow})
 			if err != nil {
 				c.eventBucket.Close()
 				ccancel()

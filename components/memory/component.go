@@ -85,7 +85,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, createMatchFunc(), eventstore.DedupPolicy{})
+			c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, createMatchFunc(), eventstore.DedupPolicy{})
 			if err != nil {
 				ccancel()
 				return nil, err

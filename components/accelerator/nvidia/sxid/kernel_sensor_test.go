@@ -8,12 +8,11 @@ import (
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 )
 
 func TestKernelSensorDeliveryAndClose(t *testing.T) {
@@ -96,7 +95,7 @@ func kernelDeliveryBatch(t *testing.T, records []kmsgsource.Message) *observatio
 		return records, errors.New("partial kernel read")
 	}, map[string]string{"gpud.kernel_record": `(?s).*`})
 	require.NoError(t, err)
-	batch, err := components.MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	batch, err := componentkmsg.Measure(t.Context(), sensor)
 	require.NoError(t, err)
 	return batch
 }

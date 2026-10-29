@@ -6,11 +6,10 @@ import (
 	"time"
 
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 )
 
 // Existing policy fixtures pass through the same sensor and shim as production.
@@ -31,7 +30,7 @@ func kernelReaderForTest(read func(context.Context) ([]apiv1.KernelMessage, erro
 		if err != nil {
 			return nil, err
 		}
-		batch, err := components.MeasureSensor(ctx, sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+		batch, err := componentkmsg.Measure(ctx, sensor)
 		if err != nil {
 			return nil, err
 		}

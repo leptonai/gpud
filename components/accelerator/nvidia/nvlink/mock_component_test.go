@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 )
@@ -30,7 +31,7 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		var match func(string) (string, string)
 		var policy eventstore.DedupPolicy
 		mockey.Mock((*component).observeKernel).To(func(
-			_ *component, _ components.KernelObserver, matchFunc func(string) (string, string), configured eventstore.DedupPolicy,
+			_ *component, _ componentkmsg.Observer, matchFunc func(string) (string, string), configured eventstore.DedupPolicy,
 		) (func(), error) {
 			match = matchFunc
 			policy = configured
@@ -67,8 +68,8 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {
 		mockey.Mock(os.Geteuid).Return(0).Build()
 		mockey.Mock(pkghost.BootID).Return("").Build()
 		mockey.Mock(pkghost.BootTime).Return(time.Time{}).Build()
-		mockey.Mock((*components.GPUdInstance).ObserveKernel).To(func(
-			_ *components.GPUdInstance, _ context.Context, _ func(context.Context, *observation.ObservationBatch),
+		mockey.Mock((*componentkmsg.Stream).Subscribe).To(func(
+			_ *componentkmsg.Stream, _ context.Context, _ func(context.Context, *observation.ObservationBatch),
 		) (func(), error) {
 			return nil, errors.New("failed to open /dev/kmsg")
 		}).Build()

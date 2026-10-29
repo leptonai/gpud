@@ -1,4 +1,4 @@
-package components
+package kmsg
 
 import (
 	"errors"
@@ -16,9 +16,9 @@ type recordID struct {
 	sequence int64
 }
 
-// KernelMessages is the shared kernel-record shim for GPUd components.
+// Messages is the shared kernel-record shim for GPUd components.
 // It preserves encounter order and keeps partial data separate from failures.
-func KernelMessages(batch *observation.ObservationBatch) ([]apiv1.KernelMessage, error) {
+func Messages(batch *observation.ObservationBatch) ([]apiv1.KernelMessage, error) {
 	if batch == nil {
 		return nil, fmt.Errorf("kmsg sensor returned no observation batch")
 	}

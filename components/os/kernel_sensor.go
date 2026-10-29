@@ -6,17 +6,17 @@ import (
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 // observeKernel is this component's observation-to-event shim. Collection is
 // supplied by the shared health-validation sensor owned by the GPUd runtime.
-func (c *component) observeKernel(subscribe components.KernelObserver, match func(string) (string, string), policy eventstore.DedupPolicy) (func(), error) {
+func (c *component) observeKernel(subscribe componentkmsg.Observer, match func(string) (string, string), policy eventstore.DedupPolicy) (func(), error) {
 	recorder := eventstore.NewRecorder(c.eventBucket, policy)
 	return subscribe(c.ctx, func(ctx context.Context, batch *observation.ObservationBatch) {
-		messages, err := components.KernelMessages(batch)
+		messages, err := componentkmsg.Messages(batch)
 		if err != nil {
 			log.Logger.Errorw("kernel observation conversion failed", "component", Name, "error", err)
 		}

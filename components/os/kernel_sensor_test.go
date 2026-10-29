@@ -8,13 +8,12 @@ import (
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -37,9 +36,9 @@ func TestKernelSensorPersistsPartialBatchAndDeduplicatesReplay(t *testing.T) {
 		}, errors.New("partial kernel read")
 	}, map[string]string{"gpud.kernel_record": `(?s).*`})
 	require.NoError(t, err)
-	batch, err := components.MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	batch, err := componentkmsg.Measure(t.Context(), sensor)
 	require.NoError(t, err)
-	_, err = components.KernelMessages(batch)
+	_, err = componentkmsg.Messages(batch)
 	require.ErrorContains(t, err, "partial kernel read")
 
 	// Replay within one subscription, then after the in-memory dedup state is lost.

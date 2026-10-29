@@ -1,4 +1,4 @@
-package components_test
+package kmsg_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/cpu"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/components/nfs"
 )
 
@@ -45,7 +46,7 @@ func TestKernelSubscriptionsShareOneSourceAndFilterInComponents(t *testing.T) {
 		g := &components.GPUdInstance{RootCtx: t.Context()}
 		consumer := func(match func(string) (string, string), events chan<- string) func(context.Context, *observation.ObservationBatch) {
 			return func(ctx context.Context, batch *observation.ObservationBatch) {
-				messages, err := components.KernelMessages(batch)
+				messages, err := componentkmsg.Messages(batch)
 				assert.NoError(t, err)
 				for _, message := range messages {
 					if name, _ := match(message.Message); name != "" {
@@ -59,10 +60,10 @@ func TestKernelSubscriptionsShareOneSourceAndFilterInComponents(t *testing.T) {
 			}
 		}
 		cpuEvents, nfsEvents := make(chan string, 4), make(chan string, 4)
-		stopCPU, err := g.ObserveKernel(t.Context(), consumer(cpu.Match, cpuEvents))
+		stopCPU, err := g.KernelStream().Subscribe(t.Context(), consumer(cpu.Match, cpuEvents))
 		require.NoError(t, err)
 		defer stopCPU()
-		stopNFS, err := g.ObserveKernel(t.Context(), consumer(nfs.Match, nfsEvents))
+		stopNFS, err := g.KernelStream().Subscribe(t.Context(), consumer(nfs.Match, nfsEvents))
 		require.NoError(t, err)
 		defer stopNFS()
 		require.Eventually(t, func() bool { return len(cpuEvents) == 1 && len(nfsEvents) == 1 }, 5*time.Second, time.Millisecond)
@@ -82,4 +83,19 @@ func TestKernelSubscriptionsShareOneSourceAndFilterInComponents(t *testing.T) {
 		stopNFS()
 		assert.EqualValues(t, 1, closes.Load())
 	})
+}
+
+func TestKernelStreamSharedWithinDaemonInstance(t *testing.T) {
+	g := &components.GPUdInstance{RootCtx: t.Context()}
+	streams := make([]*componentkmsg.Stream, 32)
+	var wg sync.WaitGroup
+	for i := range streams {
+		wg.Go(func() { streams[i] = g.KernelStream() })
+	}
+	wg.Wait()
+	for _, stream := range streams {
+		assert.Same(t, streams[0], stream)
+	}
+	other := &components.GPUdInstance{RootCtx: t.Context()}
+	assert.NotSame(t, streams[0], other.KernelStream())
 }

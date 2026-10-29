@@ -7,13 +7,12 @@ import (
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -46,7 +45,7 @@ func TestKernelSensorShimPreservesMultirecordOOM(t *testing.T) {
 		"Killed process 9876 (apache2)",
 	} {
 		input = []kmsgsource.Message{{BootID: "boot", Sequence: int64(i), Timestamp: at, Priority: 6, Body: line}}
-		batch, err := components.MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+		batch, err := componentkmsg.Measure(t.Context(), sensor)
 		require.NoError(t, err)
 		consume(t.Context(), batch)
 	}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	xidsignals "github.com/dsx-ai-factory/health-validation/collect/signals/xid"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 )
 
 func xidFixtureBatch(t *testing.T, extra ...kmsgsource.Message) *observation.ObservationBatch {
@@ -27,7 +26,7 @@ func xidFixtureBatch(t *testing.T, extra ...kmsgsource.Message) *observation.Obs
 		}, extra...), nil
 	}, map[string]string{"gpud.kernel_record": `(?s).*`})
 	require.NoError(t, err)
-	batch, err := components.MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	batch, err := componentkmsg.Measure(t.Context(), sensor)
 	require.NoError(t, err)
 	return batch
 }
@@ -63,7 +62,7 @@ func TestXidParseFailureStaysLocalToComponent(t *testing.T) {
 	assert.Nil(t, records[2].xid)
 	assert.Equal(t, malformed, records[2].Message)
 
-	otherComponentRecords, err := components.KernelMessages(batch)
+	otherComponentRecords, err := componentkmsg.Messages(batch)
 	require.NoError(t, err, "other components receive raw records without Xid parse failures")
 	require.Len(t, otherComponentRecords, 3)
 	assert.Equal(t, malformed, otherComponentRecords[2].Message)

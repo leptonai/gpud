@@ -8,10 +8,9 @@ import (
 	"time"
 
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
@@ -23,11 +22,11 @@ func readKernelMessages(ctx context.Context) ([]apiv1.KernelMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	batch, err := components.MeasureSensor(ctx, sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	batch, err := componentkmsg.Measure(ctx, sensor)
 	if err != nil {
 		return nil, err
 	}
-	records, err := components.KernelMessages(batch)
+	records, err := componentkmsg.Messages(batch)
 	dedup := eventstore.NewDeduplicator(time.Minute)
 	messages := make([]apiv1.KernelMessage, 0, len(records))
 	for _, record := range records {

@@ -1,4 +1,4 @@
-package components
+package kmsg
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 	"github.com/bytedance/mockey"
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,11 +33,11 @@ func (s *kernelFixture) read(context.Context) ([]kmsgsource.Message, error) {
 	s.reads.Add(1)
 	return append([]kmsgsource.Message(nil), s.records...), s.err
 }
-func (s *kernelFixture) instance(t *testing.T) *GPUdInstance {
+func (s *kernelFixture) instance(t *testing.T) *Stream {
 	t.Helper()
 	sensor, err := newKernelTestSensor(s.read)
 	require.NoError(t, err)
-	return &GPUdInstance{RootCtx: t.Context(), kernel: &sensorCycle{sensor: sensor, close: func() error { s.closes.Add(1); return nil }}}
+	return &Stream{ctx: t.Context(), cycle: &sensorCycle{sensor: sensor, close: func() error { s.closes.Add(1); return nil }}}
 }
 func receiveKernel(t *testing.T, ch <-chan apiv1.KernelMessage) apiv1.KernelMessage {
 	t.Helper()
@@ -52,7 +51,7 @@ func receiveKernel(t *testing.T, ch <-chan apiv1.KernelMessage) apiv1.KernelMess
 }
 func kernelConsumer(t *testing.T, ch chan<- apiv1.KernelMessage) func(context.Context, *observation.ObservationBatch) {
 	return func(ctx context.Context, batch *observation.ObservationBatch) {
-		records, err := KernelMessages(batch)
+		records, err := Messages(batch)
 		assert.NoError(t, err)
 		for _, r := range records {
 			select {
@@ -64,14 +63,14 @@ func kernelConsumer(t *testing.T, ch chan<- apiv1.KernelMessage) func(context.Co
 	}
 }
 
-func TestObserveKernelIndependentComponents(t *testing.T) {
+func TestSubscribeIndependentComponents(t *testing.T) {
 	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(0, "same"), kernelTestRecord(1, "same")}}
 	g := source.instance(t)
 	slow, fast := make(chan apiv1.KernelMessage, 1), make(chan apiv1.KernelMessage, 8)
-	stopSlow, err := g.ObserveKernel(t.Context(), kernelConsumer(t, slow))
+	stopSlow, err := g.Subscribe(t.Context(), kernelConsumer(t, slow))
 	require.NoError(t, err)
 	t.Cleanup(stopSlow)
-	stopFast, err := g.ObserveKernel(t.Context(), kernelConsumer(t, fast))
+	stopFast, err := g.Subscribe(t.Context(), kernelConsumer(t, fast))
 	require.NoError(t, err)
 	t.Cleanup(stopFast)
 	// Content dedup belongs to component policy: collection preserves both bodies.
@@ -92,7 +91,7 @@ func TestObserveKernelIndependentComponents(t *testing.T) {
 	}
 	assert.Zero(t, source.closes.Load())
 	late := make(chan apiv1.KernelMessage, 8)
-	stopLate, err := g.ObserveKernel(t.Context(), kernelConsumer(t, late))
+	stopLate, err := g.Subscribe(t.Context(), kernelConsumer(t, late))
 	require.NoError(t, err)
 	t.Cleanup(stopLate)
 	for i := range 3 {
@@ -104,10 +103,10 @@ func TestObserveKernelIndependentComponents(t *testing.T) {
 	assert.EqualValues(t, 1, source.closes.Load())
 	stopLate()
 	assert.EqualValues(t, 1, source.closes.Load())
-	require.Nil(t, g.kernel)
+	require.Nil(t, g.cycle)
 }
 
-func TestObserveKernelSharesPartialFailures(t *testing.T) {
+func TestSubscribeSharesPartialFailures(t *testing.T) {
 	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(9, "retained")}, err: errors.New("read failed")}
 	g := source.instance(t)
 	// Block the first callback until both subscriptions have acquired the source.
@@ -119,16 +118,16 @@ func TestObserveKernelSharesPartialFailures(t *testing.T) {
 		case <-ctx.Done():
 			return
 		}
-		records, err := KernelMessages(batch)
+		records, err := Messages(batch)
 		assert.ErrorContains(t, err, "read failed")
 		if assert.Len(t, records, 1) {
 			received <- records[0]
 		}
 	}
-	stop1, err := g.ObserveKernel(t.Context(), consume)
+	stop1, err := g.Subscribe(t.Context(), consume)
 	require.NoError(t, err)
 	t.Cleanup(stop1)
-	stop2, err := g.ObserveKernel(t.Context(), consume)
+	stop2, err := g.Subscribe(t.Context(), consume)
 	require.NoError(t, err)
 	t.Cleanup(stop2)
 	close(release)
@@ -139,19 +138,19 @@ func TestObserveKernelSharesPartialFailures(t *testing.T) {
 	stop2()
 	assert.EqualValues(t, 1, source.reads.Load())
 	assert.EqualValues(t, 1, source.closes.Load())
-	require.Nil(t, g.kernel)
+	require.Nil(t, g.cycle)
 }
 
 func TestKernelSensorSerializesMeasurement(t *testing.T) {
 	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(1, "shared")}}
 	g := source.instance(t)
-	_, err := g.kernel.measure(t.Context())
+	_, err := g.cycle.measure(t.Context())
 	require.NoError(t, err)
-	g.kernel.next = time.Now().Add(time.Hour)
+	g.cycle.next = time.Now().Add(time.Hour)
 	var wg sync.WaitGroup
 	for range 32 {
 		wg.Go(func() {
-			batch, err := g.kernel.measure(t.Context())
+			batch, err := g.cycle.measure(t.Context())
 			assert.NoError(t, err)
 			assert.Len(t, batch.Observations, 2)
 		})
@@ -160,19 +159,19 @@ func TestKernelSensorSerializesMeasurement(t *testing.T) {
 	assert.EqualValues(t, 1, source.reads.Load())
 }
 
-func TestObserveKernelOpenFailureAndCancellation(t *testing.T) {
+func TestSubscribeOpenFailureAndCancellation(t *testing.T) {
 	mockey.PatchConvey("source errors leave no active subscription", t, func() {
 		failure := errors.New("cannot open kernel stream")
 		mockey.Mock(kmsgsource.NewStream).To(func(int) (*kmsgsource.Stream, error) { return nil, failure }).Build()
-		g := &GPUdInstance{RootCtx: t.Context()}
-		stop, err := g.ObserveKernel(t.Context(), nil)
+		g := New(t.Context())
+		stop, err := g.Subscribe(t.Context(), nil)
 		require.ErrorIs(t, err, failure)
 		assert.Nil(t, stop)
-		assert.Zero(t, g.kernelUsers)
-		assert.Nil(t, g.kernel)
+		assert.Zero(t, g.users)
+		assert.Nil(t, g.cycle)
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		_, err = g.ObserveKernel(ctx, nil)
+		_, err = g.Subscribe(ctx, nil)
 		require.ErrorIs(t, err, context.Canceled)
 	})
 }
@@ -181,7 +180,7 @@ func TestFreshKernelObservationsPreservesPairsAndBootIdentity(t *testing.T) {
 	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(0, "first"), kernelTestRecord(1, "next")}}
 	sensor, err := newKernelTestSensor(source.read)
 	require.NoError(t, err)
-	batch, err := MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	batch, err := Measure(t.Context(), sensor)
 	require.NoError(t, err)
 	seen := make(map[string]int64)
 	first := freshKernelObservations(batch, seen)
@@ -190,19 +189,19 @@ func TestFreshKernelObservationsPreservesPairsAndBootIdentity(t *testing.T) {
 	next := kernelTestRecord(0, "new boot")
 	next.BootID = "boot-b"
 	source.records = []kmsgsource.Message{next}
-	batch, err = MeasureSensor(t.Context(), sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	batch, err = Measure(t.Context(), sensor)
 	require.NoError(t, err)
 	assert.NotEmpty(t, freshKernelObservations(batch, seen).Observations)
 }
 
-func TestObserveKernelContinuesAfterOverrun(t *testing.T) {
+func TestSubscribeContinuesAfterOverrun(t *testing.T) {
 	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(4, "retained")}, err: syscall.EPIPE}
 	g := source.instance(t)
 	first, second := make(chan apiv1.KernelMessage, 8), make(chan apiv1.KernelMessage, 8)
-	stop1, err := g.ObserveKernel(t.Context(), kernelConsumer(t, first))
+	stop1, err := g.Subscribe(t.Context(), kernelConsumer(t, first))
 	require.NoError(t, err)
 	t.Cleanup(stop1)
-	stop2, err := g.ObserveKernel(t.Context(), kernelConsumer(t, second))
+	stop2, err := g.Subscribe(t.Context(), kernelConsumer(t, second))
 	require.NoError(t, err)
 	t.Cleanup(stop2)
 	assert.Equal(t, 4, receiveKernel(t, first).SequenceNumber)
@@ -233,41 +232,41 @@ func TestKernelOverrunDoesNotHideTerminalOrParseFailure(t *testing.T) {
 	for _, failure := range []error{errors.Join(syscall.EPIPE, syscall.EIO), errors.Join(syscall.EPIPE, io.EOF), errors.Join(syscall.EPIPE, kmsgsource.ErrMalformedRecord)} {
 		source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(4, "retained")}, err: syscall.EPIPE}
 		g := source.instance(t)
-		_, err := g.kernel.measure(t.Context())
+		_, err := g.cycle.measure(t.Context())
 		require.NoError(t, err)
 		source.err = failure
-		g.kernel.next = time.Time{}
-		batch, err := g.kernel.measure(t.Context())
+		g.cycle.next = time.Time{}
+		batch, err := g.cycle.measure(t.Context())
 		require.Error(t, err)
-		records, err := KernelMessages(batch)
+		records, err := Messages(batch)
 		require.Error(t, err)
 		require.Len(t, records, 1, "terminal failure must retain partial records")
 		reads := source.reads.Load()
-		g.kernel.next = time.Time{}
-		_, err = g.kernel.measure(t.Context())
+		g.cycle.next = time.Time{}
+		_, err = g.cycle.measure(t.Context())
 		require.Error(t, err)
 		assert.Equal(t, reads, source.reads.Load(), "terminal failure must stop collection")
 	}
 	source := &kernelFixture{records: []kmsgsource.Message{{Body: "missing kernel identity"}}, err: syscall.EPIPE}
-	_, err := source.instance(t).kernel.measure(t.Context())
+	_, err := source.instance(t).cycle.measure(t.Context())
 	require.Error(t, err, "invalid source records must not be hidden by EPIPE")
 }
 
 func TestMalformedXidDoesNotStopOtherKernelConsumers(t *testing.T) {
 	source := &kernelFixture{records: []kmsgsource.Message{kernelTestRecord(4, "NVRM: Xid (PCI:0000:01:00): invalid")}}
 	g := source.instance(t)
-	batch, err := g.kernel.measure(t.Context())
+	batch, err := g.cycle.measure(t.Context())
 	require.NoError(t, err)
-	records, err := KernelMessages(batch)
+	records, err := Messages(batch)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	assert.Len(t, batch.Observations, 2, "the shared sensor emits only raw message and priority")
 	assert.Equal(t, source.records[0].Body, records[0].Message, "component parsing must not alter shared records")
 	source.records = append(source.records, kernelTestRecord(5, "other component event"))
-	g.kernel.next = time.Time{}
-	batch, err = g.kernel.measure(t.Context())
+	g.cycle.next = time.Time{}
+	batch, err = g.cycle.measure(t.Context())
 	require.NoError(t, err)
-	records, err = KernelMessages(batch)
+	records, err = Messages(batch)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 }

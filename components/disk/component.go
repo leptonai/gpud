@@ -21,6 +21,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -104,17 +105,17 @@ const (
 
 // New creates a disk component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
-	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), gpudInstance.ObserveKernel)
+	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), gpudInstance.KernelStream().Subscribe)
 }
 
 func newComponent(
 	gpudInstance *components.GPUdInstance,
 	goos string,
 	euid int,
-	observeKernel components.KernelObserver,
+	observeKernel componentkmsg.Observer,
 ) (components.Component, error) {
 	if observeKernel == nil {
-		observeKernel = gpudInstance.ObserveKernel
+		observeKernel = gpudInstance.KernelStream().Subscribe
 	}
 
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)

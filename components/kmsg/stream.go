@@ -1,4 +1,5 @@
-package components
+// Package kmsg shares health-validation kernel observations among GPUd components.
+package kmsg
 
 import (
 	"context"
@@ -11,54 +12,43 @@ import (
 	"github.com/dsx-ai-factory/health-validation/collect"
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
-	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// KernelObserver subscribes a component shim to health-validation observations.
-type KernelObserver func(context.Context, func(context.Context, *observation.ObservationBatch)) (func(), error)
+// Stream owns one shared sensor and its subscriber lifetimes.
+// The native reader opens on the first subscription and closes after the last.
+type Stream struct {
+	ctx   context.Context
+	mu    sync.Mutex
+	cycle *sensorCycle
+	users int
+}
+
+// New creates a stream owned by the daemon's root context.
+func New(ctx context.Context) *Stream { return &Stream{ctx: ctx} }
+
+// Observer subscribes a component shim to health-validation observations.
+type Observer func(context.Context, func(context.Context, *observation.ObservationBatch)) (func(), error)
 
 const sensorPollInterval = 100 * time.Millisecond
 
-// MeasureSensor establishes GPUd's collection cycle. Data conversion is left to
-// the component that requested the observations.
-func MeasureSensor(ctx context.Context, sensor collect.Sensor, signals ...string) (*observation.ObservationBatch, error) {
-	now := time.Now()
-	cycle, err := collect.NewCycle("gpud."+sensor.ID()+"."+now.Format(time.RFC3339Nano), now)
-	if err != nil {
-		return nil, err
-	}
-	batch, err := sensor.Measure(ctx, collect.WithCycle(cycle), collect.WithSignalID(signals...))
-	if err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if batch == nil {
-		return nil, fmt.Errorf("sensor %s returned no observations", sensor.ID())
-	}
-	return batch, nil
-}
-
-// ObserveKernel shares the health-validation sensor among components of this
-// GPUd instance. Each callback receives fresh observations in encounter order.
+// Subscribe delivers fresh observations in encounter order to a component.
 // The callback owns conversion and policy; a slow callback cannot block peers.
 // Stop cancels delivery and waits for the callback before its event bucket closes.
-func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.Context, *observation.ObservationBatch)) (func(), error) {
+func (s *Stream) Subscribe(ctx context.Context, consume func(context.Context, *observation.ObservationBatch)) (func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if path := strings.TrimSpace(os.Getenv("KMSG_FILE_PATH")); path != "" && path != "/dev/kmsg" {
 		return nil, fmt.Errorf("health-validation reads /dev/kmsg; KMSG_FILE_PATH=%q is unsupported", path)
 	}
-	g.kernelMu.Lock()
-	if g.kernel == nil {
+	s.mu.Lock()
+	if s.cycle == nil {
 		source, err := kmsgsource.NewStream(0)
 		if err != nil {
-			g.kernelMu.Unlock()
+			s.mu.Unlock()
 			return nil, err
 		}
 		// The library's window only advances when immutable kernel identities
@@ -78,28 +68,28 @@ func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.C
 		}, map[string]string{"gpud.kernel_record": `(?s).*`})
 		if err != nil {
 			_ = source.Close()
-			g.kernelMu.Unlock()
+			s.mu.Unlock()
 			return nil, err
 		}
-		g.kernel = &sensorCycle{sensor: sensor, close: source.Close}
+		s.cycle = &sensorCycle{sensor: sensor, close: source.Close}
 	}
-	shared := g.kernel
-	g.kernelUsers++
-	g.kernelMu.Unlock()
+	shared := s.cycle
+	s.users++
+	s.mu.Unlock()
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		defer cancel()
 		defer func() {
-			g.kernelMu.Lock()
-			defer g.kernelMu.Unlock()
-			g.kernelUsers--
-			if g.kernelUsers == 0 {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.users--
+			if s.users == 0 {
 				if err := shared.close(); err != nil {
 					log.Logger.Errorw("failed to close kernel source", "error", err)
 				}
-				g.kernel = nil
+				s.cycle = nil
 			}
 		}()
 		timer := time.NewTimer(0)
@@ -111,7 +101,7 @@ func (g *GPUdInstance) ObserveKernel(ctx context.Context, consume func(context.C
 				return
 			case <-timer.C:
 			}
-			batch, err := shared.measure(g.RootCtx)
+			batch, err := shared.measure(s.ctx)
 			if batch != nil {
 				fresh := freshKernelObservations(batch, seen)
 				if len(fresh.Observations) > 0 {
@@ -146,7 +136,7 @@ func (s *sensorCycle) measure(ctx context.Context) (*observation.ObservationBatc
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.err == nil && !time.Now().Before(s.next) {
-		batch, err := MeasureSensor(ctx, s.sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+		batch, err := Measure(ctx, s.sensor)
 		s.err = err
 		if batch != nil {
 			delivered := &observation.ObservationBatch{CollectionId: batch.CollectionId}

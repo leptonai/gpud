@@ -107,7 +107,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kernelMessages, c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel)
+			c.kernelMessages, c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe)
 			if err != nil {
 				ccancel()
 				return nil, err
