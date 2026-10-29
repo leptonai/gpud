@@ -16,7 +16,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
@@ -109,31 +108,19 @@ func (m *mockRebootEventStoreSXID) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-// mockKmsgWatcherSXID implements kmsg.Watcher for testing
-type mockKmsgWatcherSXID struct {
-	watchCh    chan kmsg.Message
-	watchErr   error
-	closeErr   error
+// kernelSubscriptionFixture implements kernel subscription for testing
+type kernelSubscriptionFixture struct {
+	watchCh    chan apiv1.KernelMessage
 	closeCalls int
 }
 
-func (m *mockKmsgWatcherSXID) Watch() (<-chan kmsg.Message, error) {
-	if m.watchErr != nil {
-		return nil, m.watchErr
-	}
-	if m.watchCh == nil {
-		m.watchCh = make(chan kmsg.Message)
-	}
-	return m.watchCh, nil
-}
-
-func (m *mockKmsgWatcherSXID) Close() error {
+func (m *kernelSubscriptionFixture) Close() error {
 	m.closeCalls++
 	if m.watchCh != nil {
 		close(m.watchCh)
 		m.watchCh = nil
 	}
-	return m.closeErr
+	return nil
 }
 
 // TestNew_WithMockey tests the New function using mockey for isolation.
@@ -427,7 +414,7 @@ func TestCheck_ReadKmsgError_WithMockey(t *testing.T) {
 				return time.Now().UTC()
 			},
 			nvmlInstance: mockInst,
-			readAllKmsg: func(ctx context.Context) ([]kmsg.Message, error) {
+			readAllKmsg: func(ctx context.Context) ([]apiv1.KernelMessage, error) {
 				return nil, errors.New("failed to read kmsg: permission denied")
 			},
 		}
@@ -462,8 +449,8 @@ func TestCheck_WithSXidErrors_WithMockey(t *testing.T) {
 				return time.Now().UTC()
 			},
 			nvmlInstance: mockInst,
-			readAllKmsg: func(ctx context.Context) ([]kmsg.Message, error) {
-				return []kmsg.Message{
+			readAllKmsg: func(ctx context.Context) ([]apiv1.KernelMessage, error) {
+				return []apiv1.KernelMessage{
 					{
 						Timestamp: metav1.NewTime(time.Now()),
 						Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
@@ -502,8 +489,8 @@ func TestCheck_NoSXidErrors_WithMockey(t *testing.T) {
 				return time.Now().UTC()
 			},
 			nvmlInstance: mockInst,
-			readAllKmsg: func(ctx context.Context) ([]kmsg.Message, error) {
-				return []kmsg.Message{
+			readAllKmsg: func(ctx context.Context) ([]apiv1.KernelMessage, error) {
+				return []apiv1.KernelMessage{
 					{
 						Timestamp: metav1.NewTime(time.Now()),
 						Message:   "some other kernel message that is not an SXID error",
@@ -601,16 +588,17 @@ func TestClose_WithMockey(t *testing.T) {
 		ctx := context.Background()
 		cctx, cancel := context.WithCancel(ctx)
 
-		mockWatcher := &mockKmsgWatcherSXID{
-			watchCh: make(chan kmsg.Message),
+		mockWatcher := &kernelSubscriptionFixture{
+			watchCh: make(chan apiv1.KernelMessage),
 		}
 		mockBucket := &mockEventBucketSXID{}
 
 		comp := &component{
-			ctx:         cctx,
-			cancel:      cancel,
-			kmsgWatcher: mockWatcher,
-			eventBucket: mockBucket,
+			ctx:            cctx,
+			cancel:         cancel,
+			kernelMessages: mockWatcher.watchCh,
+			stopKernel:     func() { _ = mockWatcher.Close() },
+			eventBucket:    mockBucket,
 		}
 
 		err := comp.Close()
@@ -620,30 +608,6 @@ func TestClose_WithMockey(t *testing.T) {
 }
 
 // TestClose_WithKmsgWatcherError_WithMockey tests Close when kmsg watcher returns an error.
-func TestClose_WithKmsgWatcherError_WithMockey(t *testing.T) {
-	mockey.PatchConvey("Close with kmsg watcher error", t, func() {
-		ctx := context.Background()
-		cctx, cancel := context.WithCancel(ctx)
-
-		mockWatcher := &mockKmsgWatcherSXID{
-			watchCh:  make(chan kmsg.Message),
-			closeErr: errors.New("close error"),
-		}
-		mockBucket := &mockEventBucketSXID{}
-
-		comp := &component{
-			ctx:         cctx,
-			cancel:      cancel,
-			kmsgWatcher: mockWatcher,
-			eventBucket: mockBucket,
-		}
-
-		err := comp.Close()
-		// Close should not return an error even if kmsgWatcher.Close fails (it just logs)
-		assert.NoError(t, err)
-		assert.Equal(t, 1, mockWatcher.closeCalls)
-	})
-}
 
 // TestClose_NilComponents_WithMockey tests Close with nil kmsgWatcher and eventBucket.
 func TestClose_NilComponents_WithMockey(t *testing.T) {
@@ -652,10 +616,10 @@ func TestClose_NilComponents_WithMockey(t *testing.T) {
 		cctx, cancel := context.WithCancel(ctx)
 
 		comp := &component{
-			ctx:         cctx,
-			cancel:      cancel,
-			kmsgWatcher: nil,
-			eventBucket: nil,
+			ctx:            cctx,
+			cancel:         cancel,
+			kernelMessages: nil,
+			eventBucket:    nil,
 		}
 
 		err := comp.Close()
@@ -909,35 +873,6 @@ func TestStart_ContextCanceled_WithMockey(t *testing.T) {
 }
 
 // TestStart_WithKmsgWatcherError_WithMockey tests Start when kmsg watcher fails to watch.
-func TestStart_WithKmsgWatcherError_WithMockey(t *testing.T) {
-	mockey.PatchConvey("Start with kmsg watcher error", t, func() {
-		ctx := context.Background()
-		cctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		mockBucket := &mockEventBucketSXID{}
-		mockReboot := &mockRebootEventStoreSXID{}
-		mockWatcher := &mockKmsgWatcherSXID{
-			watchErr: errors.New("watch error"),
-		}
-
-		comp := &component{
-			ctx:              cctx,
-			cancel:           cancel,
-			eventBucket:      mockBucket,
-			rebootEventStore: mockReboot,
-			kmsgWatcher:      mockWatcher,
-			getTimeNowFunc: func() time.Time {
-				return time.Now().UTC()
-			},
-		}
-
-		// Start should return the error from kmsgWatcher.Watch
-		err := comp.Start()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "watch error")
-	})
-}
 
 // TestStart_WithKmsgMessages_WithMockey tests start processing kmsg messages.
 func TestStart_WithKmsgMessages_WithMockey(t *testing.T) {
@@ -947,8 +882,8 @@ func TestStart_WithKmsgMessages_WithMockey(t *testing.T) {
 
 		mockBucket := &mockEventBucketSXID{}
 		mockReboot := &mockRebootEventStoreSXID{}
-		mockWatcher := &mockKmsgWatcherSXID{
-			watchCh: make(chan kmsg.Message, 10),
+		mockWatcher := &kernelSubscriptionFixture{
+			watchCh: make(chan apiv1.KernelMessage, 10),
 		}
 
 		comp := &component{
@@ -956,7 +891,8 @@ func TestStart_WithKmsgMessages_WithMockey(t *testing.T) {
 			cancel:           cancel,
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
-			kmsgWatcher:      mockWatcher,
+			kernelMessages:   mockWatcher.watchCh,
+			stopKernel:       func() { _ = mockWatcher.Close() },
 			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
@@ -967,13 +903,13 @@ func TestStart_WithKmsgMessages_WithMockey(t *testing.T) {
 		go comp.start(mockWatcher.watchCh, 50*time.Millisecond)
 
 		// Send SXID message
-		mockWatcher.watchCh <- kmsg.Message{
+		mockWatcher.watchCh <- apiv1.KernelMessage{
 			Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 			Timestamp: metav1.Time{Time: time.Now()},
 		}
 
 		// Send non-matching message
-		mockWatcher.watchCh <- kmsg.Message{
+		mockWatcher.watchCh <- apiv1.KernelMessage{
 			Message:   "some other non-matching message",
 			Timestamp: metav1.Time{Time: time.Now()},
 		}
@@ -1006,7 +942,7 @@ func TestStart_WithExtraEvent_WithMockey(t *testing.T) {
 		}
 
 		// Start in background with a dummy channel
-		dummyCh := make(chan kmsg.Message)
+		dummyCh := make(chan apiv1.KernelMessage)
 		go comp.start(dummyCh, 50*time.Millisecond)
 
 		// Send an extra event
@@ -1045,7 +981,7 @@ func TestStart_WithNilExtraEvent_WithMockey(t *testing.T) {
 		}
 
 		// Start in background with a dummy channel
-		dummyCh := make(chan kmsg.Message)
+		dummyCh := make(chan apiv1.KernelMessage)
 		go comp.start(dummyCh, 50*time.Millisecond)
 
 		// Send nil event - should be handled gracefully
@@ -1081,7 +1017,7 @@ func TestStart_InsertEventError_WithMockey(t *testing.T) {
 		}
 
 		// Start in background with a dummy channel
-		dummyCh := make(chan kmsg.Message)
+		dummyCh := make(chan apiv1.KernelMessage)
 		go comp.start(dummyCh, 50*time.Millisecond)
 
 		// Send an extra event - should fail to insert but not crash
@@ -1113,8 +1049,8 @@ func TestStart_DuplicateSXIDEvent_WithMockey(t *testing.T) {
 			findEvent: &existingEvent, // Event already exists
 		}
 		mockReboot := &mockRebootEventStoreSXID{}
-		mockWatcher := &mockKmsgWatcherSXID{
-			watchCh: make(chan kmsg.Message, 10),
+		mockWatcher := &kernelSubscriptionFixture{
+			watchCh: make(chan apiv1.KernelMessage, 10),
 		}
 
 		comp := &component{
@@ -1122,7 +1058,8 @@ func TestStart_DuplicateSXIDEvent_WithMockey(t *testing.T) {
 			cancel:           cancel,
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
-			kmsgWatcher:      mockWatcher,
+			kernelMessages:   mockWatcher.watchCh,
+			stopKernel:       func() { _ = mockWatcher.Close() },
 			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
@@ -1133,7 +1070,7 @@ func TestStart_DuplicateSXIDEvent_WithMockey(t *testing.T) {
 		go comp.start(mockWatcher.watchCh, 50*time.Millisecond)
 
 		// Send SXID message - should be skipped as duplicate
-		mockWatcher.watchCh <- kmsg.Message{
+		mockWatcher.watchCh <- apiv1.KernelMessage{
 			Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 			Timestamp: metav1.Time{Time: time.Now()},
 		}
@@ -1158,8 +1095,8 @@ func TestStart_FindEventError_WithMockey(t *testing.T) {
 			findErr: errors.New("find error"),
 		}
 		mockReboot := &mockRebootEventStoreSXID{}
-		mockWatcher := &mockKmsgWatcherSXID{
-			watchCh: make(chan kmsg.Message, 10),
+		mockWatcher := &kernelSubscriptionFixture{
+			watchCh: make(chan apiv1.KernelMessage, 10),
 		}
 
 		comp := &component{
@@ -1167,7 +1104,8 @@ func TestStart_FindEventError_WithMockey(t *testing.T) {
 			cancel:           cancel,
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
-			kmsgWatcher:      mockWatcher,
+			kernelMessages:   mockWatcher.watchCh,
+			stopKernel:       func() { _ = mockWatcher.Close() },
 			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
@@ -1178,7 +1116,7 @@ func TestStart_FindEventError_WithMockey(t *testing.T) {
 		go comp.start(mockWatcher.watchCh, 50*time.Millisecond)
 
 		// Send SXID message - should fail to find but handle gracefully
-		mockWatcher.watchCh <- kmsg.Message{
+		mockWatcher.watchCh <- apiv1.KernelMessage{
 			Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 			Timestamp: metav1.Time{Time: time.Now()},
 		}
@@ -1310,7 +1248,7 @@ func TestCheckResult_String_WithErrors_WithMockey(t *testing.T) {
 		cr := &checkResult{
 			FoundErrors: []FoundError{
 				{
-					Kmsg: kmsg.Message{
+					Kmsg: apiv1.KernelMessage{
 						Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal error",
 						Timestamp: metav1.Time{Time: time.Now()},
 					},
@@ -1344,7 +1282,7 @@ func TestCheckResult_String_WithNilDetail_WithMockey(t *testing.T) {
 		cr := &checkResult{
 			FoundErrors: []FoundError{
 				{
-					Kmsg: kmsg.Message{
+					Kmsg: apiv1.KernelMessage{
 						Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, error",
 						Timestamp: metav1.Time{Time: time.Now()},
 					},
@@ -1371,7 +1309,7 @@ func TestCheckResult_String_WithNilSuggestedActions_WithMockey(t *testing.T) {
 		cr := &checkResult{
 			FoundErrors: []FoundError{
 				{
-					Kmsg: kmsg.Message{
+					Kmsg: apiv1.KernelMessage{
 						Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, error",
 						Timestamp: metav1.Time{Time: time.Now()},
 					},

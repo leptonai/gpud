@@ -75,7 +75,7 @@ func (m *mockEventBucket) Close() {
 	m.Called()
 }
 
-// MockKmsgSyncer implements a mock for kmsg.Syncer
+// MockKmsgSyncer implements a mock for kernel event subscription
 type MockKmsgSyncer struct {
 	mock.Mock
 }
@@ -736,7 +736,7 @@ func TestComponentCloseNilSyncer(t *testing.T) {
 		ctx:         ctx,
 		cancel:      cancel,
 		eventBucket: mockEventBucket,
-		kmsgSyncer:  nil, // Explicitly nil
+		stopKernel:  nil, // Explicitly nil
 	}
 
 	// Test Close method

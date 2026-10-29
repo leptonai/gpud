@@ -5,25 +5,24 @@ import (
 	"errors"
 
 	xidquery "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 )
 
 // Injector defines the interface for injecting failures into the system.
 type Injector interface {
-	KmsgWriter() pkgkmsgwriter.KmsgWriter
+	KmsgWriter() KmsgWriter
 }
 
-func NewInjector(kmsgWriter pkgkmsgwriter.KmsgWriter) Injector {
+func NewInjector(kmsgWriter KmsgWriter) Injector {
 	return &injector{
 		kmsgWriter: kmsgWriter,
 	}
 }
 
 type injector struct {
-	kmsgWriter pkgkmsgwriter.KmsgWriter
+	kmsgWriter KmsgWriter
 }
 
-func (i *injector) KmsgWriter() pkgkmsgwriter.KmsgWriter {
+func (i *injector) KmsgWriter() KmsgWriter {
 	return i.kmsgWriter
 }
 
@@ -33,7 +32,7 @@ type Request struct {
 	XID *XIDToInject `json:"xid,omitempty"`
 
 	// KernelMessage is the kernel message to inject.
-	KernelMessage *pkgkmsgwriter.KernelMessage `json:"kernel_message,omitempty"`
+	KernelMessage *KernelMessage `json:"kernel_message,omitempty"`
 }
 
 type XIDToInject struct {
@@ -50,8 +49,8 @@ func (r *Request) Validate() error {
 		}
 
 		msg := xidquery.GetMessageToInject(r.XID.ID)
-		r.KernelMessage = &pkgkmsgwriter.KernelMessage{
-			Priority: pkgkmsgwriter.ConvertKernelMessagePriority(msg.Priority),
+		r.KernelMessage = &KernelMessage{
+			Priority: ConvertKernelMessagePriority(msg.Priority),
 			Message:  msg.Message,
 		}
 		r.XID = nil

@@ -15,7 +15,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
@@ -35,7 +34,7 @@ type component struct {
 	nvmlInstance nvidianvml.Instance
 
 	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	stopKernel  func()
 
 	checkLsmodPeermemModuleFunc func(ctx context.Context) (*LsmodPeermemModuleOutput, error)
 
@@ -64,15 +63,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(
-				cctx,
-				Match,
-				c.eventBucket,
-				// Peermem errors can spam during transient GPU/NIC issues; coalesce within 5 minutes to reduce event noise.
-				kmsg.WithEventDedupWindowFunc(func(event eventstore.Event) (time.Duration, bool) {
-					return peermemEventDedupWindow, event.Name == eventPeermemInvalidContext
-				}),
-			)
+			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, Match, eventstore.DedupPolicy{EventWindow: func(event eventstore.Event) (time.Duration, bool) {
+				return peermemEventDedupWindow, event.Name == eventPeermemInvalidContext
+			}})
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -142,8 +135,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

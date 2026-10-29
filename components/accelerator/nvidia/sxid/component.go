@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +24,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
@@ -59,9 +59,11 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
-	kmsgWatcher      kmsg.Watcher
+	kernelMessages   <-chan apiv1.KernelMessage
+	stopKernel       func()
+	started          atomic.Bool
 
-	readAllKmsg  func(context.Context) ([]kmsg.Message, error)
+	readAllKmsg  func(context.Context) ([]apiv1.KernelMessage, error)
 	extraEventCh chan pendingEvent
 
 	lastMu          sync.RWMutex
@@ -105,7 +107,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgWatcher, err = kmsg.NewWatcher()
+			c.kernelMessages, c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel)
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -114,7 +116,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		c.readAllKmsg = kmsg.ReadAll
+		c.readAllKmsg = readKernelMessages
 	}
 
 	if gpudInstance.NVSentinel != nil && c.eventBucket != nil {
@@ -148,6 +150,9 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
+	if !c.started.CompareAndSwap(false, true) {
+		return components.ErrAlreadyStarted
+	}
 	for {
 		err := c.updateCurrentState()
 		if err == nil {
@@ -172,16 +177,8 @@ func (c *component) Start() error {
 	// health monitor may be the only kmsg reader on a node; without this,
 	// NVSentinel events would queue in extraEventCh and never be stored.
 	// A nil kmsgCh is never ready in start's select, which is fine.
-	if c.kmsgWatcher != nil || c.nvsSource != nil {
-		var kmsgCh <-chan kmsg.Message
-		if c.kmsgWatcher != nil {
-			ch, err := c.kmsgWatcher.Watch()
-			if err != nil {
-				return err
-			}
-			kmsgCh = ch
-		}
-		go c.start(kmsgCh, DefaultStateUpdatePeriod)
+	if c.kernelMessages != nil || c.nvsSource != nil {
+		go c.start(c.kernelMessages, DefaultStateUpdatePeriod)
 	}
 
 	return nil
@@ -220,12 +217,10 @@ func (c *component) Close() error {
 		c.nvsUnsubscribe()
 	}
 
-	if c.kmsgWatcher != nil {
-		cerr := c.kmsgWatcher.Close()
-		if cerr != nil {
-			log.Logger.Errorw("failed to close kmsg watcher", "error", cerr)
-		}
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
+
 	if c.eventBucket != nil {
 		c.eventBucket.Close()
 	}
@@ -330,7 +325,7 @@ type checkResult struct {
 
 // FoundError represents a found SXID error and its corresponding kmsg.
 type FoundError struct {
-	Kmsg kmsg.Message
+	Kmsg apiv1.KernelMessage
 	Error
 }
 
@@ -434,7 +429,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {
+func (c *component) start(kmsgCh <-chan apiv1.KernelMessage, updatePeriod time.Duration) {
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
@@ -471,7 +466,11 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-		case message := <-kmsgCh:
+		case message, ok := <-kmsgCh:
+			if !ok {
+				kmsgCh = nil
+				continue
+			}
 			sxidErr := Match(message.Message)
 			if sxidErr == nil {
 				log.Logger.Debugw("not sxid event, skip", "kmsg", message)

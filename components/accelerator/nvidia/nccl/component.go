@@ -15,7 +15,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
@@ -32,9 +31,9 @@ type component struct {
 	nvmlInstance nvidianvml.Instance
 
 	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	stopKernel  func()
 
-	readAllKmsg func(context.Context) ([]kmsg.Message, error)
+	readAllKmsg func(context.Context) ([]apiv1.KernelMessage, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -58,7 +57,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, Match, eventstore.DedupPolicy{})
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -67,7 +66,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		c.readAllKmsg = kmsg.ReadAll
+		c.readAllKmsg = readKernelMessages
 	}
 
 	return c, nil
@@ -122,8 +121,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()
@@ -207,7 +206,7 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	MatchedKmsgs []kmsg.Message `json:"matched_kmsgs"`
+	MatchedKmsgs []apiv1.KernelMessage `json:"matched_kmsgs"`
 
 	// timestamp of the last check
 	ts time.Time

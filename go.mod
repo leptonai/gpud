@@ -28,6 +28,7 @@ require (
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/procfs v0.16.1
 	github.com/shirou/gopsutil/v4 v4.25.9
+	github.com/siderolabs/go-kmsg v0.1.6
 	github.com/stretchr/testify v1.12.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
@@ -118,6 +119,7 @@ require (
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/siderolabs/gen v0.8.6 // indirect
 	github.com/smartystreets/assertions v1.2.0 // indirect
 	github.com/smartystreets/goconvey v1.7.2 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect

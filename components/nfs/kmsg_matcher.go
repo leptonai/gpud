@@ -34,7 +34,7 @@ const (
 	//   nfs_page_async_flush+0x24/0x290 [nfs]
 	//   nfs_writepages_callback+0x31/0x60 [nfs]
 	//
-	// Stack frames typically have a leading space; pkg/kmsg preserves it
+	// Stack frames typically have a leading space; health-validation preserves it
 	// (strings.SplitN(line, ";", 2), no trim). The regex therefore anchors on
 	// either the start of the line or a whitespace boundary, so we don't match
 	// substrings of unrelated symbols.
@@ -74,7 +74,7 @@ func HasNFSWritebackHang(line string) bool {
 }
 
 // Match returns the first NFS hang related kernel-message match for the given
-// log line. It is a kmsg.MatchFunc.
+// log line. It converts a kernel record into a GPUd event.
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {

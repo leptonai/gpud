@@ -26,10 +26,12 @@ The GPUd base is `24b9e76c`.
 | OOM and panic | `collect/signals/kmsg/memory` |
 | InfiniBand sysfs | `collect/sensors/infiniband` |
 
-Memory's `bpfJITBytesFromObservations`, InfiniBand's `devicesFromObservations`,
-and the shared kernel-record shim `messagesFromObservations` implement that
-conversion. Xid/OOM/panic pattern imports support the component-specific event
-interpretation that follows kernel-record collection.
+Memory's `bpfJITBytesFromObservations` and InfiniBand's `devicesFromObservations`
+implement that conversion. Kernel-consuming components own `kernel_sensor.go`
+shims that convert observations into their GPUd events or event-loop input. They
+share the pure `components.KernelMessages` decoder and the `api/v1.KernelMessage`
+data type. Xid/OOM/panic pattern imports support subsequent component-specific
+interpretation.
 
 The InfiniBand adapter retains GPUd's device/port structs for metrics, JSON, and
 history. It preserves nullable counters, byte units, numeric port order, device
@@ -58,34 +60,43 @@ non-Linux and non-root behavior. The sensor rejects integer overflow and reads
 records beyond the old scanner's 64 KiB line limit. It reads the whole vmalloc
 file into memory; large-host memory and timing costs have not been measured.
 
-Kernel snapshots use health-validation's `ReadAll`; continuous collection uses
-one process-wide `NewStream` and kmsg sensor shared by all component watchers.
-GPUd's syscall loops, file opening, boot-time lookup, and parser wrapper are
-removed. The shim converts message and priority observations into GPUd `Message`
-values with their original timestamps. The sensor selects every record, including
-empty bodies and continuation lines, so existing component matchers can
-reconstruct multi-record events.
+GPUd's entire `pkg/kmsg` directory is removed. The component runtime owns one
+health-validation `NewStream` and kmsg sensor per `GPUdInstance`, shared by all
+registered components. It delivers observation batches to component-owned shims;
+there is no replacement GPUd watcher/syncer compatibility API. Native reading,
+boot-time lookup, parsing, and the stream's bounded storage belong to the library.
 
-The shared stream retains its default 4,096-record window. Watchers poll every
-100 ms; a shared cache serializes sensor measurement and conversion at most once
-per polling interval. Each watcher receives the same immutable window, with its
-own boot-ID/sequence cursor and content deduplication policy. A late subscriber
-receives retained history, and a slow subscriber cannot block another component's
-collection or delivery. Unchanged windows reuse their converted records without
-rebuilding observations. Sequence gaps after a subscriber's first observed record
-are logged. Slow consumers or startup bursts can still lose records through
-window eviction; loss before the first snapshot cannot be detected by the cursor.
+`GPUdInstance.ObserveKernel` manages subscriptions and serializes `Sensor.Measure`
+at most once per 100 ms polling interval. Each component receives fresh record
+observations in encounter order, using boot ID and sequence to suppress replay.
+Message and priority observations stay paired. Unchanged windows reuse the prior
+observation batch without rebuilding it, and late subscribers receive retained
+history. A slow component does not block another component's delivery. Stopping a
+subscription waits for its callback; the last subscription closes the source.
 
-Collection failures and partial results are retained for every subscriber. Each
-watcher emits available messages, logs the failure, and releases its subscription.
-Closing a watcher cancels a blocked channel send; only the last subscription
-closes the native reader. A later subscription opens a fresh stream and sensor.
-GPUd keeps content and event deduplication, persistence, severity, and recovery
-policy. Component matchers and event conversion remain in their existing owners.
+The library retains its default 4,096-record window. Slow consumers and startup
+bursts can still lose records through window eviction. Sequence gaps after a
+component's first observed record are logged; loss before its first snapshot is
+not detectable. Partial results and collection failures reach every subscriber.
+A collection failure releases subscriptions after delivering the available data.
 
-Full-history diagnostic snapshots keep their separate `ReadAll` sensor path.
-Replacing them with the bounded streaming window would hide older kernel records.
-Snapshot failures still return available messages alongside an error.
+Components retain their own matching and health interpretation, including
+multi-record OOM/panic reconstruction and NVSentinel suppression. GPUd event
+coalescing and persistent duplicate lookup now live in `eventstore.Recorder`.
+Content deduplication remains component-local; InfiniBand and peermem retain their
+first-occurrence event windows, and NVLink retains its boot-specific event key.
+
+Xid, SXid, NCCL, and NVLink own full-history `kernel_snapshot.go` shims. These call
+the health-validation kmsg sensor with its default `ReadAll` source and convert
+observations into GPUd results. They remain separate from the streaming window so
+on-demand checks can see older records. Their existing JSON record fields are
+preserved by `api/v1.KernelMessage`; boot identity is not serialized.
+
+The removed directory also contained fault injection's writer, which is outside
+health collection. Its request types and priority policy now belong to
+`pkg/fault-injector`. Line splitting, printk length limits, tab normalization, and
+truncation use `github.com/siderolabs/go-kmsg` v0.1.6. This keeps the fault-injection
+API while deleting the copied writer implementation.
 
 The shared reader opens `/dev/kmsg` on Linux. Non-default `KMSG_FILE_PATH` values
 now return an explicit unsupported-path error; they are not silently ignored.
@@ -124,11 +135,12 @@ These collectors still require behavior beyond a direct library import:
 
 Local validation passed on macOS arm64 with Go 1.27.3:
 
-- `go build ./...` and a Linux amd64 cross-build of `pkg/kmsg`.
+- `go build ./...`.
 - Repository-wide test compilation with `go test -run '^$'` and mockey's
   `-gcflags='all=-N -l'`. This does not execute the full test suite.
-- Race tests for `pkg/kmsg/...`, its consuming components, GPM, and
-  `pkg/nvidia/nvml/...`, using
+- Race tests for the component sensor runtime, all kernel-consuming components,
+  event storage, fault injection, and affected API adapters. Earlier migration
+  checks also covered GPM and `pkg/nvidia/nvml/...`. Tests use
   `-gcflags='all=-N -l -d=checkptr=0'` as required by GPUd's test script.
 - The repository's custom golangci-lint 2.14.0 configuration over the changed
   packages: zero issues.
@@ -143,8 +155,13 @@ versus optional errors, exclusions, numeric port order, and EINVAL cache lifetim
 Existing component tests still cover port flaps and recovery windows. Kernel
 shim tests cover fixture parsing through the shared parser and sensor, complete
 message/priority conversion, partial failures, replay suppression, sequence
-gaps, and cancellation while the output channel is full. Shared-watcher tests
-cover independent dedup policies, concurrent subscribers, one measurement per
-interval, late subscription, slow consumers, boot identity, partial failures,
-reference-counted shutdown, and reopening after failure.
+gaps, and cancellation while the output channel is full. Runtime subscription tests
+cover independent dedup policies, concurrent subscribers, one shared measurement,
+late subscription, slow consumers, boot identity, partial failures, and
+reference-counted shutdown. Snapshot coverage checks history beyond the streaming
+window, partial errors, and content dedup. Event-store tests retain epoch-aligned
+and first-occurrence windows plus deduplication across restarts. API tests cover
+JSON compatibility and fault-injection requests. Updated Linux-only component
+tests also compile using a temporary build-constraint overlay on macOS; this does
+not establish native Linux runtime behavior.
 Linux GPU hardware, container builds, and live daemon behavior remain untested.

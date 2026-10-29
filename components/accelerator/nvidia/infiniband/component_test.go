@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
@@ -325,18 +323,12 @@ func TestComponentClose(t *testing.T) {
 		eventBucket: mockBucket,
 	}
 
-	// Add a real kmsgSyncer only if on linux to test the path where it's not nil
-	// Note: This part might still not run in all test environments
-	if runtime.GOOS == "linux" {
-		// Attempt to create, ignore error for this test focused on Close()
-		kmsgSyncer, _ := kmsg.NewSyncer(cctx, func(_ string) (string, string) {
-			return "test", "test"
-		}, mockBucket)
-		c.kmsgSyncer = kmsgSyncer // Assign if created
-	}
+	stopped := false
+	c.stopKernel = func() { stopped = true }
 
 	err := c.Close()
 	assert.NoError(t, err)
+	assert.True(t, stopped)
 
 	// Verify context is canceled
 	select {
@@ -718,7 +710,7 @@ func TestCloseWithNilComponents(t *testing.T) {
 		ctx:         context.Background(),
 		cancel:      func() {}, // no-op cancel
 		eventBucket: nil,
-		kmsgSyncer:  nil,
+		stopKernel:  nil,
 	}
 
 	err := c.Close()
@@ -841,7 +833,7 @@ func TestNewWithNilEventStore(t *testing.T) {
 	casted, ok := comp.(*component)
 	require.True(t, ok)
 	assert.Nil(t, casted.eventBucket)
-	assert.Nil(t, casted.kmsgSyncer)
+	assert.Nil(t, casted.stopKernel)
 
 	// Clean up
 	err = comp.Close()

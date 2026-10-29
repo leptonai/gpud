@@ -63,7 +63,7 @@ func TestMatch(t *testing.T) {
 
 		// ── Rule C: writeback hang stack frames ──
 		// All real dmesg stack-trace lines start with a leading space, which
-		// pkg/kmsg's parser preserves. These cases enforce that the regex
+		// health-validation's parser preserves. These cases enforce that the regex
 		// boundary anchor accepts leading whitespace.
 		{
 			name:          "writeback hang nfs_lock_and_join_requests with leading space",

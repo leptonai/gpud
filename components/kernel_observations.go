@@ -1,55 +1,30 @@
-package kmsg
+package components
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/dsx-ai-factory/health-validation/collect"
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
-	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
 	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
-	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
 
-// Select every record, including empty and multiline bodies. Component matchers
-// need continuation lines that would be lost by filtering only event starts.
-func newSensor(read func(context.Context) ([]kmsgsource.Message, error)) (collect.Sensor, error) {
-	return kmsgsensor.New(read, map[string]string{"gpud.kernel_record": `(?s).*`})
-}
+	apiv1 "github.com/leptonai/gpud/api/v1"
+)
 
 type recordID struct {
 	bootID   string
 	sequence int64
 }
 
-func collectMessages(ctx context.Context, sensor collect.Sensor) ([]Message, error) {
-	now := time.Now()
-	cycle, err := collect.NewCycle("gpud.kmsg."+now.Format(time.RFC3339Nano), now)
-	if err != nil {
-		return nil, err
-	}
-	batch, err := sensor.Measure(ctx, collect.WithCycle(cycle), collect.WithSignalID(kmsgsignals.Message.ID(), kmsgsignals.Priority.ID()))
-	if err != nil {
-		return nil, err
-	}
-	if ctx != nil && ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-	return messagesFromObservations(batch)
-}
-
-// messagesFromObservations is the shared kernel-record shim for GPUd components.
+// KernelMessages is the shared kernel-record shim for GPUd components.
 // It preserves encounter order and keeps partial data separate from failures.
-func messagesFromObservations(batch *observation.ObservationBatch) ([]Message, error) {
+func KernelMessages(batch *observation.ObservationBatch) ([]apiv1.KernelMessage, error) {
 	if batch == nil {
 		return nil, fmt.Errorf("kmsg sensor returned no observation batch")
 	}
 	type entry struct {
 		id             recordID
-		message        Message
+		message        apiv1.KernelMessage
 		body, priority bool
 	}
 	entries := make([]entry, 0, len(batch.Observations)/2)
@@ -75,7 +50,7 @@ func messagesFromObservations(batch *observation.ObservationBatch) ([]Message, e
 		if !found {
 			index = len(entries)
 			indexes[id] = index
-			entries = append(entries, entry{id: id, message: Message{bootID: id.bootID, SequenceNumber: sequence, Timestamp: metav1.NewTime(reading.ObservedAt.AsTime())}})
+			entries = append(entries, entry{id: id, message: apiv1.KernelMessage{BootID: id.bootID, SequenceNumber: sequence, Timestamp: metav1.NewTime(reading.ObservedAt.AsTime())}})
 		}
 		record := &entries[index]
 		switch reading.SignalId {
@@ -95,7 +70,7 @@ func messagesFromObservations(batch *observation.ObservationBatch) ([]Message, e
 			return nil, fmt.Errorf("unexpected kmsg signal %q", reading.SignalId)
 		}
 	}
-	records := make([]Message, 0, len(entries))
+	records := make([]apiv1.KernelMessage, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.body || !entry.priority {
 			resultErr = errors.Join(resultErr, fmt.Errorf("incomplete kmsg record %v", entry.id))

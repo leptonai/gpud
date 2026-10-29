@@ -1,9 +1,8 @@
-package writer
+package faultinjector
 
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -278,53 +277,6 @@ func TestKmsgWriter_WriteError(t *testing.T) {
 	assert.Equal(t, expectedErr, err)
 }
 
-func TestBuildKmsgLine(t *testing.T) {
-	tests := []struct {
-		name     string
-		priority int
-		line     []byte
-		expected string
-	}{
-		{
-			name:     "simple line without newline",
-			priority: 46, // LOG_SYSLOG + INFO
-			line:     []byte("test message"),
-			expected: "<46>test message\n",
-		},
-		{
-			name:     "line with newline",
-			priority: 43, // LOG_SYSLOG + ERR
-			line:     []byte("test message\n"),
-			expected: "<43>test message\n",
-		},
-		{
-			name:     "line with tabs",
-			priority: 44, // LOG_SYSLOG + WARNING
-			line:     []byte("message\twith\ttabs"),
-			expected: "<44>message with tabs\n",
-		},
-		{
-			name:     "empty line",
-			priority: 46,
-			line:     []byte(""),
-			expected: "<46>\n",
-		},
-		{
-			name:     "line with multiple tabs",
-			priority: 42, // LOG_SYSLOG + CRIT
-			line:     []byte("\terror:\t\tdetails\t"),
-			expected: "<42> error:  details \n",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := buildKmsgLine(tt.priority, tt.line)
-			assert.Equal(t, tt.expected, string(result))
-		})
-	}
-}
-
 func TestKmsgWriter_InterfaceCompliance(t *testing.T) {
 	// Ensure both implementations satisfy the interface
 	var _ KmsgWriter = &noOpWriter{}
@@ -399,28 +351,6 @@ func TestKmsgWriter_LongLineTruncation(t *testing.T) {
 }
 
 // Benchmark tests
-func BenchmarkBuildKmsgLine(b *testing.B) {
-	line := []byte("This is a test kernel message with some content")
-	priority := 46 // LOG_SYSLOG + INFO
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = buildKmsgLine(priority, line)
-	}
-}
-
-func BenchmarkKmsgWriter_Write(b *testing.B) {
-	writer := &kmsgWriter{wr: io.Discard}
-	msg := &KernelMessage{
-		Priority: KernelMessagePriorityInfo,
-		Message:  "This is a test kernel message\nWith multiple lines\nAnd some tabs\there",
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = writer.Write(msg)
-	}
-}
 
 // Example test
 func ExampleNewWriter() {

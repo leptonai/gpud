@@ -5,13 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 )
 
 type fakeKmsgWriter struct{}
 
-func (w *fakeKmsgWriter) Write(msg *pkgkmsgwriter.KernelMessage) error { return nil }
+func (w *fakeKmsgWriter) Write(msg *KernelMessage) error { return nil }
 
 func TestNewInjector(t *testing.T) {
 	w := &fakeKmsgWriter{}
@@ -39,7 +37,7 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "valid kernel message should return nil",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "KERN_INFO",
 					Message:  "This is a valid test message",
 				},
@@ -49,7 +47,7 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "valid kernel message with kern.format priority should return nil",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "kern.err",
 					Message:  "This is a valid error message",
 				},
@@ -59,7 +57,7 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "valid kernel message with unknown priority should return nil",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "unknown_priority",
 					Message:  "This message has unknown priority but should be normalized",
 				},
@@ -69,7 +67,7 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "empty message should return nil",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "KERN_DEBUG",
 					Message:  "",
 				},
@@ -79,9 +77,9 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "message at maximum length should return nil",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "KERN_INFO",
-					Message:  string(make([]byte, pkgkmsgwriter.MaxPrintkRecordLength)),
+					Message:  string(make([]byte, MaxPrintkRecordLength)),
 				},
 			},
 			expectError: false,
@@ -89,9 +87,9 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "message exceeding maximum length should return error",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "KERN_INFO",
-					Message:  string(make([]byte, pkgkmsgwriter.MaxPrintkRecordLength+1)),
+					Message:  string(make([]byte, MaxPrintkRecordLength+1)),
 				},
 			},
 			expectError: true,
@@ -100,9 +98,9 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "message much longer than maximum should return error",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "KERN_ERR",
-					Message:  string(make([]byte, pkgkmsgwriter.MaxPrintkRecordLength*2)),
+					Message:  string(make([]byte, MaxPrintkRecordLength*2)),
 				},
 			},
 			expectError: true,
@@ -111,7 +109,7 @@ func TestRequest_Validate(t *testing.T) {
 		{
 			name: "empty priority and message should return nil",
 			request: Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
+				KernelMessage: &KernelMessage{
 					Priority: "",
 					Message:  "",
 				},
@@ -139,20 +137,20 @@ func TestRequest_Validate_PriorityNormalization(t *testing.T) {
 	tests := []struct {
 		name             string
 		inputPriority    string
-		expectedPriority pkgkmsgwriter.KernelMessagePriority
+		expectedPriority KernelMessagePriority
 	}{
-		{"KERN format", "KERN_ERR", pkgkmsgwriter.KernelMessagePriorityError},
-		{"kern format", "kern.warning", pkgkmsgwriter.KernelMessagePriorityWarning},
-		{"kern.warn format", "kern.warn", pkgkmsgwriter.KernelMessagePriorityWarning},
-		{"unknown priority", "invalid", pkgkmsgwriter.KernelMessagePriorityInfo},
-		{"empty priority", "", pkgkmsgwriter.KernelMessagePriorityInfo},
+		{"KERN format", "KERN_ERR", KernelMessagePriorityError},
+		{"kern format", "kern.warning", KernelMessagePriorityWarning},
+		{"kern.warn format", "kern.warn", KernelMessagePriorityWarning},
+		{"unknown priority", "invalid", KernelMessagePriorityInfo},
+		{"empty priority", "", KernelMessagePriorityInfo},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := Request{
-				KernelMessage: &pkgkmsgwriter.KernelMessage{
-					Priority: pkgkmsgwriter.ConvertKernelMessagePriority(tt.inputPriority),
+				KernelMessage: &KernelMessage{
+					Priority: ConvertKernelMessagePriority(tt.inputPriority),
 					Message:  "test message",
 				},
 			}
@@ -177,10 +175,10 @@ func TestRequest_Validate_EmptyRequest(t *testing.T) {
 
 func TestRequest_Validate_LargeValidMessage(t *testing.T) {
 	// Test with a message that's close to but under the limit
-	largeMessage := strings.Repeat("a", pkgkmsgwriter.MaxPrintkRecordLength-10)
+	largeMessage := strings.Repeat("a", MaxPrintkRecordLength-10)
 
 	request := Request{
-		KernelMessage: &pkgkmsgwriter.KernelMessage{
+		KernelMessage: &KernelMessage{
 			Priority: "KERN_WARNING",
 			Message:  largeMessage,
 		},
@@ -188,16 +186,16 @@ func TestRequest_Validate_LargeValidMessage(t *testing.T) {
 
 	err := request.Validate()
 	require.NoError(t, err)
-	require.Equal(t, pkgkmsgwriter.KernelMessagePriorityWarning, request.KernelMessage.Priority)
+	require.Equal(t, KernelMessagePriorityWarning, request.KernelMessage.Priority)
 	require.Equal(t, largeMessage, request.KernelMessage.Message)
 }
 
 func TestRequest_Validate_ExactMaxLength(t *testing.T) {
 	// Test with a message that's exactly at the maximum length
-	exactMaxMessage := strings.Repeat("x", pkgkmsgwriter.MaxPrintkRecordLength)
+	exactMaxMessage := strings.Repeat("x", MaxPrintkRecordLength)
 
 	request := Request{
-		KernelMessage: &pkgkmsgwriter.KernelMessage{
+		KernelMessage: &KernelMessage{
 			Priority: "KERN_NOTICE",
 			Message:  exactMaxMessage,
 		},
@@ -205,7 +203,7 @@ func TestRequest_Validate_ExactMaxLength(t *testing.T) {
 
 	err := request.Validate()
 	require.NoError(t, err)
-	require.Equal(t, pkgkmsgwriter.KernelMessagePriorityNotice, request.KernelMessage.Priority)
+	require.Equal(t, KernelMessagePriorityNotice, request.KernelMessage.Priority)
 	require.Equal(t, exactMaxMessage, request.KernelMessage.Message)
 }
 
@@ -229,7 +227,7 @@ func TestRequest_Validate_SwitchCaseLogic(t *testing.T) {
 	// Test the switch statement logic explicitly
 	tests := []struct {
 		name          string
-		kernelMessage *pkgkmsgwriter.KernelMessage
+		kernelMessage *KernelMessage
 		expectError   bool
 		expectedError error
 	}{
@@ -241,7 +239,7 @@ func TestRequest_Validate_SwitchCaseLogic(t *testing.T) {
 		},
 		{
 			name: "non-nil kernel message triggers first case",
-			kernelMessage: &pkgkmsgwriter.KernelMessage{
+			kernelMessage: &KernelMessage{
 				Priority: "KERN_INFO",
 				Message:  "test",
 			},
@@ -272,7 +270,7 @@ func TestRequest_Validate_XidFallthrough(t *testing.T) {
 		xidID               int
 		expectError         bool
 		expectKernelMessage bool
-		expectedPriority    pkgkmsgwriter.KernelMessagePriority
+		expectedPriority    KernelMessagePriority
 		shouldContainMsg    string
 	}{
 		{
@@ -280,7 +278,7 @@ func TestRequest_Validate_XidFallthrough(t *testing.T) {
 			xidID:               63,
 			expectError:         false,
 			expectKernelMessage: true,
-			expectedPriority:    pkgkmsgwriter.KernelMessagePriorityWarning,
+			expectedPriority:    KernelMessagePriorityWarning,
 			shouldContainMsg:    "Row remapping event",
 		},
 		{
@@ -288,7 +286,7 @@ func TestRequest_Validate_XidFallthrough(t *testing.T) {
 			xidID:               79,
 			expectError:         false,
 			expectKernelMessage: true,
-			expectedPriority:    pkgkmsgwriter.KernelMessagePriorityError,
+			expectedPriority:    KernelMessagePriorityError,
 			shouldContainMsg:    "GPU has fallen off the bus",
 		},
 		{
@@ -296,7 +294,7 @@ func TestRequest_Validate_XidFallthrough(t *testing.T) {
 			xidID:               999,
 			expectError:         false,
 			expectKernelMessage: true,
-			expectedPriority:    pkgkmsgwriter.KernelMessagePriorityWarning,
+			expectedPriority:    KernelMessagePriorityWarning,
 			shouldContainMsg:    "unknown",
 		},
 		{
@@ -371,7 +369,7 @@ func TestRequest_Validate_XidTransformationDetails(t *testing.T) {
 	require.NotNil(t, request.KernelMessage, "KernelMessage should be created")
 
 	// Verify the specific known XID 69 message
-	require.Equal(t, pkgkmsgwriter.KernelMessagePriorityWarning, request.KernelMessage.Priority)
+	require.Equal(t, KernelMessagePriorityWarning, request.KernelMessage.Priority)
 	require.Contains(t, request.KernelMessage.Message, "BAR1 access failure")
 	require.Contains(t, request.KernelMessage.Message, "NVRM: Xid (PCI:0000:04:00): 69")
 	require.Contains(t, request.KernelMessage.Message, "pid=34566")
@@ -382,7 +380,7 @@ func TestRequest_Validate_SwitchCaseFallthrough(t *testing.T) {
 	tests := []struct {
 		name              string
 		xid               *XIDToInject
-		kernelMessage     *pkgkmsgwriter.KernelMessage
+		kernelMessage     *KernelMessage
 		expectError       bool
 		expectedError     error
 		expectTransform   bool
@@ -413,7 +411,7 @@ func TestRequest_Validate_SwitchCaseFallthrough(t *testing.T) {
 		{
 			name: "KernelMessage case only should validate message",
 			xid:  nil,
-			kernelMessage: &pkgkmsgwriter.KernelMessage{
+			kernelMessage: &KernelMessage{
 				Priority: "KERN_INFO",
 				Message:  "direct kernel message test",
 			},
@@ -513,6 +511,6 @@ func TestRequest_Validate_FallthroughWithInvalidKernelMessage(t *testing.T) {
 
 	err = request.Validate()
 	require.NoError(t, err)
-	require.Equal(t, pkgkmsgwriter.KernelMessagePriorityWarning, request.KernelMessage.Priority, "priority should be normalized by validation in fallthrough")
-	require.NotEqual(t, originalPriority, pkgkmsgwriter.KernelMessagePriority("kern.warning"), "test setup should use different format")
+	require.Equal(t, KernelMessagePriorityWarning, request.KernelMessage.Priority, "priority should be normalized by validation in fallthrough")
+	require.NotEqual(t, originalPriority, KernelMessagePriority("kern.warning"), "test setup should use different format")
 }

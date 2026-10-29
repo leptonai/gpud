@@ -251,6 +251,10 @@ github.com/shirou/gopsutil/v4 v4.25.9/go.mod h1:gxIxoC+7nQRwUl/xNhutXlD8lq+jxTgp
 github.com/shurcooL/go v0.0.0-20180423040247-9e1955d9fb6e/go.mod h1:TDJrrUr11Vxrven61rcy3hJMUqaf/CLWYhHNPmT14Lk=
 github.com/shurcooL/httpfs v0.0.0-20181222201310-74dc9339e414/go.mod h1:ZY1cvUeJuFPAdZ/B6v7RHavJWZn2YPVFQ1OSXhCGOkg=
 github.com/shurcooL/vfsgen v0.0.0-20180915214035-33ae1944be3f/go.mod h1:TrYk7fJVaAttu97ZZKrO9UbRa8izdowaMIZcxYMbVaw=
+github.com/siderolabs/gen v0.8.6 h1:pE6shuqov3L+5rEcAUJ/kY6iJofimljQw5G95P8a5c4=
+github.com/siderolabs/gen v0.8.6/go.mod h1:J9IbusbES2W6QWjtSHpDV9iPGZHc978h1+KJ4oQRspQ=
+github.com/siderolabs/go-kmsg v0.1.6 h1:ZrJPExUnJubqiNA7T8RUi/ySvJsnIen+bdiY+pea8+A=
+github.com/siderolabs/go-kmsg v0.1.6/go.mod h1:fryspKc1f6nMIOK5YbUPutz2v2rdBTBeLqW/ci9BDfk=
 github.com/smartystreets/assertions v1.2.0 h1:42S6lae5dvLc7BrLu/0ugRtcFVjoJNMC/N3yZFZkDFs=
 github.com/smartystreets/assertions v1.2.0/go.mod h1:tcbTF8ujkAEcZ8TElKY+i30BzYlVhC/LOxJk7iOWnoo=
 github.com/smartystreets/goconvey v1.7.2 h1:9RBaZCeXEQ3UselpuwUQHltGVXvdwm6cv1hgR6gDIPg=

@@ -18,7 +18,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/process"
@@ -176,24 +175,24 @@ type mockFaultInjector struct {
 	mock.Mock
 }
 
-func (m *mockFaultInjector) Write(kernelMessage *pkgkmsgwriter.KernelMessage) error {
+func (m *mockFaultInjector) Write(kernelMessage *pkgfaultinjector.KernelMessage) error {
 	args := m.Called(kernelMessage)
 	return args.Error(0)
 }
 
-func (m *mockFaultInjector) KmsgWriter() pkgkmsgwriter.KmsgWriter {
+func (m *mockFaultInjector) KmsgWriter() pkgfaultinjector.KmsgWriter {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(pkgkmsgwriter.KmsgWriter)
+	return args.Get(0).(pkgfaultinjector.KmsgWriter)
 }
 
 type mockKmsgWriter struct {
 	mock.Mock
 }
 
-func (m *mockKmsgWriter) Write(msg *pkgkmsgwriter.KernelMessage) error {
+func (m *mockKmsgWriter) Write(msg *pkgfaultinjector.KernelMessage) error {
 	args := m.Called(msg)
 	return args.Error(0)
 }
@@ -678,7 +677,7 @@ func TestHandleInjectFaultRequest(t *testing.T) {
 		defer close(reader) // Ensure the goroutine exits
 
 		// Create an inject fault request
-		kernelMessage := &pkgkmsgwriter.KernelMessage{
+		kernelMessage := &pkgfaultinjector.KernelMessage{
 			Priority: "KERN_INFO",
 			Message:  "test kernel message",
 		}
@@ -732,7 +731,7 @@ func TestHandleInjectFaultRequest(t *testing.T) {
 		defer close(reader) // Ensure the goroutine exits
 
 		// Create an inject fault request
-		kernelMessage := &pkgkmsgwriter.KernelMessage{
+		kernelMessage := &pkgfaultinjector.KernelMessage{
 			Priority: "KERN_ERR",
 			Message:  "test error message",
 		}
@@ -913,7 +912,7 @@ func TestHandleInjectFaultRequestValidation(t *testing.T) {
 		defer close(reader) // Ensure the goroutine exits
 
 		// Create a valid inject fault request
-		kernelMessage := &pkgkmsgwriter.KernelMessage{
+		kernelMessage := &pkgfaultinjector.KernelMessage{
 			Priority: "KERN_INFO",
 			Message:  "valid test kernel message",
 		}
@@ -974,7 +973,7 @@ func TestHandleInjectFaultRequestValidation(t *testing.T) {
 			longMessage[i] = 'A'
 		}
 
-		kernelMessage := &pkgkmsgwriter.KernelMessage{
+		kernelMessage := &pkgfaultinjector.KernelMessage{
 			Priority: "KERN_ERR",
 			Message:  string(longMessage),
 		}
@@ -1116,7 +1115,7 @@ func TestHandleInjectFaultRequestValidation(t *testing.T) {
 		// Mock the fault injector - after XID validation, it converts to KernelMessage
 		// We need to mock with mock.Anything since we don't know the exact converted message
 		mockWriter := new(mockKmsgWriter)
-		mockWriter.On("Write", mock.AnythingOfType("*writer.KernelMessage")).Return(nil)
+		mockWriter.On("Write", mock.AnythingOfType("*faultinjector.KernelMessage")).Return(nil)
 		faultInjector.On("KmsgWriter").Return(mockWriter)
 
 		// Send the request
@@ -1208,7 +1207,7 @@ func TestHandleInjectFaultRequest_NilFaultInjector(t *testing.T) {
 	defer close(reader) // Ensure the goroutine exits
 
 	// Create an inject fault request with valid InjectFaultRequest
-	kernelMessage := &pkgkmsgwriter.KernelMessage{
+	kernelMessage := &pkgfaultinjector.KernelMessage{
 		Priority: "KERN_INFO",
 		Message:  "test kernel message",
 	}

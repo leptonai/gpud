@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -21,33 +20,10 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
-
-func hasKmsgEventDedupWindowFunc(t *testing.T, opt kmsg.OpOption) bool {
-	t.Helper()
-	op := &kmsg.Op{}
-	opt(op)
-
-	v := reflect.ValueOf(op).Elem().FieldByName("eventDedupWindowFunc")
-	require.True(t, v.IsValid(), "eventDedupWindowFunc field must exist")
-	require.Equal(t, reflect.Func, v.Kind(), "eventDedupWindowFunc must be func")
-	return !v.IsNil()
-}
-
-func getKmsgCacheKeyTruncateSeconds(t *testing.T, opt kmsg.OpOption) int {
-	t.Helper()
-	op := &kmsg.Op{}
-	opt(op)
-
-	v := reflect.ValueOf(op).Elem().FieldByName("cacheKeyTruncateSeconds")
-	require.True(t, v.IsValid(), "cacheKeyTruncateSeconds field must exist")
-	require.Equal(t, reflect.Int, v.Kind(), "cacheKeyTruncateSeconds must be int")
-	return int(v.Int())
-}
 
 // customMockNVMLInstanceIB implements the nvml.Instance interface for testing with customizable behavior
 type customMockNVMLInstanceIB struct {
@@ -860,7 +836,7 @@ func TestComponent_Close_WithComponents_WithMockey(t *testing.T) {
 			ctx:         cctx,
 			cancel:      cancel,
 			eventBucket: mockBucket,
-			kmsgSyncer:  nil,
+			stopKernel:  nil,
 		}
 
 		err := comp.Close()
@@ -897,20 +873,14 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		// Mock os.Geteuid to simulate running as root
 		mockey.Mock(os.Geteuid).Return(0).Build()
 
-		// Track the options passed to kmsg.NewSyncer
-		var capturedOpts []kmsg.OpOption
-		mockey.Mock(kmsg.NewSyncer).To(func(
-			ctx context.Context,
-			matchFunc kmsg.MatchFunc,
-			eventBucket eventstore.Bucket,
-			opts ...kmsg.OpOption,
-		) (*kmsg.Syncer, error) {
-			capturedOpts = opts
-			return &kmsg.Syncer{}, nil
+		// Track the options passed to the kernel subscription
+		var policy eventstore.DedupPolicy
+		mockey.Mock((*component).observeKernel).To(func(
+			_ *component, _ components.KernelObserver, _ func(string) (string, string), configured eventstore.DedupPolicy,
+		) (func(), error) {
+			policy = configured
+			return func() {}, nil
 		}).Build()
-
-		// Mock Syncer.Close to avoid nil watcher panic from the zero-value Syncer
-		mockey.Mock((*kmsg.Syncer).Close).Return().Build()
 
 		ctx := context.Background()
 		mockInstance := &customMockNVMLInstanceIB{
@@ -936,14 +906,13 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 
 		tc, ok := c.(*component)
 		require.True(t, ok)
-		assert.NotNil(t, tc.kmsgSyncer, "kmsgSyncer should be set when running as root")
+		assert.NotNil(t, tc.stopKernel, "kmsgSyncer should be set when running as root")
 		assert.NotNil(t, tc.eventBucket, "eventBucket should be set")
 
 		// Verify InfiniBand keeps the long-standing 5-minute generic kmsg dedup
 		// and only adds the shared per-event override resolver for ACCESS_REG.
-		require.Len(t, capturedOpts, 2, "should pass exactly two OpOptions to NewSyncer")
-		assert.Equal(t, int(defaultKmsgEventDedupWindow.Seconds()), getKmsgCacheKeyTruncateSeconds(t, capturedOpts[0]))
-		assert.True(t, hasKmsgEventDedupWindowFunc(t, capturedOpts[1]))
+		assert.Equal(t, defaultKmsgEventDedupWindow, policy.Window)
+		assert.NotNil(t, policy.EventWindow)
 
 		// Clean up
 		err = c.Close()
@@ -952,19 +921,16 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 }
 
 // TestNew_WithEventStoreAsRoot_KmsgSyncerError tests that New() returns an error
-// when kmsg.NewSyncer fails while running as root.
+// when the kernel subscription fails while running as root.
 func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {
 	mockey.PatchConvey("New returns error when kmsg syncer creation fails as root", t, func() {
 		// Mock os.Geteuid to simulate running as root
 		mockey.Mock(os.Geteuid).Return(0).Build()
 
-		// Mock kmsg.NewSyncer to return an error
-		mockey.Mock(kmsg.NewSyncer).To(func(
-			ctx context.Context,
-			matchFunc kmsg.MatchFunc,
-			eventBucket eventstore.Bucket,
-			opts ...kmsg.OpOption,
-		) (*kmsg.Syncer, error) {
+		// Mock the kernel subscription to return an error
+		mockey.Mock((*component).observeKernel).To(func(
+			_ *component, _ components.KernelObserver, _ func(string) (string, string), _ eventstore.DedupPolicy,
+		) (func(), error) {
 			return nil, errors.New("failed to open /dev/kmsg")
 		}).Build()
 

@@ -22,7 +22,6 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
@@ -91,7 +90,7 @@ type component struct {
 
 	ibPortsStore infinibandstore.Store
 	eventBucket  eventstore.Bucket
-	kmsgSyncer   *kmsg.Syncer
+	stopKernel   func()
 
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() types.ExpectedPortStates
@@ -177,13 +176,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				matchFunc = c.matchPreferNVSentinel
 			}
 
-			c.kmsgSyncer, err = kmsg.NewSyncer(
-				cctx,
-				matchFunc,
-				c.eventBucket,
-				kmsg.WithCacheKeyTruncateSeconds(int(defaultKmsgEventDedupWindow.Seconds())),
-				kmsg.WithEventDedupWindowFunc(c.kmsgEventDedupWindow),
-			)
+			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, matchFunc, eventstore.DedupPolicy{Window: defaultKmsgEventDedupWindow, EventWindow: c.kmsgEventDedupWindow})
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -281,8 +274,8 @@ func (c *component) Close() error {
 		c.nvsUnsubscribe()
 	}
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

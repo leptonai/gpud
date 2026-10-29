@@ -1,4 +1,4 @@
-package kmsg
+package components
 
 import (
 	"bufio"
@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bytedance/mockey"
+	"github.com/dsx-ai-factory/health-validation/collect"
+	kmsgsensor "github.com/dsx-ai-factory/health-validation/collect/sensors/kmsg"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
+
 	"github.com/dsx-ai-factory/health-validation/collect/observation"
 	kmsgsignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg"
 	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
@@ -19,7 +23,7 @@ import (
 )
 
 func TestKernelSensorFixture(t *testing.T) {
-	file, err := os.Open("testdata/kmsg.1.log")
+	file, err := os.Open("testdata/kernel.log")
 	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 	var input []kmsgsource.Message
@@ -35,13 +39,13 @@ func TestKernelSensorFixture(t *testing.T) {
 	}
 	require.NoError(t, scanner.Err())
 	// Continuation lines, empty bodies, and repeated bodies must survive collection.
-	input = append(input, sourceRecord(100000, ""), sourceRecord(100001, "line one\nline two"), sourceRecord(100002, "repeat"), sourceRecord(100003, "repeat"))
-	otherBoot := sourceRecord(100003, "same sequence in a different boot")
+	input = append(input, kernelTestRecord(100000, ""), kernelTestRecord(100001, "line one\nline two"), kernelTestRecord(100002, "repeat"), kernelTestRecord(100003, "repeat"))
+	otherBoot := kernelTestRecord(100003, "same sequence in a different boot")
 	otherBoot.BootID = "boot-b"
 	input = append(input, otherBoot)
-	sensor, err := newSensor(func(context.Context) ([]kmsgsource.Message, error) { return input, nil })
+	sensor, err := newKernelTestSensor(func(context.Context) ([]kmsgsource.Message, error) { return input, nil })
 	require.NoError(t, err)
-	records, err := collectMessages(t.Context(), sensor)
+	records, err := kernelTestMessages(t.Context(), sensor)
 	require.NoError(t, err)
 	require.Len(t, records, len(input))
 	for i, record := range records {
@@ -54,48 +58,26 @@ func TestKernelSensorFixture(t *testing.T) {
 
 func TestKernelSensorPartialFailure(t *testing.T) {
 	for _, failure := range []error{syscall.EPIPE, kmsgsource.ErrMalformedRecord, errors.New("I/O error")} {
-		sensor, err := newSensor(func(context.Context) ([]kmsgsource.Message, error) {
-			return []kmsgsource.Message{sourceRecord(4, "retained")}, failure
+		sensor, err := newKernelTestSensor(func(context.Context) ([]kmsgsource.Message, error) {
+			return []kmsgsource.Message{kernelTestRecord(4, "retained")}, failure
 		})
 		require.NoError(t, err)
-		records, err := collectMessages(t.Context(), sensor)
+		records, err := kernelTestMessages(t.Context(), sensor)
 		require.ErrorContains(t, err, failure.Error())
 		require.Len(t, records, 1)
 		assert.Equal(t, "retained", records[0].Message)
 	}
 }
 
-func TestReadAllUsesSharedReader(t *testing.T) {
-	mockey.PatchConvey("snapshot reader and GPUd content dedup", t, func() {
-		mockey.Mock(kmsgsource.ReadAll).To(func(context.Context) ([]kmsgsource.Message, error) {
-			return []kmsgsource.Message{sourceRecord(1, "same"), sourceRecord(2, "same"), sourceRecord(3, "different")}, nil
-		}).Build()
-		messages, err := ReadAll(t.Context())
-		require.NoError(t, err)
-		require.Len(t, messages, 2)
-		assert.Equal(t, []int{1, 3}, []int{messages[0].SequenceNumber, messages[1].SequenceNumber})
-	})
-}
-
-func TestNewWatcherUsesSharedStream(t *testing.T) {
-	mockey.PatchConvey("shared stream constructor failure is returned", t, func() {
-		failure := errors.New("cannot open kernel stream")
-		mockey.Mock(kmsgsource.NewStream).To(func(int) (*kmsgsource.Stream, error) { return nil, failure }).Build()
-		watcher, err := NewWatcher()
-		require.ErrorIs(t, err, failure)
-		assert.True(t, watcher == nil, "constructor failures must return a nil interface")
-	})
-}
-
 func TestCollectKernelRecordsCanceled(t *testing.T) {
-	sensor, err := newSensor(func(context.Context) ([]kmsgsource.Message, error) {
+	sensor, err := newKernelTestSensor(func(context.Context) ([]kmsgsource.Message, error) {
 		t.Error("canceled collection must not read")
 		return nil, nil
 	})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, err = collectMessages(ctx, sensor)
+	_, err = kernelTestMessages(ctx, sensor)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -121,7 +103,7 @@ func TestRecordsFromObservations(t *testing.T) {
 		{name: "priority first", batch: &observation.ObservationBatch{Observations: []*observation.Observation{priority, message}}, count: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			records, err := messagesFromObservations(tc.batch)
+			records, err := KernelMessages(tc.batch)
 			if tc.fail {
 				require.Error(t, err)
 			} else {
@@ -130,4 +112,18 @@ func TestRecordsFromObservations(t *testing.T) {
 			assert.Len(t, records, tc.count)
 		})
 	}
+}
+
+func newKernelTestSensor(read func(context.Context) ([]kmsgsource.Message, error)) (collect.Sensor, error) {
+	return kmsgsensor.New(read, map[string]string{"gpud.kernel_record": `(?s).*`})
+}
+func kernelTestRecord(sequence int64, body string) kmsgsource.Message {
+	return kmsgsource.Message{BootID: "boot-a", Sequence: sequence, Timestamp: time.Unix(1700000000, 0), Priority: 6, Body: body}
+}
+func kernelTestMessages(ctx context.Context, sensor collect.Sensor) ([]apiv1.KernelMessage, error) {
+	batch, err := MeasureSensor(ctx, sensor, kmsgsignals.Message.ID(), kmsgsignals.Priority.ID())
+	if err != nil {
+		return nil, err
+	}
+	return KernelMessages(batch)
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
 	"github.com/leptonai/gpud/pkg/nvsentinel/nvsentineltest"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -101,7 +100,7 @@ func TestNVSentinelSXidEventInserted(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	src.Send(newNVSentinelSXidEvent("12028"))
@@ -136,7 +135,7 @@ func TestNVSentinelSXidKmsgSuppressedWhenCovered(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	// NVSentinel reports the incident first; the kmsg twin is suppressed.
@@ -148,7 +147,7 @@ func TestNVSentinelSXidKmsgSuppressedWhenCovered(t *testing.T) {
 		return err == nil && len(events) == 1
 	}, 10*time.Second, 50*time.Millisecond)
 
-	kmsgCh <- kmsg.Message{
+	kmsgCh <- apiv1.KernelMessage{
 		Timestamp: metav1.Now(),
 		Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 	}
@@ -164,10 +163,10 @@ func TestNVSentinelSXidKmsgKeptWithoutNVSentinel(t *testing.T) {
 	// No NVSentinel source: the component behaves exactly as before.
 	c := newTestComponentWithNVSentinel(t, nil)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
-	kmsgCh <- kmsg.Message{
+	kmsgCh <- apiv1.KernelMessage{
 		Timestamp: metav1.Now(),
 		Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 	}
@@ -307,7 +306,7 @@ func TestNVSentinelSXidNonFatalEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	ev := newNVSentinelSXidEvent("12028")
@@ -330,7 +329,7 @@ func TestNVSentinelSXidNonMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	// An Xid event (not SXid) is not matched by the sxid component.
@@ -384,11 +383,11 @@ func TestNVSentinelSXidEventSkippedWhenGPUdTwinStored(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	// GPUd's kmsg detection stores its copy first.
-	kmsgCh <- kmsg.Message{
+	kmsgCh <- apiv1.KernelMessage{
 		Timestamp: metav1.Now(),
 		Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 	}
@@ -418,7 +417,7 @@ func TestNVSentinelSXidTwinCheckUsesSwitchPCI(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	// Both switches report the same SXid and map to the same GPU; only
@@ -460,7 +459,7 @@ func TestNVSentinelSXidTwinSameSwitchPCIStillSkips(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	src.Send(newNVSentinelSXidEvent("12028"))
@@ -520,7 +519,7 @@ func TestNVSentinelSXidHealthyEventSkipped(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	ev := newNVSentinelSXidEvent("12028")
@@ -595,7 +594,7 @@ func TestNVSentinelSXidEventsProcessedWithoutKmsgWatcher(t *testing.T) {
 	c := newTestComponentWithNVSentinel(t, src)
 
 	// No kmsgWatcher (zero value): this is the non-root / no-kmsg case.
-	require.Nil(t, c.kmsgWatcher)
+	require.Nil(t, c.kernelMessages)
 	require.NoError(t, c.Start())
 
 	src.Send(newNVSentinelSXidEvent("12028"))
@@ -655,7 +654,7 @@ func TestNVSentinelSXidHealthyEventDoesNotCover(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	ev := newNVSentinelSXidEvent("12028")
@@ -681,7 +680,7 @@ func TestNVSentinelSXidInsertFailureDoesNotCover(t *testing.T) {
 	// Force every insert to fail: no data point becomes durable.
 	c.eventBucket = &mockEventBucket{insertErr: errors.New("insert failed")}
 
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	go c.start(kmsgCh, time.Hour)
 
 	src.Send(newNVSentinelSXidEvent("12028"))

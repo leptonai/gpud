@@ -21,7 +21,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
@@ -52,8 +51,8 @@ type component struct {
 	getPeerNVLinkP2PStatusFn func(dev device.Device, peer device.Device) (string, error)
 	getThresholdsFunc        func() ExpectedLinkStates
 	eventBucket              eventstore.Bucket
-	kmsgSyncer               *kmsg.Syncer
-	readAllKmsg              func(context.Context) ([]kmsg.Message, error)
+	stopKernel               func()
+	readAllKmsg              func(context.Context) ([]apiv1.KernelMessage, error)
 
 	lastMu               sync.RWMutex
 	lastCheckResult      *checkResult
@@ -99,12 +98,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 					bootID = c.getTimeNowFunc().Format(time.RFC3339Nano)
 				}
 			}
-			c.kmsgSyncer, err = kmsg.NewSyncer(
-				cctx,
-				func(line string) (string, string) { return matchWithBootID(line, bootID) },
-				c.eventBucket,
-				kmsg.WithCacheKeyTruncateSeconds(int(defaultKmsgEventDedupWindow.Seconds())),
-			)
+			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, func(line string) (string, string) { return matchWithBootID(line, bootID) }, eventstore.DedupPolicy{Window: defaultKmsgEventDedupWindow})
 			if err != nil {
 				c.eventBucket.Close()
 				ccancel()
@@ -113,7 +107,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 	}
 	if gpudInstance.EventStore == nil && runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		c.readAllKmsg = kmsg.ReadAll
+		c.readAllKmsg = readKernelMessages
 	}
 	return c, nil
 }
@@ -213,8 +207,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()
@@ -460,8 +454,8 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	KmsgScanned  bool           `json:"-"`
-	MatchedKmsgs []kmsg.Message `json:"-"`
+	KmsgScanned  bool                  `json:"-"`
+	MatchedKmsgs []apiv1.KernelMessage `json:"-"`
 
 	// NVLinks contains detailed NVLink information for all GPUs checked
 	NVLinks []NVLink `json:"nvlinks,omitempty"`

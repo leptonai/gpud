@@ -20,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -41,7 +40,7 @@ type component struct {
 	setPrevTimeStatFunc func(cpu.TimesStat)
 
 	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	stopKernel  func()
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -71,7 +70,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			c.stopKernel, err = c.observeKernel(gpudInstance.ObserveKernel, Match, eventstore.DedupPolicy{})
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -135,8 +134,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

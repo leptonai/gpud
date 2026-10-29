@@ -15,7 +15,6 @@ import (
 
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	sessionv2 "github.com/leptonai/gpud/pkg/session/v2"
 )
 
@@ -111,8 +110,8 @@ func TestRequestFromV2ConvertsConcreteRequests(t *testing.T) {
 					Message:  "test kernel fault",
 				}},
 			}}),
-			want: Request{Method: "injectFault", InjectFaultRequest: &pkgfaultinjector.Request{KernelMessage: &pkgkmsgwriter.KernelMessage{
-				Priority: pkgkmsgwriter.KernelMessagePriorityWarning,
+			want: Request{Method: "injectFault", InjectFaultRequest: &pkgfaultinjector.Request{KernelMessage: &pkgfaultinjector.KernelMessage{
+				Priority: pkgfaultinjector.KernelMessagePriorityWarning,
 				Message:  "test kernel fault",
 			}}},
 		},

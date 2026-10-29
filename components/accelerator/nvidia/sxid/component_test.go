@@ -18,7 +18,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
@@ -281,7 +280,7 @@ func TestSXIDComponent_Events(t *testing.T) {
 	defer cleanup()
 
 	// Create a channel with a buffer to avoid blocking
-	msgCh := make(chan kmsg.Message, 1)
+	msgCh := make(chan apiv1.KernelMessage, 1)
 	go component.start(msgCh, 500*time.Millisecond)
 	defer func() {
 		_ = component.Close()
@@ -413,7 +412,7 @@ func TestSXIDComponent_Check(t *testing.T) {
 	component.nvmlInstance = mockNVML
 
 	// Mock the readAllKmsg function to return test data
-	mockMessages := []kmsg.Message{
+	mockMessages := []apiv1.KernelMessage{
 		{
 			Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 			Timestamp: metav1.Time{Time: time.Now()},
@@ -423,7 +422,7 @@ func TestSXIDComponent_Check(t *testing.T) {
 			Timestamp: metav1.Time{Time: time.Now()},
 		},
 	}
-	component.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
+	component.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
 		return mockMessages, nil
 	}
 
@@ -452,7 +451,7 @@ func TestSXIDComponent_Check_Error(t *testing.T) {
 	component.nvmlInstance = mockNVML
 
 	// Mock the readAllKmsg function to return an error
-	component.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
+	component.readAllKmsg = func(_ context.Context) ([]apiv1.KernelMessage, error) {
 		return nil, errors.New("test error")
 	}
 
@@ -589,7 +588,7 @@ func TestDataString(t *testing.T) {
 			data: &checkResult{
 				FoundErrors: []FoundError{
 					{
-						Kmsg: kmsg.Message{
+						Kmsg: apiv1.KernelMessage{
 							Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal error",
 							Timestamp: metav1.Time{Time: time.Now()},
 						},
@@ -630,7 +629,7 @@ func TestDataString(t *testing.T) {
 			data: &checkResult{
 				FoundErrors: []FoundError{
 					{
-						Kmsg: kmsg.Message{
+						Kmsg: apiv1.KernelMessage{
 							Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 20123, Unknown error",
 							Timestamp: metav1.Time{Time: time.Now()},
 						},
@@ -651,7 +650,7 @@ func TestDataString(t *testing.T) {
 			data: &checkResult{
 				FoundErrors: []FoundError{
 					{
-						Kmsg: kmsg.Message{
+						Kmsg: apiv1.KernelMessage{
 							Message:   "nvidia-nvswitch1: SXid (PCI:0000:0a:00.0): 22013, Non-fatal, Link 57 Minion Link DLREQ interrupt",
 							Timestamp: metav1.Time{Time: time.Now()},
 						},
@@ -974,7 +973,7 @@ func TestSXIDComponent_Start(t *testing.T) {
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		// Start again to ensure it doesn't cause issues
 		err = component.Start()
-		assert.Equal(t, kmsg.ErrWatcherAlreadyStarted, err)
+		assert.Equal(t, components.ErrAlreadyStarted, err)
 	}
 }
 
@@ -1056,25 +1055,6 @@ func (m *mockRebootEventStore) RecordReboot(_ context.Context) error {
 	return nil
 }
 
-func TestSXIDComponent_Start_KmsgWatcherError(t *testing.T) {
-	// Initialize component
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	component, cleanup := initComponentForTest(ctx, t)
-	defer cleanup()
-
-	// Replace kmsgWatcher with a mock that returns an error when Watch is called
-	component.kmsgWatcher = &MockKmsgWatcher{
-		watchError: errors.New("watch error"),
-	}
-
-	// Start should return the error from kmsgWatcher.Watch
-	err := component.Start()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "watch error")
-}
-
 func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
 	// Initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1084,10 +1064,8 @@ func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
 	defer cleanup()
 
 	// Create a mock kmsg watcher that returns a test channel
-	mockCh := make(chan kmsg.Message, 2)
-	component.kmsgWatcher = &MockKmsgWatcher{
-		watchCh: mockCh,
-	}
+	mockCh := make(chan apiv1.KernelMessage, 2)
+	component.kernelMessages = mockCh
 
 	// Start the component in a goroutine
 	startDone := make(chan struct{})
@@ -1106,13 +1084,13 @@ func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
 	component.extraEventCh <- pendingEvent{event: event}
 
 	// Also send a kmsg message to mock channel
-	mockCh <- kmsg.Message{
+	mockCh <- apiv1.KernelMessage{
 		Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
 		Timestamp: metav1.Time{Time: time.Now()},
 	}
 
 	// Send another kmsg message that doesn't match SXid pattern
-	mockCh <- kmsg.Message{
+	mockCh <- apiv1.KernelMessage{
 		Message:   "some other non-matching message",
 		Timestamp: metav1.Time{Time: time.Now()},
 	}
@@ -1125,31 +1103,7 @@ func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
 	<-startDone
 }
 
-// MockKmsgWatcher implements kmsg.Watcher for testing
-type MockKmsgWatcher struct {
-	watchCh    chan kmsg.Message
-	watchError error
-	closeError error
-}
-
-func (m *MockKmsgWatcher) Watch() (<-chan kmsg.Message, error) {
-	if m.watchError != nil {
-		return nil, m.watchError
-	}
-
-	if m.watchCh == nil {
-		m.watchCh = make(chan kmsg.Message)
-	}
-
-	return m.watchCh, nil
-}
-
-func (m *MockKmsgWatcher) Close() error {
-	if m.watchCh != nil {
-		close(m.watchCh)
-	}
-	return m.closeError
-}
+// MockKmsgWatcher implements kernel subscription for testing
 
 func TestCheckResult_getError(t *testing.T) {
 	tests := []struct {
@@ -1344,7 +1298,7 @@ func TestSXIDComponent_Close_KmsgWatcherError(t *testing.T) {
 	component, cleanup := initComponentForTest(ctx, t)
 	defer cleanup()
 
-	component.kmsgWatcher = &MockKmsgWatcher{closeError: errors.New("watcher close failed")}
+	component.stopKernel = func() {}
 
 	// Close logs the kmsg watcher error but still returns nil
 	assert.NoError(t, component.Close())
@@ -1416,7 +1370,7 @@ func TestSXIDComponent_Start_TickerRefreshError(t *testing.T) {
 		getCalled: getCalled,
 	}
 
-	go component.start(make(chan kmsg.Message), 10*time.Millisecond)
+	go component.start(make(chan apiv1.KernelMessage), 10*time.Millisecond)
 	defer func() {
 		_ = component.Close()
 	}()
@@ -1440,7 +1394,7 @@ func TestSXIDComponent_Start_ExtraEventChannelEdgeCases(t *testing.T) {
 
 	goodBucket := component.eventBucket
 
-	go component.start(make(chan kmsg.Message), time.Hour)
+	go component.start(make(chan apiv1.KernelMessage), time.Hour)
 	defer func() {
 		_ = component.Close()
 	}()
@@ -1506,13 +1460,13 @@ func TestSXIDComponent_Start_KmsgChannelEventHandling(t *testing.T) {
 
 	goodBucket := component.eventBucket
 
-	kmsgCh := make(chan kmsg.Message, 4)
+	kmsgCh := make(chan apiv1.KernelMessage, 4)
 	go component.start(kmsgCh, time.Hour)
 	defer func() {
 		_ = component.Close()
 	}()
 
-	sxidMsg := kmsg.Message{
+	sxidMsg := apiv1.KernelMessage{
 		Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error",
 		Timestamp: metav1.Time{Time: time.Now().UTC()},
 	}

@@ -18,6 +18,9 @@ import (
 )
 
 var (
+	// ErrAlreadyStarted prevents duplicate component event loops.
+	ErrAlreadyStarted = errors.New("component already started")
+
 	// ErrAlreadyRegistered is the error returned when a component is already registered.
 	ErrAlreadyRegistered = errors.New("component already registered")
 )
@@ -25,6 +28,10 @@ var (
 // GPUdInstance is the instance of the GPUd dependencies.
 type GPUdInstance struct {
 	RootCtx context.Context
+
+	kernelMu    sync.Mutex
+	kernel      *sensorCycle
+	kernelUsers int
 
 	// MachineID is either the machine ID assigned from the control plane
 	// or the unique UUID of the machine.
