@@ -41,25 +41,26 @@ import (
 )
 
 type Op struct {
-	auditLogger         log.AuditLogger
-	machineID           string
-	machineProof        string
-	pipeInterval        time.Duration
-	enableAutoUpdate    bool
-	autoUpdateExitCode  int
-	rebootCommands      string
-	containerd          configcommon.ContainerdConfig
-	skipUpdateConfig    bool
-	componentsRegistry  components.Registry
-	dataDir             string
-	dbInMemory          bool
-	nvmlInstance        nvidianvml.Instance
-	metricsStore        pkgmetrics.Store
-	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
-	faultInjector       pkgfaultinjector.Injector
-	dbRW                *sql.DB
-	dbRO                *sql.DB
-	protocol            Protocol
+	auditLogger                  log.AuditLogger
+	machineID                    string
+	machineProof                 string
+	pipeInterval                 time.Duration
+	enableAutoUpdate             bool
+	autoUpdateExitCode           int
+	rebootCommands               string
+	containerd                   configcommon.ContainerdConfig
+	skipUpdateConfig             bool
+	componentsRegistry           components.Registry
+	dataDir                      string
+	dbInMemory                   bool
+	experimentalHealthValidation bool
+	nvmlInstance                 nvidianvml.Instance
+	metricsStore                 pkgmetrics.Store
+	savePluginSpecsFunc          func(context.Context, pkgcustomplugins.Specs) (bool, error)
+	faultInjector                pkgfaultinjector.Injector
+	dbRW                         *sql.DB
+	dbRO                         *sql.DB
+	protocol                     Protocol
 }
 
 type OpOption func(*Op)
@@ -161,6 +162,11 @@ func WithDataDir(dataDir string) OpOption {
 	}
 }
 
+// WithExperimentalHealthValidation preserves the selected collector across auto-updates.
+func WithExperimentalHealthValidation(enabled bool) OpOption {
+	return func(op *Op) { op.experimentalHealthValidation = enabled }
+}
+
 func WithDBInMemory(dbInMemory bool) OpOption {
 	return func(op *Op) {
 		op.dbInMemory = dbInMemory
@@ -218,10 +224,11 @@ type Session struct {
 	// epControlPlane is the endpoint of the control plane
 	epControlPlane string
 
-	tokenMu    sync.RWMutex
-	token      string
-	dataDir    string
-	dbInMemory bool
+	tokenMu                      sync.RWMutex
+	token                        string
+	dataDir                      string
+	dbInMemory                   bool
+	experimentalHealthValidation bool
 
 	dbRW *sql.DB
 	dbRO *sql.DB
@@ -385,12 +392,13 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		epLocalGPUdServer: epLocalGPUdServer,
 		epControlPlane:    epControlPlane,
 
-		machineID:    op.machineID,
-		machineProof: op.machineProof,
-		protocol:     protocol,
-		token:        token,
-		dataDir:      dataDir,
-		dbInMemory:   op.dbInMemory,
+		machineID:                    op.machineID,
+		machineProof:                 op.machineProof,
+		protocol:                     protocol,
+		token:                        token,
+		dataDir:                      dataDir,
+		dbInMemory:                   op.dbInMemory,
+		experimentalHealthValidation: op.experimentalHealthValidation,
 
 		tokenMu: sync.RWMutex{},
 		dbRW:    op.dbRW,

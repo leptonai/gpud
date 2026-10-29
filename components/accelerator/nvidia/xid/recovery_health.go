@@ -2,10 +2,12 @@ package xid
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
@@ -38,17 +40,19 @@ type recoveryEntry struct {
 	detail    xidErrorEventDetail
 	health    apiv1.HealthStateType
 	timestamp time.Time
+	sequence  string
+	bootID    string
 }
 
 // Keep XID 154 ownership separate from originating faults. A recognized transition
 // replaces only that GPU's recovery guidance, never another diagnosis.
 type recoveryAccumulator struct {
-	active map[string]recoveryEntry
+	reports map[string][]recoveryEntry
 }
 
 func (r *recoveryAccumulator) reboot() {
 	// Reboot resets the driver's recovery state; it need not emit a None report.
-	clear(r.active)
+	clear(r.reports)
 }
 
 func xidDeviceKey(id string, devices map[string]device.Device) string {
@@ -61,55 +65,114 @@ func xidDeviceKey(id string, devices map[string]device.Device) string {
 	return strings.ToLower(normalizePCIBDF(strings.TrimSuffix(id, ".0")))
 }
 
-func (r *recoveryAccumulator) update(detail xidErrorEventDetail, eventType string, timestamp time.Time, devices map[string]device.Device) {
-	key := xidDeviceKey(detail.DeviceUUID, devices)
-	current, exists := r.active[key]
-	// Unreadable or future ABI values cannot retire a known recovery request.
-	// Their raw evidence remains available through the Events API.
-	if !knownRecoveryAction(detail.RecoveryAction) && knownRecoveryAction(current.detail.RecoveryAction) {
-		return
-	}
+func (r *recoveryAccumulator) update(detail xidErrorEventDetail, event eventstore.Event, devices map[string]device.Device) {
 	health := apiv1.HealthStateTypeHealthy
-	switch eventType {
+	switch event.Type {
 	case string(apiv1.EventTypeFatal):
 		health = apiv1.HealthStateTypeUnhealthy
 	case string(apiv1.EventTypeCritical):
 		health = apiv1.HealthStateTypeDegraded
 	}
-	clearRequest := knownRecoveryAction(detail.RecoveryAction) && detail.RecoveryAction.To == 0
-	// A matching From -> To chain can establish recovery in a tied batch.
-	// Without that evidence, retain the stronger request on uncertain order.
-	followsCurrent := !timestamp.IsZero() && timestamp.Equal(current.timestamp) &&
-		knownRecoveryAction(detail.RecoveryAction) && knownRecoveryAction(current.detail.RecoveryAction) &&
-		detail.RecoveryAction.From == current.detail.RecoveryAction.To
-	if exists && (timestamp.IsZero() || current.timestamp.IsZero() || !timestamp.After(current.timestamp)) &&
-		!followsCurrent &&
-		(clearRequest || healthPriority(health) < healthPriority(current.health) ||
-			(health == current.health && repairPriority(detail.SuggestedActionsByGPUd) < repairPriority(current.detail.SuggestedActionsByGPUd))) {
-		return
+	if r.reports == nil {
+		r.reports = make(map[string][]recoveryEntry)
 	}
-	if clearRequest {
-		delete(r.active, key)
-		return
+	key := xidDeviceKey(detail.DeviceUUID, devices)
+	r.reports[key] = append(r.reports[key], recoveryEntry{
+		detail: detail, health: health, timestamp: event.Time,
+		sequence: event.ExtraInfo[eventKeyKmsgSequence], bootID: event.ExtraInfo[eventKeyKmsgBootID],
+	})
+}
+
+// currentRecovery uses kernel position only when every readable report has a
+// distinct position in the same boot. A matching From/To chain is not ordering
+// evidence: a request can recur before or after a None with that same From.
+func currentRecovery(reports []recoveryEntry) recoveryEntry {
+	known := make([]recoveryEntry, 0, len(reports))
+	for _, report := range reports {
+		if knownRecoveryAction(report.detail.RecoveryAction) {
+			known = append(known, report)
+		}
 	}
-	if r.active == nil {
-		r.active = make(map[string]recoveryEntry)
+	// Unreadable or future ABI values cannot retire a known recovery request.
+	// Their raw evidence remains available through the Events API.
+	if len(known) > 0 {
+		reports = known
 	}
-	// XID 154 reports an action, not a diagnosis. Repeated requests cannot
-	// establish hardware failure; originating XIDs keep their own thresholds.
-	r.active[key] = recoveryEntry{detail: detail, health: health, timestamp: timestamp}
+	seen := make(map[int64]bool, len(reports))
+	hasSequence, ordered := false, true
+	bootID := ""
+	latest, highest := reports[0], int64(-1)
+	for _, report := range reports {
+		hasSequence = hasSequence || report.sequence != ""
+		sequence, err := strconv.ParseInt(report.sequence, 10, 64)
+		if err != nil || sequence < 0 || seen[sequence] {
+			ordered = false
+		}
+		// Legacy events have no boot ID; the accumulator's reboot boundary
+		// still scopes their sequence. Explicitly different boots never order.
+		if report.bootID != "" {
+			if bootID != "" && report.bootID != bootID {
+				ordered = false
+			}
+			bootID = report.bootID
+		}
+		seen[sequence] = true
+		if sequence > highest {
+			latest, highest = report, sequence
+		}
+	}
+	if ordered {
+		return latest
+	}
+	// NVSentinel and older stored events have no kernel position. Their source
+	// timestamps can establish order, but ties must retain the stronger request.
+	if !hasSequence {
+		latestTime := reports[0].timestamp
+		timed := true
+		for _, report := range reports {
+			timed = timed && !report.timestamp.IsZero()
+			if report.timestamp.After(latestTime) {
+				latestTime = report.timestamp
+			}
+		}
+		if timed {
+			newest := make([]recoveryEntry, 0, len(reports))
+			for _, report := range reports {
+				if report.timestamp.Equal(latestTime) {
+					newest = append(newest, report)
+				}
+			}
+			reports = newest
+		}
+	}
+	strongest := reports[0]
+	for _, report := range reports[1:] {
+		if healthPriority(report.health) > healthPriority(strongest.health) ||
+			(report.health == strongest.health && repairPriority(report.detail.SuggestedActionsByGPUd) > repairPriority(strongest.detail.SuggestedActionsByGPUd)) ||
+			(recoveryIsNone(strongest) && !recoveryIsNone(report)) {
+			strongest = report
+		}
+	}
+	return strongest
+}
+
+func recoveryIsNone(entry recoveryEntry) bool {
+	return knownRecoveryAction(entry.detail.RecoveryAction) && entry.detail.RecoveryAction.To == 0
 }
 
 func (r *recoveryAccumulator) health(devices map[string]device.Device) apiv1.HealthState {
 	state := apiv1.HealthState{Health: apiv1.HealthStateTypeHealthy}
 	// Stable order also makes combined originating/recovery evidence deterministic.
-	keys := make([]string, 0, len(r.active))
-	for key := range r.active {
+	keys := make([]string, 0, len(r.reports))
+	for key := range r.reports {
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
 	for _, key := range keys {
-		entry := r.active[key]
+		entry := currentRecovery(r.reports[key])
+		if recoveryIsNone(entry) {
+			continue
+		}
 		detail, health := entry.detail, entry.health
 		if healthPriority(health) > healthPriority(state.Health) || (health == state.Health && repairPriority(detail.SuggestedActionsByGPUd) >= repairPriority(state.SuggestedActions)) {
 			state.Health = health

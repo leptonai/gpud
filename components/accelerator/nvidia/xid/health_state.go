@@ -88,7 +88,7 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 				continue
 			}
 			if currXidErr.Xid == 154 && currXidErr.RecoveryAction != nil {
-				recovery.update(currXidErr, resolvedEvent.Type, event.Time, devices)
+				recovery.update(currXidErr, resolvedEvent, devices)
 				continue
 			}
 
@@ -296,7 +296,7 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 		}
 
 		// Only set ev.Type from detail if not already set.
-		// The event may already have the correct Type from Match() which uses
+		// The event may already have the correct Type from the Xid shim, which uses
 		// lookupNVLinkRule for precise unit-based matching. The detail from
 		// getDetailWithSubCodeAndStatus may have incorrect severity due to
 		// merging of different units with the same SubCode/ErrorStatus.

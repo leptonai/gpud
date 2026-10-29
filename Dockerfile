@@ -13,7 +13,7 @@ ARG CUDA_VERSION="12.4.1"
 # ==============================================================================
 # Stage 1: Builder - Build gpud binary and vendor Go dependencies
 # ==============================================================================
-FROM golang:1.26.10 AS builder
+FROM golang:1.27.3 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILDPLATFORM

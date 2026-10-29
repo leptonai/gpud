@@ -14,7 +14,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
 )
 
@@ -151,15 +150,15 @@ func TestXID45NativeKmsgRemainsInformational(t *testing.T) {
 	c, store := newTestComponentWithNVSentinel(t, nil)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
-	message := kmsg.Message{
+	message := apiv1.KernelMessage{
 		Timestamp: metav1.NewTime(now.Add(-time.Minute)),
 		Message:   "NVRM: Xid (PCI:0000:01:00): 45, pid=123, name=test, Ch 00000001",
 	}
-	kmsgCh := make(chan kmsg.Message, 1)
+	kmsgCh := make(chan apiv1.KernelMessage, 1)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		c.start(kmsgCh, time.Hour)
+		c.startKernelTest(kmsgCh, time.Hour)
 	}()
 	t.Cleanup(func() {
 		c.cancel()
@@ -198,12 +197,12 @@ func TestXID45NativeKmsgRemainsInformational(t *testing.T) {
 func TestXID45NativeKmsgScanRemainsInformational(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, nil)
 	c.nvmlInstance = createMockNVMLInstance()
-	c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
-		return []kmsg.Message{{
+	c.readAllKmsg = kernelReaderForTest(func(context.Context) ([]apiv1.KernelMessage, error) {
+		return []apiv1.KernelMessage{{
 			Timestamp: metav1.NewTime(time.Now().UTC()),
 			Message:   "NVRM: Xid (PCI:0000:01:00): 45, pid=123, name=test, Ch 00000001",
 		}}, nil
-	}
+	})
 	result := c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "XID 45")

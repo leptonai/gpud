@@ -901,7 +901,7 @@ func (m *mockInfoWrapper) HasDXCore() (bool, string)             { return m.hasD
 func (m *mockInfoWrapper) HasTegraFiles() (bool, string)         { return m.hasTegra, m.hasTegraMsg }
 func (m *mockInfoWrapper) IsTegraSystem() (bool, string)         { return m.hasTegra, m.hasTegraMsg }
 func (m *mockInfoWrapper) ResolvePlatform() nvinfo.Platform      { return m.platform }
-func (m *mockInfoWrapper) UsesOnlyNVGPUModule() (bool, string)   { return false, "" }
+func (m *mockInfoWrapper) HasAnIntegratedGPU() (bool, string)    { return false, "" }
 func (m *mockInfoWrapper) HasOnlyIntegratedGPUs() (bool, string) { return false, "" }
 
 // --- mockDevInterface implements nvlibdevice.Interface for testing ---

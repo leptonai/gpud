@@ -12,6 +12,7 @@ import (
 const (
 	eventKeyRecoveryTimestamp = "recovery_timestamp"
 	eventKeyKmsgSequence      = "kmsg_sequence"
+	eventKeyKmsgBootID        = "kmsg_boot_id"
 )
 
 func isRecoveryMessage(message kmsg.Message) bool {

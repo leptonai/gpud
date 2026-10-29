@@ -35,7 +35,7 @@ type component struct {
 	nvmlInstance nvidianvml.Instance
 
 	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	stopKernel  func()
 
 	checkLsmodPeermemModuleFunc func(ctx context.Context) (*LsmodPeermemModuleOutput, error)
 
@@ -64,15 +64,25 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(
-				cctx,
-				Match,
-				c.eventBucket,
-				// Peermem errors can spam during transient GPU/NIC issues; coalesce within 5 minutes to reduce event noise.
-				kmsg.WithEventDedupWindowFunc(func(event eventstore.Event) (time.Duration, bool) {
+			if gpudInstance.ExperimentalHealthValidation {
+				c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, Match, eventstore.DedupPolicy{EventWindow: func(event eventstore.Event) (time.Duration, bool) {
 					return peermemEventDedupWindow, event.Name == eventPeermemInvalidContext
-				}),
-			)
+				}})
+			} else {
+				var syncer *kmsg.Syncer
+				syncer, err = kmsg.NewSyncer(
+					cctx,
+					Match,
+					c.eventBucket,
+					// Peermem errors can spam during transient GPU/NIC issues; coalesce within 5 minutes to reduce event noise.
+					kmsg.WithEventDedupWindowFunc(func(event eventstore.Event) (time.Duration, bool) {
+						return peermemEventDedupWindow, event.Name == eventPeermemInvalidContext
+					}),
+				)
+				if err == nil {
+					c.stopKernel = syncer.Close
+				}
+			}
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -142,8 +152,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

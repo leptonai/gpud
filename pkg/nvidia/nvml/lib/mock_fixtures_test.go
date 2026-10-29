@@ -305,8 +305,8 @@ func TestHasNvmlPropertyExtractor(t *testing.T) {
 		assert.Empty(t, reason)
 	})
 
-	t.Run("UsesOnlyNVGPUModule", func(t *testing.T) {
-		uses, reason := hasNvmlPropertyExtractor.UsesOnlyNVGPUModule()
+	t.Run("HasAnIntegratedGPU", func(t *testing.T) {
+		uses, reason := hasNvmlPropertyExtractor.HasAnIntegratedGPU()
 		assert.False(t, uses)
 		assert.Empty(t, reason)
 	})

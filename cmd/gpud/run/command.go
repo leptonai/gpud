@@ -420,6 +420,7 @@ func Command(cliContext *cli.Context) error {
 	cfg.LsblkCommands = lsblkCommands
 	cfg.BlockdevUsageCommands = blockdevUsageCommands
 	cfg.NFSHostRoot = nfsHostRoot
+	cfg.ExperimentalHealthValidation = cliContext.Bool("experimental-health-validation")
 	cfg.ContainerdServiceActiveCommands = containerdServiceActiveCommands
 	cfg.Containerd = containerdConfig
 	cfg.ContainerdDanglingPodGracePeriod = metav1.Duration{Duration: containerdDanglingPodGracePeriod}
