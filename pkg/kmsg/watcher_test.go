@@ -108,6 +108,7 @@ type fixtureStream struct {
 	err     error
 	reads   atomic.Int32
 	closed  atomic.Bool
+	closes  atomic.Int32
 }
 
 func (s *fixtureStream) Read(context.Context) ([]kmsgsource.Message, error) {
@@ -119,7 +120,13 @@ func (s *fixtureStream) Read(context.Context) ([]kmsgsource.Message, error) {
 
 func (s *fixtureStream) Close() error {
 	s.closed.Store(true)
+	s.closes.Add(1)
 	return nil
+}
+
+func newWatcher(source stream, opts ...OpOption) (*watcher, error) {
+	pool := &watcherPool{open: func() (stream, error) { return source, nil }}
+	return pool.newWatcher(opts...)
 }
 
 func sourceRecord(sequence int64, body string) kmsgsource.Message {

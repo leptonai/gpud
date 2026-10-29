@@ -30,8 +30,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/dsx-ai-factory/health-validation/collect"
-	kmsgsource "github.com/dsx-ai-factory/health-validation/collect/source/kmsg"
 	"github.com/dustin/go-humanize"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -54,6 +52,7 @@ type Message struct {
 	Priority       int         `json:"priority"`
 	SequenceNumber int         `json:"sequence_number"`
 	Message        string      `json:"message"`
+	bootID         string      // Internal stream identity; not part of GPUd's stored data.
 }
 
 func (m Message) DescribeTimestamp(since time.Time) string {
@@ -81,14 +80,9 @@ func ReadAll(ctx context.Context) ([]Message, error) {
 	return messages, err
 }
 
-type stream interface {
-	Read(context.Context) ([]kmsgsource.Message, error)
-	Close() error
-}
-
 type watcher struct {
-	sensor       collect.Sensor
-	stream       stream
+	collection   *sharedCollection
+	release      func() error
 	ctx          context.Context
 	cancel       context.CancelFunc
 	closeOnce    sync.Once
@@ -97,49 +91,18 @@ type watcher struct {
 	deduperOpts  []OpOption
 }
 
-// NewWatcher delegates native reading, boot identity, and parsing to the shared
-// stream. The sensor emits complete records so component matchers can reconstruct
-// multi-record events. The stream retains a bounded window, not a lossless queue.
+// NewWatcher subscribes to one process-wide health-validation stream and sensor.
+// Each watcher has its own replay cursor and content deduplication policy. Closing
+// the last watcher releases the stream. Its bounded window is not a lossless queue.
 func NewWatcher(opts ...OpOption) (Watcher, error) {
 	if err := checkKmsgPath(); err != nil {
 		return nil, err
 	}
-	source, err := kmsgsource.NewStream(0)
+	w, err := sharedWatchers.newWatcher(opts...)
 	if err != nil {
 		return nil, err
 	}
-	return newWatcher(source, opts...)
-}
-
-func newWatcher(source stream, opts ...OpOption) (*watcher, error) {
-	// Stream.Read returns a copy of its retained window. Consume each identity
-	// once before sensor matching so unchanged windows do not rebuild observations.
-	var cursor recordCursor
-	sensor, err := newSensor(func(ctx context.Context) ([]kmsgsource.Message, error) {
-		records, err := source.Read(ctx)
-		fresh := records[:0]
-		for _, record := range records {
-			// Preserve invalid records for the sensor to report as collection failures.
-			if record.BootID == "" || record.Sequence < 0 {
-				fresh = append(fresh, record)
-				continue
-			}
-			accept, gap := cursor.advance(recordID{bootID: record.BootID, sequence: record.Sequence})
-			if gap != nil {
-				log.Logger.Errorw("kmsg records lost before collection", "error", gap)
-			}
-			if accept {
-				fresh = append(fresh, record)
-			}
-		}
-		return fresh, err
-	})
-	if err != nil {
-		_ = source.Close()
-		return nil, err
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	return &watcher{sensor: sensor, stream: source, ctx: ctx, cancel: cancel, deduperOpts: append([]OpOption(nil), opts...)}, nil
+	return w, nil
 }
 
 func checkKmsgPath() error {
@@ -168,12 +131,25 @@ func (w *watcher) Watch() (<-chan Message, error) {
 }
 
 func (w *watcher) follow(messages chan<- Message) error {
-	ticker := time.NewTicker(streamPollInterval)
-	defer ticker.Stop()
+	timer := time.NewTimer(0)
+	defer timer.Stop()
 	deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval, w.deduperOpts...)
+	var cursor recordCursor
 	for {
-		records, err := collectMessages(w.ctx, w.sensor)
+		select {
+		case <-w.ctx.Done():
+			return w.ctx.Err()
+		case <-timer.C:
+		}
+		records, err := w.collection.read()
 		for _, record := range records {
+			fresh, gap := cursor.advance(recordID{bootID: record.bootID, sequence: int64(record.SequenceNumber)})
+			if gap != nil {
+				log.Logger.Errorw("kmsg records lost before delivery to watcher", "error", gap)
+			}
+			if !fresh {
+				continue
+			}
 			if deduper != nil && deduper.addCache(record) > 1 {
 				continue
 			}
@@ -186,18 +162,14 @@ func (w *watcher) follow(messages chan<- Message) error {
 		if err != nil {
 			return err
 		}
-		select {
-		case <-w.ctx.Done():
-			return w.ctx.Err()
-		case <-ticker.C:
-		}
+		timer.Reset(streamPollInterval)
 	}
 }
 
 func (w *watcher) Close() error {
 	w.closeOnce.Do(func() {
 		w.cancel()
-		w.closeErr = w.stream.Close()
+		w.closeErr = w.release()
 	})
 	return w.closeErr
 }

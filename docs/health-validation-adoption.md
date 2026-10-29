@@ -59,22 +59,33 @@ records beyond the old scanner's 64 KiB line limit. It reads the whole vmalloc
 file into memory; large-host memory and timing costs have not been measured.
 
 Kernel snapshots use health-validation's `ReadAll`; continuous collection uses
-its `NewStream`. Both feed the kmsg sensor. GPUd's syscall loops, file opening,
-boot-time lookup, and parser wrapper are removed. The shim converts message and
-priority observations into GPUd `Message` values with their original timestamps.
-The sensor selects every record, including empty bodies and continuation lines,
-so existing component matchers can reconstruct multi-record events.
+one process-wide `NewStream` and kmsg sensor shared by all component watchers.
+GPUd's syscall loops, file opening, boot-time lookup, and parser wrapper are
+removed. The shim converts message and priority observations into GPUd `Message`
+values with their original timestamps. The sensor selects every record, including
+empty bodies and continuation lines, so existing component matchers can
+reconstruct multi-record events.
 
-The shared stream retains its default 4,096-record window. GPUd polls it every
-100 ms and tracks boot ID plus sequence before sensor matching to avoid
-replaying records, even when content deduplication is disabled. Sequence gaps
-after the first observed record are logged. Slow consumers or startup bursts can
-still lose records through window eviction; loss before the first snapshot
-cannot be detected by the cursor. Snapshot failures return available messages
-alongside an error. A watcher emits available messages, logs a collection
-failure, then closes its channel and source. Closing a watcher cancels a blocked
-channel send. GPUd keeps content and event deduplication, persistence, severity,
-and recovery policy.
+The shared stream retains its default 4,096-record window. Watchers poll every
+100 ms; a shared cache serializes sensor measurement and conversion at most once
+per polling interval. Each watcher receives the same immutable window, with its
+own boot-ID/sequence cursor and content deduplication policy. A late subscriber
+receives retained history, and a slow subscriber cannot block another component's
+collection or delivery. Unchanged windows reuse their converted records without
+rebuilding observations. Sequence gaps after a subscriber's first observed record
+are logged. Slow consumers or startup bursts can still lose records through
+window eviction; loss before the first snapshot cannot be detected by the cursor.
+
+Collection failures and partial results are retained for every subscriber. Each
+watcher emits available messages, logs the failure, and releases its subscription.
+Closing a watcher cancels a blocked channel send; only the last subscription
+closes the native reader. A later subscription opens a fresh stream and sensor.
+GPUd keeps content and event deduplication, persistence, severity, and recovery
+policy. Component matchers and event conversion remain in their existing owners.
+
+Full-history diagnostic snapshots keep their separate `ReadAll` sensor path.
+Replacing them with the bounded streaming window would hide older kernel records.
+Snapshot failures still return available messages alongside an error.
 
 The shared reader opens `/dev/kmsg` on Linux. Non-default `KMSG_FILE_PATH` values
 now return an explicit unsupported-path error; they are not silently ignored.
@@ -132,5 +143,8 @@ versus optional errors, exclusions, numeric port order, and EINVAL cache lifetim
 Existing component tests still cover port flaps and recovery windows. Kernel
 shim tests cover fixture parsing through the shared parser and sensor, complete
 message/priority conversion, partial failures, replay suppression, sequence
-gaps, and cancellation while the output channel is full.
+gaps, and cancellation while the output channel is full. Shared-watcher tests
+cover independent dedup policies, concurrent subscribers, one measurement per
+interval, late subscription, slow consumers, boot identity, partial failures,
+reference-counted shutdown, and reopening after failure.
 Linux GPU hardware, container builds, and live daemon behavior remain untested.

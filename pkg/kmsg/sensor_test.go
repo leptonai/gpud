@@ -83,7 +83,7 @@ func TestNewWatcherUsesSharedStream(t *testing.T) {
 		mockey.Mock(kmsgsource.NewStream).To(func(int) (*kmsgsource.Stream, error) { return nil, failure }).Build()
 		watcher, err := NewWatcher()
 		require.ErrorIs(t, err, failure)
-		assert.Nil(t, watcher)
+		assert.True(t, watcher == nil, "constructor failures must return a nil interface")
 	})
 }
 

@@ -75,7 +75,7 @@ func messagesFromObservations(batch *observation.ObservationBatch) ([]Message, e
 		if !found {
 			index = len(entries)
 			indexes[id] = index
-			entries = append(entries, entry{id: id, message: Message{SequenceNumber: sequence, Timestamp: metav1.NewTime(reading.ObservedAt.AsTime())}})
+			entries = append(entries, entry{id: id, message: Message{bootID: id.bootID, SequenceNumber: sequence, Timestamp: metav1.NewTime(reading.ObservedAt.AsTime())}})
 		}
 		record := &entries[index]
 		switch reading.SignalId {
