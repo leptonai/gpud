@@ -15,7 +15,7 @@ through `Sensor.Measure`, not `Source.Read`.
 
 The dependency is pinned to
 `github.com/dsx-ai-factory/health-validation` at
-`v0.0.0-20261029220550-542735d3b294` (commit `542735d3b294`),
+`v0.0.0-20261030202130-2b9291111985` (commit `2b9291111985`),
 which is merged upstream and includes [health-validation #247](https://github.com/dsx-ai-factory/health-validation/pull/247).
 No unmerged health-validation change is required.
 The GPUd base is `24b9e76c`.
