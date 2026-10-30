@@ -41,7 +41,6 @@ import (
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/httputil"
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -277,7 +276,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
 
-	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
+	kmsgWriter := pkgfaultinjector.NewWriter(pkgfaultinjector.DefaultDevKmsg)
 	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
 
 	var nvmlInstance nvidianvml.Instance

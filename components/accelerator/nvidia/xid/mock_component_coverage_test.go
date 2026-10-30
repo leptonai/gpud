@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dsx-ai-factory/health-validation/collect/observation"
+
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,8 +17,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
@@ -88,24 +90,6 @@ func (s *stubRebootStore) GetRebootEvents(_ context.Context, _ time.Time) (event
 	return s.events, s.err
 }
 
-type stubWatcher struct {
-	watchErr error
-	ch       chan kmsg.Message
-	closeErr error
-}
-
-func (s *stubWatcher) Watch() (<-chan kmsg.Message, error) {
-	if s.watchErr != nil {
-		return nil, s.watchErr
-	}
-	if s.ch == nil {
-		s.ch = make(chan kmsg.Message, 1)
-	}
-	return s.ch, nil
-}
-
-func (s *stubWatcher) Close() error { return s.closeErr }
-
 func TestCheckResult_Coverage_WithMockey(t *testing.T) {
 	var nilCR *checkResult
 	assert.Equal(t, Name, nilCR.ComponentName())
@@ -146,7 +130,7 @@ func TestNew_Branches_WithMockey(t *testing.T) {
 
 	mockey.PatchConvey("New returns watcher error when running as root", t, func() {
 		mockey.Mock(os.Geteuid).To(func() int { return 0 }).Build()
-		mockey.Mock(kmsg.NewWatcher).To(func(...kmsg.OpOption) (kmsg.Watcher, error) {
+		mockey.Mock((*componentkmsg.Stream).Subscribe).To(func(*componentkmsg.Stream, context.Context, func(context.Context, *observation.ObservationBatch)) (func(), error) {
 			return nil, errors.New("watcher failed")
 		}).Build()
 
@@ -161,66 +145,12 @@ func TestNew_Branches_WithMockey(t *testing.T) {
 	})
 }
 
-func TestComponent_Start_Events_Close_Coverage_WithMockey(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	t.Run("Start exits on context canceled update", func(t *testing.T) {
-		c := &component{ctx: ctx}
-		mockey.PatchConvey("start exits when update returns context.Canceled", t, func() {
-			mockey.Mock((*component).updateCurrentState).To(func(_ *component) error {
-				return context.Canceled
-			}).Build()
-
-			err := c.Start()
-			require.NoError(t, err)
-		})
-	})
-
-	t.Run("Start returns watcher watch error", func(t *testing.T) {
-		c := &component{
-			ctx:         ctx,
-			kmsgWatcher: &stubWatcher{watchErr: errors.New("watch failed")},
-		}
-		mockey.PatchConvey("start returns watch error after successful state update", t, func() {
-			mockey.Mock((*component).updateCurrentState).To(func(_ *component) error {
-				return nil
-			}).Build()
-
-			err := c.Start()
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "watch failed")
-		})
-	})
-
-	t.Run("Events returns bucket get error", func(t *testing.T) {
-		c := &component{
-			eventBucket: &stubEventBucket{getErr: errors.New("get failed")},
-			devices:     map[string]device.Device{},
-		}
-		events, err := c.Events(ctx, time.Now().Add(-time.Hour))
-		require.Error(t, err)
-		assert.Nil(t, events)
-		assert.Contains(t, err.Error(), "get failed")
-	})
-
-	t.Run("Close handles watcher close error", func(t *testing.T) {
-		c := &component{
-			cancel:      func() {},
-			kmsgWatcher: &stubWatcher{closeErr: errors.New("close failed")},
-			eventBucket: &stubEventBucket{},
-		}
-		err := c.Close()
-		require.NoError(t, err)
-	})
-}
-
 func TestComponent_start_Branches_WithMockey(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	extraCh := make(chan pendingEvent, 2)
-	kmsgCh := make(chan kmsg.Message, 2)
+	kmsgCh := make(chan apiv1.KernelMessage, 2)
 
 	c := &component{
 		ctx:          ctx,
@@ -235,13 +165,13 @@ func TestComponent_start_Branches_WithMockey(t *testing.T) {
 
 		done := make(chan struct{})
 		go func() {
-			c.start(kmsgCh, 5*time.Millisecond)
+			c.startKernelTest(kmsgCh, 5*time.Millisecond)
 			close(done)
 		}()
 
 		extraCh <- pendingEvent{}
 		extraCh <- pendingEvent{event: &eventstore.Event{Name: "test", Time: time.Now()}}
-		kmsgCh <- kmsg.Message{
+		kmsgCh <- apiv1.KernelMessage{
 			Timestamp: metav1.Now(),
 			Message:   "this is not an xid message",
 		}
@@ -345,14 +275,14 @@ func TestCheck_EarlyBranches_WithMockey(t *testing.T) {
 		c := &component{
 			ctx:          context.Background(),
 			nvmlInstance: newNVML(true, "GPU", nil),
-			readAllKmsg: func(context.Context) ([]kmsg.Message, error) {
-				return []kmsg.Message{
+			readAllKmsg: kernelReaderForTest(func(context.Context) ([]apiv1.KernelMessage, error) {
+				return []apiv1.KernelMessage{
 					{
 						Timestamp: metav1.Now(),
 						Message:   "this line has no xid content",
 					},
 				}, nil
-			},
+			}),
 			getTimeNowFunc: func() time.Time {
 				return now
 			},
@@ -390,13 +320,13 @@ func TestStart_RetryContextDoneBranch_WithMockey(t *testing.T) {
 }
 
 func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
-	run := func(t *testing.T, c *component, msg kmsg.Message) {
+	run := func(t *testing.T, c *component, msg apiv1.KernelMessage) {
 		t.Helper()
 
-		kmsgCh := make(chan kmsg.Message, 1)
+		kmsgCh := make(chan apiv1.KernelMessage, 1)
 		done := make(chan struct{})
 		go func() {
-			c.start(kmsgCh, time.Hour)
+			c.startKernelTest(kmsgCh, time.Hour)
 			close(done)
 		}()
 
@@ -411,7 +341,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 		}
 	}
 
-	xidMsg := kmsg.Message{
+	xidMsg := apiv1.KernelMessage{
 		Timestamp: metav1.Now(),
 		Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=123",
 	}

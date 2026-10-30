@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	memorysignals "github.com/dsx-ai-factory/health-validation/collect/signals/kmsg/memory"
 )
 
 const (
@@ -28,12 +30,7 @@ const (
 var (
 	compiledVFSFileMaxLimitReached = regexp.MustCompile(regexVFSFileMaxLimitReached)
 
-	// Kernel panic regex patterns
-	// ref. https://cloud.google.com/compute/docs/troubleshooting/kernel-panic
-	kernelPanicStartRegexps = []*regexp.Regexp{
-		// Match "Kernel panic" or "Kernel Panic" (case insensitive for 'P')
-		regexp.MustCompile(`Kernel [Pp]anic`),
-	}
+	kernelPanicStartRegexp = regexp.MustCompile(memorysignals.DefaultPatterns()[memorysignals.Panic])
 
 	// e.g., CPU: 24 PID: 1364 Comm: khungtaskd Tainted: P           OE     5.15.0-1053-nvidia #54-Ubuntu
 	kernelPanicCPUPIDRegexp = regexp.MustCompile(`CPU: (\d+) PID: (\d+) Comm: (\S+)`)
@@ -76,7 +73,7 @@ func createKernelPanicMatchFunc() func(line string) (eventName string, message s
 
 	return func(line string) (eventName string, message string) {
 		// Check if this is the start of a new kernel panic
-		isNewPanicStart := checkIfStartOfPanicMessages(line)
+		isNewPanicStart := kernelPanicStartRegexp.MatchString(line)
 
 		if isNewPanicStart {
 			// If we were already reading panic messages but found a new panic,
@@ -129,16 +126,6 @@ func createKernelPanicMatchFunc() func(line string) (eventName string, message s
 		// Still collecting information
 		return "", ""
 	}
-}
-
-// Helper functions for kernel panic detection
-func checkIfStartOfPanicMessages(line string) bool {
-	for _, regex := range kernelPanicStartRegexps {
-		if regex.MatchString(line) {
-			return true
-		}
-	}
-	return false
 }
 
 func extractCPUandPID(line string, instance *KernelPanicInstance) bool {

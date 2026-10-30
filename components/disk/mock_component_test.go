@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dsx-ai-factory/health-validation/collect/observation"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,7 +17,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
 
@@ -70,7 +71,7 @@ func TestNewComponent_InjectableBranches(t *testing.T) {
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx:    context.Background(),
 			EventStore: mockStore,
-		}, "linux", 0, func(_ context.Context, _ kmsg.MatchFunc, _ eventstore.Bucket, _ ...kmsg.OpOption) (*kmsg.Syncer, error) {
+		}, "linux", 0, func(_ context.Context, _ func(context.Context, *observation.ObservationBatch)) (func(), error) {
 			return nil, expectedErr
 		})
 		require.ErrorIs(t, err, expectedErr)
@@ -86,16 +87,16 @@ func TestNewComponent_InjectableBranches(t *testing.T) {
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx:    context.Background(),
 			EventStore: mockStore,
-		}, "linux", 0, func(_ context.Context, _ kmsg.MatchFunc, _ eventstore.Bucket, _ ...kmsg.OpOption) (*kmsg.Syncer, error) {
-			return &kmsg.Syncer{}, nil
+		}, "linux", 0, func(_ context.Context, _ func(context.Context, *observation.ObservationBatch)) (func(), error) {
+			return func() {}, nil
 		})
 		require.NoError(t, err)
 
 		diskComp := mustComponent(t, comp)
-		assert.NotNil(t, diskComp.kmsgSyncer)
+		assert.NotNil(t, diskComp.stopKernel)
 
-		// Avoid calling Close on the zero-value kmsg.Syncer from this test.
-		diskComp.kmsgSyncer = nil
+		// Avoid calling Close on the zero-value kernel event subscription from this test.
+		diskComp.stopKernel = nil
 		require.NoError(t, comp.Close())
 	})
 }
@@ -109,7 +110,7 @@ func TestComponent_Close_ClosesKmsgSyncer(t *testing.T) {
 	c := &component{
 		ctx:         cctx,
 		cancel:      cancel,
-		kmsgSyncer:  syncer,
+		stopKernel:  syncer.Close,
 		eventBucket: mockBucket,
 	}
 

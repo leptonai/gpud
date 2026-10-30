@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 )
 
 // Mock kmsg writer for testing
@@ -22,7 +21,7 @@ type mockKmsgWriter struct {
 	mock.Mock
 }
 
-func (m *mockKmsgWriter) Write(msg *pkgkmsgwriter.KernelMessage) error {
+func (m *mockKmsgWriter) Write(msg *pkgfaultinjector.KernelMessage) error {
 	args := m.Called(msg)
 	return args.Error(0)
 }
@@ -32,12 +31,12 @@ type mockFaultInjector struct {
 	mock.Mock
 }
 
-func (m *mockFaultInjector) KmsgWriter() pkgkmsgwriter.KmsgWriter {
+func (m *mockFaultInjector) KmsgWriter() pkgfaultinjector.KmsgWriter {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(pkgkmsgwriter.KmsgWriter)
+	return args.Get(0).(pkgfaultinjector.KmsgWriter)
 }
 
 // Helper function to setup test context
@@ -62,7 +61,7 @@ func TestHandleInjectFault_NilFaultInjector(t *testing.T) {
 
 	// Create request with valid JSON
 	request := pkgfaultinjector.Request{
-		KernelMessage: &pkgkmsgwriter.KernelMessage{
+		KernelMessage: &pkgfaultinjector.KernelMessage{
 			Priority: "KERN_INFO",
 			Message:  "test message",
 		},
@@ -139,7 +138,7 @@ func TestHandleInjectFault_SuccessfulKernelMessageInjection(t *testing.T) {
 	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create valid request
-	kernelMessage := &pkgkmsgwriter.KernelMessage{
+	kernelMessage := &pkgfaultinjector.KernelMessage{
 		Priority: "KERN_INFO",
 		Message:  "test kernel message",
 	}
@@ -188,7 +187,7 @@ func TestHandleInjectFault_FailedKernelMessageInjection(t *testing.T) {
 	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create valid request
-	kernelMessage := &pkgkmsgwriter.KernelMessage{
+	kernelMessage := &pkgfaultinjector.KernelMessage{
 		Priority: "KERN_ERR",
 		Message:  "test error message",
 	}
@@ -320,7 +319,7 @@ func TestHandleInjectFault_ContextPropagation(t *testing.T) {
 	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create valid request
-	kernelMessage := &pkgkmsgwriter.KernelMessage{
+	kernelMessage := &pkgfaultinjector.KernelMessage{
 		Priority: "KERN_DEBUG",
 		Message:  "test context propagation",
 	}
@@ -365,7 +364,7 @@ func TestHandleInjectFault_Validation(t *testing.T) {
 		router.POST(URLPathInjectFault, handler.injectFault)
 
 		// Create request with valid kernel message
-		kernelMessage := &pkgkmsgwriter.KernelMessage{
+		kernelMessage := &pkgfaultinjector.KernelMessage{
 			Priority: "KERN_INFO",
 			Message:  "valid message for validation test",
 		}
@@ -419,7 +418,7 @@ func TestHandleInjectFault_Validation(t *testing.T) {
 			longMessage[i] = 'A'
 		}
 
-		kernelMessage := &pkgkmsgwriter.KernelMessage{
+		kernelMessage := &pkgfaultinjector.KernelMessage{
 			Priority: "KERN_ERR",
 			Message:  string(longMessage),
 		}

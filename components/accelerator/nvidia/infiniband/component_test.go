@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
@@ -43,7 +41,7 @@ func TestComponentCheck(t *testing.T) {
 			return time.Now().UTC()
 		},
 		getThresholdsFunc: mockGetThresholds,
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
 	}
@@ -325,18 +323,12 @@ func TestComponentClose(t *testing.T) {
 		eventBucket: mockBucket,
 	}
 
-	// Add a real kmsgSyncer only if on linux to test the path where it's not nil
-	// Note: This part might still not run in all test environments
-	if runtime.GOOS == "linux" {
-		// Attempt to create, ignore error for this test focused on Close()
-		kmsgSyncer, _ := kmsg.NewSyncer(cctx, func(_ string) (string, string) {
-			return "test", "test"
-		}, mockBucket)
-		c.kmsgSyncer = kmsgSyncer // Assign if created
-	}
+	stopped := false
+	c.stopKernel = func() { stopped = true }
 
 	err := c.Close()
 	assert.NoError(t, err)
+	assert.True(t, stopped)
 
 	// Verify context is canceled
 	select {
@@ -662,7 +654,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 			}
 		},
 		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
 	}
@@ -718,7 +710,7 @@ func TestCloseWithNilComponents(t *testing.T) {
 		ctx:         context.Background(),
 		cancel:      func() {}, // no-op cancel
 		eventBucket: nil,
-		kmsgSyncer:  nil,
+		stopKernel:  nil,
 	}
 
 	err := c.Close()
@@ -841,7 +833,7 @@ func TestNewWithNilEventStore(t *testing.T) {
 	casted, ok := comp.(*component)
 	require.True(t, ok)
 	assert.Nil(t, casted.eventBucket)
-	assert.Nil(t, casted.kmsgSyncer)
+	assert.Nil(t, casted.stopKernel)
 
 	// Clean up
 	err = comp.Close()
@@ -905,7 +897,7 @@ func TestCheckWithClassDevicesSuccess(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
 		getThresholdsFunc: func() types.ExpectedPortStates {
@@ -976,7 +968,7 @@ func TestComponentCheckWithUnknownEventType(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return mock devices with IB ports - some unhealthy to trigger event processing
 			return infinibandclass.Devices{
 				{
@@ -1074,7 +1066,7 @@ func TestComponentCheckWithNoEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
 	}
@@ -1129,7 +1121,7 @@ func TestComponentCheckWithUnhealthyIBPortsAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return devices that will be detected as unhealthy by threshold evaluation
 			return infinibandclass.Devices{
 				{
@@ -1209,7 +1201,7 @@ func TestComponentCheckWithExistingReasonAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return devices that will be detected as unhealthy by threshold evaluation
 			// This will trigger unhealthyIBPorts to be populated, which allows event processing
 			return infinibandclass.Devices{
@@ -1308,7 +1300,7 @@ func TestComponentCheckWithEmptyReasonAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return devices that fail port count threshold
 			// Some ports have disabled/polling physical state to populate unhealthyIBPorts
 			return infinibandclass.Devices{
@@ -1444,7 +1436,7 @@ func TestComponentCheckWithTrueEmptyReasonAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return devices that will trigger unhealthyIBPorts (down/disabled state)
 			// This should cause len(cr.unhealthyIBPorts) > 0, which clears cr.reason
 			return infinibandclass.Devices{
@@ -1559,7 +1551,7 @@ func TestComponentCheckWithLastEventsError(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return devices so we reach the LastEvents section
 			return infinibandclass.Devices{
 				{
@@ -1618,7 +1610,7 @@ func TestComponentCheckWithNilIBPortsStore(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return devices so we reach the LastEvents section
 			return infinibandclass.Devices{
 				{
@@ -1699,7 +1691,7 @@ func TestComponentCheckWithMultipleEventTypes(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -1783,7 +1775,7 @@ func TestComponentCheckWithEmptyEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -1861,7 +1853,7 @@ func TestComponentCheckWithEventFindError(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -1966,7 +1958,7 @@ func TestComponentCheckHealthyPortsWithHistoricalEvents(t *testing.T) {
 				AtLeastRate:  400, // Both ports meet this rate
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return all healthy ports that meet thresholds
 			return infinibandclass.Devices{
 				{
@@ -2061,7 +2053,7 @@ func TestComponentCheckWithUnknownEventTypeDefaultCase(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -2147,7 +2139,7 @@ func TestComponentCheckDropEventsIgnoredWhenHealthy(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return all healthy ports
 			return infinibandclass.Devices{
 				{
@@ -2227,7 +2219,7 @@ func TestComponentCheckThresholdMismatchNoHardwareInspection(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return only 4 ports, not meeting the 8 port requirement
 			return infinibandclass.Devices{
 				{
@@ -2338,7 +2330,7 @@ func TestComponentCheckRateMismatchNoHardwareInspection(t *testing.T) {
 				AtLeastRate:  400, // Require 400 Gb/s
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return ports with insufficient rate
 			return infinibandclass.Devices{
 				{
@@ -2431,7 +2423,7 @@ func TestComponentCheckDropEventsProcessedWhenUnhealthy(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 			// Return one healthy and one unhealthy port
 			return infinibandclass.Devices{
 				{

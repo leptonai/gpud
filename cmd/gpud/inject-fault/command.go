@@ -4,7 +4,7 @@ package injectfault
 import (
 	"github.com/urfave/cli"
 
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -21,9 +21,9 @@ func Command(cliContext *cli.Context) error {
 	kernelLogLevel := cliContext.String("kernel-log-level")
 	kernelMsg := cliContext.String("kernel-message")
 
-	wr := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
-	if err := wr.Write(&pkgkmsgwriter.KernelMessage{
-		Priority: pkgkmsgwriter.KernelMessagePriority(kernelLogLevel),
+	wr := pkgfaultinjector.NewWriter(pkgfaultinjector.DefaultDevKmsg)
+	if err := wr.Write(&pkgfaultinjector.KernelMessage{
+		Priority: pkgfaultinjector.KernelMessagePriority(kernelLogLevel),
 		Message:  kernelMsg,
 	}); err != nil {
 		return err

@@ -11,7 +11,6 @@ import (
 
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	sessionv2 "github.com/leptonai/gpud/pkg/session/v2"
 )
 
@@ -96,8 +95,8 @@ func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
 				if fault.KernelMessage == nil {
 					return Request{}, fmt.Errorf("kernel-message fault is missing")
 				}
-				legacy.InjectFaultRequest.KernelMessage = &pkgkmsgwriter.KernelMessage{
-					Priority: pkgkmsgwriter.KernelMessagePriority(fault.KernelMessage.Priority),
+				legacy.InjectFaultRequest.KernelMessage = &pkgfaultinjector.KernelMessage{
+					Priority: pkgfaultinjector.KernelMessagePriority(fault.KernelMessage.Priority),
 					Message:  fault.KernelMessage.Message,
 				}
 			}

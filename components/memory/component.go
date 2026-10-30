@@ -20,7 +20,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -54,7 +53,7 @@ type component struct {
 	availableThresholdBytes uint64
 
 	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	stopKernel  func()
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -86,7 +85,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, createMatchFunc(), c.eventBucket)
+			c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, createMatchFunc(), eventstore.DedupPolicy{})
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -150,8 +149,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

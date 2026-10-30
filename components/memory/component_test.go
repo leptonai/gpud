@@ -112,7 +112,7 @@ func (m *MockEventBucket) Close() {
 	m.Called()
 }
 
-// MockKmsgSyncer implements a mock for kmsg.Syncer
+// MockKmsgSyncer implements a mock for kernel event subscription
 type MockKmsgSyncer struct {
 	mock.Mock
 }
@@ -356,7 +356,7 @@ func TestClose(t *testing.T) {
 		ctx:         context.Background(),
 		cancel:      func() {},
 		eventBucket: mockEventBucket,
-		kmsgSyncer:  nil, // We can't directly set this as a mock due to type safety
+		stopKernel:  nil, // We can't directly set this as a mock due to type safety
 	}
 
 	// Set the kmsgSyncer field directly for testing

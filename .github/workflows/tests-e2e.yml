@@ -6,6 +6,7 @@ on:
     branches: ["main"]
   pull_request:
     paths:
+      - .github/workflows/tests-e2e.yml
       - "**.go"
       - go.mod
       - go.sum
@@ -29,4 +30,4 @@ jobs:
           go-version-file: go.mod
       - name: run e2e tests
         run: |
-          KMSG_FILE_PATH=/dev/null ./scripts/tests-e2e.sh
+          ./scripts/tests-e2e.sh

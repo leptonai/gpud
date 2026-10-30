@@ -1,98 +1,104 @@
 package memory
 
 import (
-	"bufio"
+	"io/fs"
 	"os"
+	"strings"
 	"testing"
+	"testing/fstest"
 
-	"github.com/dustin/go-humanize"
+	"github.com/dsx-ai-factory/health-validation/collect/observation"
+	memorysignals "github.com/dsx-ai-factory/health-validation/collect/signals/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func Test_processLineBPFJITAllocExec(t *testing.T) {
-	f, err := os.Open("testdata/vmallocinfo.bpf_jit_alloc_exec")
+func Test_readBPFJITBufferBytes_Fixture(t *testing.T) {
+	data, err := os.ReadFile("testdata/vmallocinfo.bpf_jit_alloc_exec")
 	require.NoError(t, err)
-	defer func() {
-		_ = f.Close()
-	}()
+	files := fstest.MapFS{"proc/vmallocinfo": &fstest.MapFile{Data: data}}
 
-	totalSize := uint64(0)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		size, err := processLineBPFJITAllocExec(line)
-		require.NoError(t, err)
-		totalSize += size
+	size, err := readBPFJITBufferBytes(files)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(3977216), size)
+}
+
+func Test_readBPFJITBufferBytes(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data string
+		want uint64
+		err  string
+	}{
+		{name: "empty"},
+		{name: "unrelated allocation", data: "0x0-0x1 16384 other_function pages=3"},
+		{name: "sum", data: "0x0-0x1 16384 bpf_jit_alloc_exec pages=3\n0x1-0x2 4096 bpf_jit_alloc_exec pages=1", want: 20480},
+		{name: "invalid size", data: "0x0-0x1 invalid bpf_jit_alloc_exec", err: "PARSE_ERROR"},
+		{name: "missing size", data: "bpf_jit_alloc_exec", err: "PARSE_ERROR"},
+		{name: "negative size", data: "0x0-0x1 -1 bpf_jit_alloc_exec", err: "PARSE_ERROR"},
+		{name: "overflow", data: "0x0-0x1 18446744073709551615 bpf_jit_alloc_exec\n0x1-0x2 1 bpf_jit_alloc_exec", err: "overflow"},
+		{name: "long unrelated line before allocation", data: strings.Repeat("x", 65537) + "\n0x0-0x1 4096 bpf_jit_alloc_exec", want: 4096},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// No meminfo fixture: selecting BPF must not read other memory signals.
+			files := fstest.MapFS{"proc/vmallocinfo": &fstest.MapFile{Data: []byte(tc.data)}}
+			size, err := readBPFJITBufferBytes(files)
+			if tc.err != "" {
+				require.ErrorContains(t, err, tc.err)
+				assert.Zero(t, size)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, size)
+		})
 	}
-
-	expected := uint64(3977216)
-	assert.Equal(t, expected, totalSize)
-
-	t.Logf("totalSize: %s", humanize.IBytes(totalSize))
 }
 
-func Test_readBPFJITBufferBytes_Success(t *testing.T) {
-	// Test successful read from the test file
-	totalSize, err := readBPFJITBufferBytes("testdata/vmallocinfo.bpf_jit_alloc_exec")
-	require.NoError(t, err)
+func Test_readBPFJITBufferBytes_ReadFailure(t *testing.T) {
+	_, err := readBPFJITBufferBytes(fstest.MapFS{})
+	require.ErrorContains(t, err, "UNAVAILABLE")
 
-	expected := uint64(3977216)
-	assert.Equal(t, expected, totalSize)
-
-	t.Logf("totalSize: %s", humanize.IBytes(totalSize))
+	_, err = readBPFJITBufferBytes(deniedBPFFile{})
+	require.ErrorContains(t, err, "PERMISSION_DENIED")
 }
 
-func Test_readBPFJITBufferBytes_FileNotFound(t *testing.T) {
-	// Test file not found error
-	_, err := readBPFJITBufferBytes("testdata/nonexistent_file")
-	assert.Error(t, err)
+type deniedBPFFile struct{}
+
+func (deniedBPFFile) Open(name string) (fs.File, error) {
+	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrPermission}
 }
 
-func Test_readBPFJITBufferBytes_EmptyFile(t *testing.T) {
-	// Create a temporary empty file
-	tmpFile, err := os.CreateTemp("", "empty_vmallocinfo")
-	require.NoError(t, err)
-	defer func() {
-		_ = os.Remove(tmpFile.Name())
-	}()
-	require.NoError(t, tmpFile.Close())
-
-	// Test with empty file
-	size, err := readBPFJITBufferBytes(tmpFile.Name())
-	require.NoError(t, err)
-	assert.Equal(t, uint64(0), size)
-}
-
-func Test_readBPFJITBufferBytes_InvalidFormat(t *testing.T) {
-	// Create a temporary file with invalid format
-	tmpFile, err := os.CreateTemp("", "invalid_vmallocinfo")
-	require.NoError(t, err)
-	defer func() {
-		_ = os.Remove(tmpFile.Name())
-	}()
-
-	// Write a line with "bpf_jit_alloc_exec" but with invalid format (missing the size field)
-	_, err = tmpFile.WriteString("0xffffffffc1032000-0xffffffffc1036000 bpf_jit_alloc_exec+0xe/0x20 pages=3 vmalloc N0=3\n")
-	require.NoError(t, err)
-	require.NoError(t, tmpFile.Close())
-
-	// Test with invalid format
-	_, err = readBPFJITBufferBytes(tmpFile.Name())
-	assert.Error(t, err)
-}
-
-func Test_processLineBPFJITAllocExec_NoBPFJIT(t *testing.T) {
-	// Test line without "bpf_jit_alloc_exec"
-	line := []byte("0xffffffffc1032000-0xffffffffc1036000   16384 other_function+0xe/0x20 pages=3 vmalloc N0=3")
-	size, err := processLineBPFJITAllocExec(line)
-	require.NoError(t, err)
-	assert.Equal(t, uint64(0), size)
-}
-
-func Test_processLineBPFJITAllocExec_InvalidSize(t *testing.T) {
-	// Test line with invalid size field
-	line := []byte("0xffffffffc1032000-0xffffffffc1036000   invalid bpf_jit_alloc_exec+0xe/0x20 pages=3 vmalloc N0=3")
-	_, err := processLineBPFJITAllocExec(line)
-	assert.Error(t, err)
+func TestBPFJITBytesFromObservations(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		reading   *observation.Observation
+		want      uint64
+		wantError bool
+	}{
+		{name: "nil observation", wantError: true},
+		{name: "wrong signal", reading: &observation.Observation{SignalId: memorysignals.TotalBytes.ID()}, wantError: true},
+		{name: "missing outcome", reading: &observation.Observation{SignalId: memorysignals.BPFJITBytes.ID()}, wantError: true},
+		{name: "no value", reading: &observation.Observation{
+			SignalId: memorysignals.BPFJITBytes.ID(),
+			Outcome:  &observation.Observation_NoValue{NoValue: &observation.NoValue{Reason: observation.NoValueReasonNotSupported}},
+		}, wantError: true},
+		{name: "wrong value type", reading: &observation.Observation{
+			SignalId: memorysignals.BPFJITBytes.ID(),
+			Outcome:  &observation.Observation_Value{Value: &observation.Value{Kind: &observation.Value_StringValue{StringValue: "0"}}},
+		}, wantError: true},
+		{name: "zero is a value", reading: &observation.Observation{
+			SignalId: memorysignals.BPFJITBytes.ID(),
+			Outcome:  &observation.Observation_Value{Value: &observation.Value{Kind: &observation.Value_UintValue{UintValue: 0}}},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			size, err := bpfJITBytesFromObservations(&observation.ObservationBatch{Observations: []*observation.Observation{tc.reading}})
+			if tc.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, size)
+		})
+	}
 }

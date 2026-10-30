@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,7 +26,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
@@ -64,9 +64,11 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
-	kmsgWatcher      kmsg.Watcher
+	kernelMessages   <-chan kernelRecord
+	stopKernel       func()
+	started          atomic.Bool
 
-	readAllKmsg  func(context.Context) ([]kmsg.Message, error)
+	readAllKmsg  func(context.Context) ([]kernelRecord, error)
 	extraEventCh chan pendingEvent
 
 	lastMu          sync.RWMutex
@@ -114,7 +116,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgWatcher, err = kmsg.NewWatcher()
+			c.kernelMessages, c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe)
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -123,7 +125,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		c.readAllKmsg = kmsg.ReadAll
+		c.readAllKmsg = readKernelMessages
 	}
 
 	if gpudInstance.NVSentinel != nil && c.eventBucket != nil {
@@ -157,6 +159,9 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
+	if !c.started.CompareAndSwap(false, true) {
+		return components.ErrAlreadyStarted
+	}
 	for {
 		err := c.updateCurrentState()
 		if err == nil {
@@ -181,16 +186,8 @@ func (c *component) Start() error {
 	// health monitor may be the only kmsg reader on a node; without this,
 	// NVSentinel events would queue in extraEventCh and never be stored.
 	// A nil kmsgCh is never ready in start's select, which is fine.
-	if c.kmsgWatcher != nil || c.nvsSource != nil {
-		var kmsgCh <-chan kmsg.Message
-		if c.kmsgWatcher != nil {
-			ch, err := c.kmsgWatcher.Watch()
-			if err != nil {
-				return err
-			}
-			kmsgCh = ch
-		}
-		go c.start(kmsgCh, DefaultStateUpdatePeriod)
+	if c.kernelMessages != nil || c.nvsSource != nil {
+		go c.start(c.kernelMessages, DefaultStateUpdatePeriod)
 	}
 
 	return nil
@@ -229,12 +226,10 @@ func (c *component) Close() error {
 		c.nvsUnsubscribe()
 	}
 
-	if c.kmsgWatcher != nil {
-		cerr := c.kmsgWatcher.Close()
-		if cerr != nil {
-			log.Logger.Errorw("failed to close kmsg watcher", "error", cerr)
-		}
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
+
 	if c.eventBucket != nil {
 		c.eventBucket.Close()
 	}
@@ -303,7 +298,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	for _, kmsg := range kmsgs {
-		xidErr := Match(kmsg.Message)
+		xidErr := kmsg.xid
 		if xidErr == nil {
 			continue
 		}
@@ -324,7 +319,7 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		cr.FoundErrors = append(cr.FoundErrors, FoundError{
-			Kmsg:  kmsg,
+			Kmsg:  kmsg.KernelMessage,
 			Error: *xidErr,
 		})
 	}
@@ -364,7 +359,7 @@ type checkResult struct {
 
 // FoundError represents a found XID error and its corresponding kmsg.
 type FoundError struct {
-	Kmsg kmsg.Message
+	Kmsg apiv1.KernelMessage
 	Error
 }
 
@@ -468,7 +463,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {
+func (c *component) start(kmsgCh <-chan kernelRecord, updatePeriod time.Duration) {
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
@@ -500,8 +495,12 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-		case message := <-kmsgCh:
-			xidErr := Match(message.Message)
+		case message, ok := <-kmsgCh:
+			if !ok {
+				kmsgCh = nil
+				continue
+			}
+			xidErr := message.xid
 			if xidErr == nil {
 				log.Logger.Debugw("not xid event, skip", "kmsg", message)
 				continue
@@ -573,23 +572,9 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 					EventKeyDeviceUUID: xidErr.DeviceUUID,
 				},
 			}
-			// IMPORTANT: Set event.Type from Match() result to preserve precise unit-based severity.
-			//
-			// Background: Match() calls lookupNVLinkRule() which correctly matches rules by
-			// (Xid, Unit, ErrorStatus, IntrinfoPattern) for precise severity determination.
-			//
-			// Problem: getDetailWithSubCodeAndStatus() (used by addEventDetails) returns pre-built
-			// details from buildNVLinkSubCodeDetails() which merges rules with the same
-			// (Xid, SubCode, ErrorStatus) using maxEventType(). This causes different units
-			// to merge incorrectly. For example:
-			//   - XID 145 RLW_REMAP, ErrorStatus 0x00000001 → "Non-fatal"
-			//   - XID 145 RLW_SRC_TRACK, ErrorStatus 0x00000001 → "Fatal"
-			//   Both have SubCode=0, so they merge to "Fatal" (maxEventType escalates).
-			//
-			// Fix: By setting event.Type here, addEventDetails() will preserve it (see
-			// health_state.go:228-229) instead of overwriting with the incorrectly merged value.
-			//
-			// See also: health_state.go addEventDetails() comment at lines 224-229.
+			// Preserve the shim's unit-specific severity. The historical
+			// subcode table merges different units with the same subcode and
+			// status, so recomputing it there can incorrectly escalate an event.
 			if xidErr.Detail != nil && xidErr.Detail.EventType != "" {
 				event.Type = string(xidErr.Detail.EventType)
 			}

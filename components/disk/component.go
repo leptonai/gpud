@@ -21,12 +21,12 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -35,10 +35,6 @@ import (
 const Name = "disk"
 
 var _ components.Component = &component{}
-
-type kmsgSyncerCloser interface {
-	Close()
-}
 
 type component struct {
 	ctx    context.Context
@@ -76,7 +72,7 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
-	kmsgSyncer       kmsgSyncerCloser
+	stopKernel       func()
 
 	nfsStatTimeoutMu     sync.Mutex
 	nfsStatTimeoutCounts map[string]int
@@ -109,17 +105,17 @@ const (
 
 // New creates a disk component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
-	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), kmsg.NewSyncer)
+	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), gpudInstance.KernelStream().Subscribe)
 }
 
 func newComponent(
 	gpudInstance *components.GPUdInstance,
 	goos string,
 	euid int,
-	newKmsgSyncerFunc func(ctx context.Context, matchFunc kmsg.MatchFunc, eventBucket eventstore.Bucket, opts ...kmsg.OpOption) (*kmsg.Syncer, error),
+	observeKernel componentkmsg.Observer,
 ) (components.Component, error) {
-	if newKmsgSyncerFunc == nil {
-		newKmsgSyncerFunc = kmsg.NewSyncer
+	if observeKernel == nil {
+		observeKernel = gpudInstance.KernelStream().Subscribe
 	}
 
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
@@ -209,13 +205,7 @@ func newComponent(
 		}
 
 		if euid == 0 {
-			c.kmsgSyncer, err = newKmsgSyncerFunc(
-				cctx,
-				Match,
-				c.eventBucket,
-				// Disk kmsg errors can burst during transient I/O issues; coalesce within 5 minutes to reduce event noise.
-				kmsg.WithCacheKeyTruncateSeconds(300),
-			)
+			c.stopKernel, err = c.observeKernel(observeKernel, Match, eventstore.DedupPolicy{Window: 5 * time.Minute})
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -279,8 +269,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

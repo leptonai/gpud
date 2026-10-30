@@ -18,10 +18,10 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -34,10 +34,6 @@ const Name = "nfs"
 const defaultLookbackPeriod = 3 * 24 * time.Hour
 
 var _ components.Component = &component{}
-
-type kmsgSyncerCloser interface {
-	Close()
-}
 
 type component struct {
 	ctx    context.Context
@@ -62,9 +58,9 @@ type component struct {
 	// detection path. Nil when no EventStore is configured (e.g., in unit
 	// tests that exercise only the prober path).
 	eventBucket eventstore.Bucket
-	// kmsgSyncer streams kernel messages into eventBucket; only created when
+	// stopKernel releases the event observation subscription, created when
 	// running as root on Linux.
-	kmsgSyncer kmsgSyncerCloser
+	stopKernel func()
 	// rebootEventStore excludes messages from earlier boots. A reboot resets
 	// client state, but its history does not justify a repair recommendation.
 	rebootEventStore pkghost.RebootEventStore
@@ -77,20 +73,20 @@ type component struct {
 
 // New creates the NFS component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
-	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), kmsg.NewSyncer)
+	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), gpudInstance.KernelStream().Subscribe)
 }
 
 // newComponent is the testable constructor. It accepts the runtime OS, the
-// effective UID, and a kmsg syncer factory so tests can exercise the
+// effective UID, and a kernel observation subscription so tests can exercise the
 // EventStore wiring without privileged kernel access.
 func newComponent(
 	gpudInstance *components.GPUdInstance,
 	goos string,
 	euid int,
-	newKmsgSyncerFunc func(ctx context.Context, matchFunc kmsg.MatchFunc, eventBucket eventstore.Bucket, opts ...kmsg.OpOption) (*kmsg.Syncer, error),
+	observeKernel componentkmsg.Observer,
 ) (components.Component, error) {
-	if newKmsgSyncerFunc == nil {
-		newKmsgSyncerFunc = kmsg.NewSyncer
+	if observeKernel == nil {
+		observeKernel = gpudInstance.KernelStream().Subscribe
 	}
 
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
@@ -149,19 +145,12 @@ func newComponent(
 
 		// Only sync kmsg on Linux as root — /dev/kmsg is privileged.
 		if goos == "linux" && euid == 0 {
-			syncer, err := newKmsgSyncerFunc(
-				cctx,
-				Match,
-				c.eventBucket,
-				// Coalesce repeated kmsg lines (e.g., bursty writeback stacks)
-				// within a 5-minute window to keep the event store bounded.
-				kmsg.WithCacheKeyTruncateSeconds(300),
-			)
+			stop, err := c.observeKernel(observeKernel, Match, eventstore.DedupPolicy{Window: 5 * time.Minute})
 			if err != nil {
 				ccancel()
 				return nil, err
 			}
-			c.kmsgSyncer = syncer
+			c.stopKernel = stop
 		}
 	}
 
@@ -237,8 +226,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

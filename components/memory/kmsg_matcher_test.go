@@ -587,7 +587,7 @@ func TestGetProcessNamePid(t *testing.T) {
 	}
 }
 
-func TestCheckIfStartOfOomMessages(t *testing.T) {
+func TestOOMStartPattern(t *testing.T) {
 	tests := []struct {
 		name     string
 		line     string
@@ -617,7 +617,7 @@ func TestCheckIfStartOfOomMessages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := checkIfStartOfOomMessages(tt.line)
+			result := firstLineRegexp.MatchString(tt.line)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

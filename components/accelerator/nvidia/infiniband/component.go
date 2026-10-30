@@ -22,7 +22,6 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
@@ -91,11 +90,11 @@ type component struct {
 
 	ibPortsStore infinibandstore.Store
 	eventBucket  eventstore.Bucket
-	kmsgSyncer   *kmsg.Syncer
+	stopKernel   func()
 
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() types.ExpectedPortStates
-	getClassDevicesFunc func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error)
+	getClassDevicesFunc func(context.Context) (infinibandclass.Devices, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -103,10 +102,6 @@ type component struct {
 	// Track when thresholds last recovered for sticky window logic
 	thresholdRecoveryTimeMu sync.RWMutex
 	thresholdRecoveryTime   *time.Time
-
-	// ignoreFiles tracks the files that failed to read (e.g. EINVAL)
-	// to avoid reading them again and causing kernel log spam
-	ignoreFiles map[string]struct{}
 
 	// nvsSource is the optional NVSentinel event source. When set, the
 	// component prefers NVSentinel NIC driver data points and suppresses
@@ -143,19 +138,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		getThresholdsFunc: GetDefaultExpectedPortStates,
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
-			opts := []infinibandclass.OpOption{
-				infinibandclass.WithIgnoreFiles(ignoreFiles),
-			}
-			// Exclude devices that have restricted PFs and cause ACCESS_REG errors.
-			// ref. https://github.com/prometheus/node_exporter/issues/3434
-			// ref. https://github.com/leptonai/gpud/issues/1164
-			if len(gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices) > 0 {
-				opts = append(opts, infinibandclass.WithExcludedDevices(gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices))
-			}
-			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir, opts...)
-		},
-		ignoreFiles: make(map[string]struct{}),
+		getClassDevicesFunc: infinibandclass.New(
+			gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir,
+			gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices...,
+		).Read,
 		nicPCICache: make(map[string]string),
 	}
 
@@ -190,13 +176,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				matchFunc = c.matchPreferNVSentinel
 			}
 
-			c.kmsgSyncer, err = kmsg.NewSyncer(
-				cctx,
-				matchFunc,
-				c.eventBucket,
-				kmsg.WithCacheKeyTruncateSeconds(int(defaultKmsgEventDedupWindow.Seconds())),
-				kmsg.WithEventDedupWindowFunc(c.kmsgEventDedupWindow),
-			)
+			c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, matchFunc, eventstore.DedupPolicy{Window: defaultKmsgEventDedupWindow, EventWindow: c.kmsgEventDedupWindow})
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -294,8 +274,8 @@ func (c *component) Close() error {
 		c.nvsUnsubscribe()
 	}
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()
@@ -386,7 +366,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	var err error
-	cr.ClassDevices, err = c.getClassDevicesFunc(c.ignoreFiles)
+	cr.ClassDevices, err = c.getClassDevicesFunc(c.ctx)
 	if err != nil {
 		log.Logger.Warnw("error loading infiniband class devices", "devices", len(cr.ClassDevices), "error", err)
 		cr.health = apiv1.HealthStateTypeUnhealthy

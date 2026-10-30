@@ -4,19 +4,20 @@ import (
 	"context"
 	"errors"
 	"os"
-	"reflect"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/dsx-ai-factory/health-validation/collect/observation"
 
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/components"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 )
 
 func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
@@ -27,20 +28,15 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		mockey.Mock(pkghost.BootTime).Return(bootTime).Build()
 
 		bucket := &memoryEventBucket{}
-		var match kmsg.MatchFunc
-		var syncerOpts []kmsg.OpOption
-		mockey.Mock(kmsg.NewSyncer).To(func(
-			_ context.Context,
-			matchFunc kmsg.MatchFunc,
-			eventBucket eventstore.Bucket,
-			opts ...kmsg.OpOption,
-		) (*kmsg.Syncer, error) {
+		var match func(string) (string, string)
+		var policy eventstore.DedupPolicy
+		mockey.Mock((*component).observeKernel).To(func(
+			_ *component, _ componentkmsg.Observer, matchFunc func(string) (string, string), configured eventstore.DedupPolicy,
+		) (func(), error) {
 			match = matchFunc
-			syncerOpts = opts
-			assert.Same(t, bucket, eventBucket)
-			return &kmsg.Syncer{}, nil
+			policy = configured
+			return func() {}, nil
 		}).Build()
-		mockey.Mock((*kmsg.Syncer).Close).Return().Build()
 
 		created, err := New(&components.GPUdInstance{
 			RootCtx:    context.Background(),
@@ -48,11 +44,10 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		c := mustComponent(t, created)
-		require.NotNil(t, c.kmsgSyncer)
+		require.NotNil(t, c.stopKernel)
 		assert.Nil(t, c.readAllKmsg, "daemon components should rely on the kmsg syncer")
 		require.NotNil(t, match)
-		require.Len(t, syncerOpts, 1)
-		assert.Equal(t, int(defaultKmsgEventDedupWindow.Seconds()), getKmsgCacheKeyTruncateSeconds(t, syncerOpts[0]))
+		assert.Equal(t, defaultKmsgEventDedupWindow, policy.Window)
 
 		name, message := match("NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!")
 		assert.Equal(t, EventNamePostRxDetectFailure, name)
@@ -68,31 +63,14 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 	})
 }
 
-func getKmsgCacheKeyTruncateSeconds(t *testing.T, opt kmsg.OpOption) int {
-	t.Helper()
-	op := &kmsg.Op{}
-	opt(op)
-
-	v := reflect.ValueOf(op).Elem().FieldByName("cacheKeyTruncateSeconds")
-	require.True(t, v.IsValid(), "cacheKeyTruncateSeconds field must exist")
-	require.Equal(t, reflect.Int, v.Kind(), "cacheKeyTruncateSeconds must be int")
-	return int(v.Int())
-}
-
 func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {
 	mockey.PatchConvey("New cleans up when the kmsg syncer cannot be created", t, func() {
 		mockey.Mock(os.Geteuid).Return(0).Build()
 		mockey.Mock(pkghost.BootID).Return("").Build()
 		mockey.Mock(pkghost.BootTime).Return(time.Time{}).Build()
-		mockey.Mock(kmsg.NewSyncer).To(func(
-			_ context.Context,
-			matchFunc kmsg.MatchFunc,
-			_ eventstore.Bucket,
-			_ ...kmsg.OpOption,
-		) (*kmsg.Syncer, error) {
-			name, message := matchFunc("NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!")
-			assert.Equal(t, EventNamePostRxDetectFailure, name)
-			assert.Contains(t, message, "boot ID: ")
+		mockey.Mock((*componentkmsg.Stream).Subscribe).To(func(
+			_ *componentkmsg.Stream, _ context.Context, _ func(context.Context, *observation.ObservationBatch),
+		) (func(), error) {
 			return nil, errors.New("failed to open /dev/kmsg")
 		}).Build()
 

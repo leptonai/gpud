@@ -1248,7 +1248,7 @@ func Test_ComponentEventCreation_SetsEventType(t *testing.T) {
 //	NVRM: Xid (PCI:0008:06:00): 149, Placeholder message
 //
 // was NOT being cleared after reboot because:
-// 1. The message doesn't match RegexNVRMXidExtended (no intrinfo/errorstatus)
+// 1. The message doesn't match the extended Xid pattern (no intrinfo/errorstatus)
 // 2. Match() falls back to GetDetail(149) which returned nil SuggestedActionsByGPUd
 // 3. evolveHealthyState() requires SuggestedActionsByGPUd to clear on reboot
 func Test_NVLink_NonExtendedFormat_RebootRecovery(t *testing.T) {
@@ -1258,7 +1258,7 @@ func Test_NVLink_NonExtendedFormat_RebootRecovery(t *testing.T) {
 	for _, xid := range nvlinkXIDs {
 		t.Run(fmt.Sprintf("XID_%d_clears_on_reboot", xid), func(t *testing.T) {
 			// Simulate a non-extended format message (like "Placeholder message")
-			// This doesn't match RegexNVRMXidExtended, so Match() uses GetDetail()
+			// This doesn't match the extended Xid pattern, so Match() uses GetDetail()
 			nonExtendedLine := fmt.Sprintf("NVRM: Xid (PCI:0008:06:00): %d, Placeholder message", xid)
 
 			// Verify Match() returns a result with base entry

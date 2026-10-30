@@ -427,7 +427,7 @@ func TestKernelPanicDetection(t *testing.T) {
 
 // TestKernelPanicHelperFunctions tests individual helper functions
 func TestKernelPanicHelperFunctions(t *testing.T) {
-	t.Run("checkIfStartOfPanicMessages", func(t *testing.T) {
+	t.Run("kernelPanicStartPattern", func(t *testing.T) {
 		tests := []struct {
 			line string
 			want bool
@@ -466,8 +466,8 @@ func TestKernelPanicHelperFunctions(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			if got := checkIfStartOfPanicMessages(tt.line); got != tt.want {
-				t.Errorf("checkIfStartOfPanicMessages(%q) = %v, want %v", tt.line, got, tt.want)
+			if got := kernelPanicStartRegexp.MatchString(tt.line); got != tt.want {
+				t.Errorf("kernelPanicStartPattern(%q) = %v, want %v", tt.line, got, tt.want)
 			}
 		}
 	})

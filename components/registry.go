@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leptonai/gpud/components/kmsg"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
@@ -18,6 +19,9 @@ import (
 )
 
 var (
+	// ErrAlreadyStarted prevents duplicate component event loops.
+	ErrAlreadyStarted = errors.New("component already started")
+
 	// ErrAlreadyRegistered is the error returned when a component is already registered.
 	ErrAlreadyRegistered = errors.New("component already registered")
 )
@@ -25,6 +29,9 @@ var (
 // GPUdInstance is the instance of the GPUd dependencies.
 type GPUdInstance struct {
 	RootCtx context.Context
+
+	kernelOnce sync.Once
+	kernel     *kmsg.Stream
 
 	// MachineID is either the machine ID assigned from the control plane
 	// or the unique UUID of the machine.
@@ -92,6 +99,12 @@ type GPUdInstance struct {
 	// event suppresses the component's own detection of the same data point.
 	// Zero causes the component to fall back to the default.
 	NVSentinelEventDedupWindow time.Duration
+}
+
+// KernelStream returns the shared stream for this daemon instance.
+func (g *GPUdInstance) KernelStream() *kmsg.Stream {
+	g.kernelOnce.Do(func() { g.kernel = kmsg.New(g.RootCtx) })
+	return g.kernel
 }
 
 // FailureInjector configures test-only failure injection for selected components.
