@@ -60,8 +60,8 @@ github.com/docker/go-connections v0.6.0 h1:LlMG9azAe1TqfR7sO+NJttz1gy6KO7VJBh+pM
 github.com/docker/go-connections v0.6.0/go.mod h1:AahvXYshr6JgfUJGdDCs2b5EZG/vmaMAntpSFH5BFKE=
 github.com/docker/go-units v0.5.0 h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4=
 github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
-github.com/dsx-ai-factory/health-validation v0.0.0-20261030202130-2b9291111985 h1:EE+NSFk92h9lSYlBherGDm18nHB+WnEmi+yRAS2ApuE=
-github.com/dsx-ai-factory/health-validation v0.0.0-20261030202130-2b9291111985/go.mod h1:OXYKyzSJcdVTulBT6irqrsgNBBw6YI/OJqiXD3TlK+o=
+github.com/dsx-ai-factory/health-validation v0.0.0-20261030230656-fc15120cf2f4 h1:MlGmY7orOzk8OnNQY4SmykRVsOCQ9ptXDG6OLTMtchw=
+github.com/dsx-ai-factory/health-validation v0.0.0-20261030230656-fc15120cf2f4/go.mod h1:OXYKyzSJcdVTulBT6irqrsgNBBw6YI/OJqiXD3TlK+o=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/ebitengine/purego v0.9.0 h1:mh0zpKBIXDceC63hpvPuGLiJ8ZAa3DfrFTudmfi8A4k=
