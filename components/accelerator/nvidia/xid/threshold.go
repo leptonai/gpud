@@ -26,6 +26,8 @@ const (
 	// events that happen after a reboot-recoverable XID, and if the same XID is
 	// still asking for RebootSystem after this threshold, gpud treats repeated
 	// reboots as insufficient recovery and recommends hardware inspection.
+	// XID 154 uses this threshold per GPU and counts only reboot cycles after
+	// an active reboot request; it does not require repeated XID occurrences.
 	// Operators can override individual XIDs with --xid-thresholds or session
 	// updateConfig overrides. The legacy --xid-reboot-threshold flag
 	// can still override this global fallback separately.

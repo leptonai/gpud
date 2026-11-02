@@ -33,6 +33,41 @@
 - [**`pci`**](https://pkg.go.dev/github.com/leptonai/gpud/components/pci): Tracks the PCI devices and their Access Control Services (ACS) status.
 - [**`tailscale`**](https://pkg.go.dev/github.com/leptonai/gpud/components/tailscale): Tracks the tailscale state (e.g., version) if available.
 
+## XID 154 recovery guidance
+
+XID 154 supplements the originating fault. GPUd preserves the numeric recovery-action
+transition and the driver-printed names in scan output and persisted event payloads.
+Policy uses the numeric destination, not words such as `Reboot` in a printed name.
+The XID component reports suggested actions; this change adds no automatic repairs.
+
+| Destination | GPUd health | Suggested action and preconditions |
+| --- | --- | --- |
+| `0x0` None | Healthy for this recovery report | No new repair. Retain independently actionable originating faults. |
+| `0x1` GPU Reset Required (R610 PF FLR) | Unhealthy | Terminate GPU processes before reset. GPUd uses its existing system-reboot recommendation for GPU-reset conditions. |
+| `0x2` Node Reboot Required | Unhealthy | Reboot the node before restarting applications. A warm reboot is sufficient. |
+| `0x3` Drain P2P | Degraded | Stop new scheduling, quiesce P2P traffic and UVM persistence, then re-query recovery guidance. Reset only if Drain P2P remains. No blind reboot. |
+| `0x4` Drain and Reset | Unhealthy | Stop new work; let unaffected work finish or checkpoint before reset. GPUd recommends a reboot under its GPU-reset convention after draining. |
+| Unknown or malformed | Degraded | Investigate the originating XIDs and driver guidance. No guessed reboot. |
+
+The latest XID 154 governs only its GPU's recovery guidance. A later None report
+retires that GPU's recovery recommendation, not another GPU's report or an
+originating fault. Hardware-inspection recommendations remain stronger than a
+reboot recommendation, even when both reports are fatal.
+
+One recovery report is sufficient to recommend an action. This is separate from
+the default threshold of two failed reboot cycles before recommending hardware
+inspection. `--xid-thresholds` can override XID 154's reboot threshold.
+Only reboots after an active reboot recommendation count as failed recovery cycles.
+
+The NVIDIA catalog's `XID_154` bucket means follow the reported recovery guidance.
+`XID_154_EVAL` means follow XID 154 when present; otherwise restart the affected app.
+`IGNORE` is non-paging guidance, not permission to discard diagnostic evidence or
+associated investigation guidance.
+
+Sources: [NVIDIA XID catalog](https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html)
+and [NVIDIA GPU Recovery Action guidance](https://docs.nvidia.com/deploy/nvidia-smi/index.html).
+
+
 ## NFS health policy
 
 GPUd reports unresolved NFS server warnings, lock-reclaim failures, and repeated

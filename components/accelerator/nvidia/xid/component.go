@@ -331,14 +331,40 @@ func (c *component) Check() components.CheckResult {
 
 	cr.reason = fmt.Sprintf("matched %d xid errors from %d kmsg(s)", len(cr.FoundErrors), len(kmsgs))
 
-	// only used for "gpud scan"
-	// if there are any critical errors, the health state will be unhealthy
-	cr.health = apiv1.HealthStateTypeHealthy
+	// Scan shares XID 154 recovery ownership with the durable consumer, while
+	// retaining its existing non-154 Critical/Fatal => Unhealthy policy.
+	var scanEvents eventstore.Events
+	nonRecoveryUnhealthy := false
 	for _, foundErr := range cr.FoundErrors {
-		if foundErr.Detail != nil && (foundErr.Detail.EventType == apiv1.EventTypeCritical || foundErr.Detail.EventType == apiv1.EventTypeFatal) {
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			break
+		payload := xidErrorEventDetail{
+			DeviceUUID:     foundErr.DeviceUUID,
+			Xid:            uint64(foundErr.Xid),
+			RecoveryAction: foundErr.RecoveryAction,
 		}
+		if foundErr.Detail != nil {
+			payload.Description = foundErr.Detail.Description
+			payload.SubCode = foundErr.Detail.SubCode
+			payload.ErrorStatus = foundErr.Detail.ErrorStatus
+			payload.SuggestedActionsByGPUd = foundErr.Detail.SuggestedActionsByGPUd
+		}
+		raw, _ := json.Marshal(payload)
+		event := eventstore.Event{Time: foundErr.Kmsg.Timestamp.Time, Name: EventNameErrorXid, ExtraInfo: map[string]string{EventKeyErrorXidData: string(raw)}}
+		if foundErr.Detail != nil {
+			if foundErr.Xid != 154 && (foundErr.Detail.EventType == apiv1.EventTypeCritical || foundErr.Detail.EventType == apiv1.EventTypeFatal) {
+				nonRecoveryUnhealthy = true
+			}
+			event.Type = string(foundErr.Detail.EventType)
+		}
+		scanEvents = append(scanEvents, event)
+	}
+	state := evolveHealthyState(mergeEvents(nil, scanEvents), c.devices, GetDefaultRebootThreshold())
+	cr.health = state.Health
+	if nonRecoveryUnhealthy {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+	}
+	cr.suggestedActions = state.SuggestedActions
+	if len(scanEvents) > 0 {
+		cr.reason += "; " + state.Reason
 	}
 
 	return cr
@@ -458,12 +484,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedActions,
 	}
 	return apiv1.HealthStates{state}
 }
@@ -547,10 +574,11 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			}
 
 			xidPayload := xidErrorEventDetail{
-				Time:       metav1.NewTime(message.Timestamp.Time),
-				DataSource: "kmsg",
-				DeviceUUID: xidErr.DeviceUUID,
-				Xid:        xidValue,
+				Time:           metav1.NewTime(message.Timestamp.Time),
+				DataSource:     "kmsg",
+				DeviceUUID:     xidErr.DeviceUUID,
+				Xid:            xidValue,
+				RecoveryAction: xidErr.RecoveryAction,
 			}
 			if xidErr.Detail != nil {
 				xidPayload.SubCode = xidErr.Detail.SubCode

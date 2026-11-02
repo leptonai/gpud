@@ -271,6 +271,7 @@ func TestNVSentinelEventSkippedWhenGPUdTwinStored(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
 }
+
 func TestHasStoredXidTwinJSONFormat(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
@@ -295,16 +296,16 @@ func TestHasStoredXidTwinJSONFormat(t *testing.T) {
 	}))
 
 	// Same Xid and device: twin found.
-	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now))
+	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now, nil))
 
 	// Different Xid: no twin.
-	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now))
+	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now, nil))
 
 	// Different device UUID: no twin.
-	assert.False(t, c.hasStoredXidTwin(79, "GPU-other", now))
+	assert.False(t, c.hasStoredXidTwin(79, "GPU-other", now, nil))
 
 	// Empty device UUID on the query: still a twin.
-	assert.True(t, c.hasStoredXidTwin(79, "", now))
+	assert.True(t, c.hasStoredXidTwin(79, "", now, nil))
 }
 
 func TestHasStoredXidTwinLegacyFormat(t *testing.T) {
@@ -322,10 +323,10 @@ func TestHasStoredXidTwinLegacyFormat(t *testing.T) {
 		},
 	}))
 
-	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now))
-	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now))
+	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now, nil))
+	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now, nil))
 	// Legacy event with empty stored UUID: twin when query UUID is also empty.
-	assert.True(t, c.hasStoredXidTwin(79, "", now))
+	assert.True(t, c.hasStoredXidTwin(79, "", now, nil))
 }
 
 func TestHasStoredXidTwinDifferentEventName(t *testing.T) {
@@ -341,7 +342,7 @@ func TestHasStoredXidTwinDifferentEventName(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", now))
+	assert.False(t, c.hasStoredXidTwin(79, "", now, nil))
 }
 
 func TestHasStoredXidTwinOutsideWindow(t *testing.T) {
@@ -357,7 +358,7 @@ func TestHasStoredXidTwinOutsideWindow(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", time.Now().UTC()))
+	assert.False(t, c.hasStoredXidTwin(79, "", time.Now().UTC(), nil))
 }
 
 func TestHasStoredXidTwinCorruptPayload(t *testing.T) {
@@ -373,7 +374,7 @@ func TestHasStoredXidTwinCorruptPayload(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", now))
+	assert.False(t, c.hasStoredXidTwin(79, "", now, nil))
 }
 
 func TestNVSentinelXidNonFatalEvent(t *testing.T) {
@@ -426,6 +427,7 @@ func TestNVSentinelXidUnknownCodeEvent(t *testing.T) {
 	assert.Equal(t, uint64(9999), detail.Xid)
 	assert.Equal(t, "GPU-xyz", detail.DeviceUUID)
 }
+
 func TestNVSentinelXidNonMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
@@ -461,6 +463,7 @@ func TestNVSentinelXidCoversNilError(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 	assert.False(t, c.nvsentinelCoversXid(nil))
 }
+
 func TestNVSentinelXidCoversMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
@@ -536,6 +539,7 @@ func TestNVSentinelXidDefaultDedupWindowFallback(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, nvsentinel.DefaultEventDedupWindow, c.nvsDedupWindow)
 }
+
 func TestMatchNVSentinelXidRowRemappingDiscard(t *testing.T) {
 	// Xid 63/64 are discarded in favor of the remapped-rows component when
 	// the platform supports row remapping.
@@ -577,7 +581,7 @@ func TestHasStoredXidTwinSkipsFutureEvents(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", now))
+	assert.False(t, c.hasStoredXidTwin(79, "", now, nil))
 }
 
 func TestNewNVSentinelWithoutEventStore(t *testing.T) {
@@ -632,8 +636,11 @@ func TestNVSentinelEventsProcessedWithoutKmsgWatcher(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
-	// No kmsgWatcher (zero value): this is the non-root / no-kmsg case.
-	require.Nil(t, c.kmsgWatcher)
+	// Linux may initialize a watcher; explicitly exercise the NVSentinel-only path.
+	if c.kmsgWatcher != nil {
+		require.NoError(t, c.kmsgWatcher.Close())
+		c.kmsgWatcher = nil
+	}
 	require.NoError(t, c.Start())
 
 	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
