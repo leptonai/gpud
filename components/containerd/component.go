@@ -8,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -36,24 +34,7 @@ const (
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
 
 	socketMissingConsecutiveThreshold = 5
-
-	// Containerd config strings to check for NVIDIA runtime configuration.
-	// containerd 1.x uses the "io.containerd.grpc.v1.cri" plugin path; 2.x
-	// uses "io.containerd.cri.v1.runtime". Either is acceptable.
-	containerdConfigNvidiaDefaultRuntime  = `default_runtime_name = "nvidia"`
-	containerdConfigNvidiaRuntimePlugin   = `plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia`
-	containerdConfigNvidiaRuntimePluginV2 = `plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia`
 )
-
-// containerdConfigImportsRe matches `imports = [...]` directives in a
-// containerd config so any drop-in files (e.g. /etc/containerd/conf.d/*.toml
-// written by nvidia-container-toolkit-daemonset) can be inspected too.
-var containerdConfigImportsRe = regexp.MustCompile(`(?m)^\s*imports\s*=\s*\[([^\]]*)\]`)
-
-// containerdConfigCDIEnabledRe matches containerd's native CDI setting.
-// Native CDI allows runc to remain the default runtime while GPU workloads
-// select the configured NVIDIA runtime handler.
-var containerdConfigCDIEnabledRe = regexp.MustCompile(`(?m)^\s*enable_cdi\s*=\s*true\s*(?:#.*)?$`)
 
 var _ components.Component = &component{}
 
@@ -162,7 +143,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			if gpudInstance.Containerd.IsZero() {
 				return systemd.IsActive("containerd")
 			}
-			return systemd.IsActiveWithCommand(runtimeConfig.ServiceName, runtimeConfig.SystemctlCommands)
+			return anyServiceActive(runtimeConfig.ServiceNames(), runtimeConfig.SystemctlCommands)
 		},
 		getContainerdUptimeFunc: func() (*time.Duration, error) {
 			if gpudInstance.Containerd.IsZero() {
@@ -173,7 +154,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			if gpudInstance.ContainerdServiceActiveCommands != "" {
 				return nil, nil
 			}
-			return systemd.GetUptimeWithCommand(runtimeConfig.ServiceName, runtimeConfig.SystemctlCommands)
+			return shortestServiceUptime(runtimeConfig.ServiceNames(), runtimeConfig.SystemctlCommands)
 		},
 		activenssCheckUptimeThreshold: defaultActivenssCheckUptimeThreshold,
 
@@ -192,6 +173,45 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		c.checkContainerdRunningFunc = func(ctx context.Context) bool { return CheckContainerdRunningAt(ctx, runtimeConfig.Endpoint) }
 	}
 	return c, nil
+}
+
+// anyServiceActive reports whether any unit is active. RKE2 and k3s run
+// containerd under the agent or the server unit depending on the node role.
+func anyServiceActive(units []string, systemctlCommands string) (bool, error) {
+	var errs []error
+	for _, unit := range units {
+		active, err := systemd.IsActiveWithCommand(unit, systemctlCommands)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if active {
+			return true, nil
+		}
+	}
+	return false, errors.Join(errs...)
+}
+
+// shortestServiceUptime returns the most recent start among units that have
+// started, so a just-started unit still gets the activeness grace period.
+// It returns nil when no unit has started.
+func shortestServiceUptime(units []string, systemctlCommands string) (*time.Duration, error) {
+	var shortest *time.Duration
+	var errs []error
+	for _, unit := range units {
+		uptime, err := systemd.GetUptimeWithCommand(unit, systemctlCommands)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if uptime != nil && (shortest == nil || *uptime < *shortest) {
+			shortest = uptime
+		}
+	}
+	if shortest != nil {
+		return shortest, nil
+	}
+	return nil, errors.Join(errs...)
 }
 
 func (c *component) Name() string { return Name }
@@ -476,16 +496,13 @@ func (c *component) Check() components.CheckResult {
 
 			// been running long enough
 			if elapsed > c.containerToolkitCreationThreshold {
-				config, err := c.getContainerdConfigFunc()
-				if err == nil {
-					config = appendImportedContainerdConfigs(config)
-				}
+				configured, err := c.nvidiaRuntimeConfigured()
 				switch {
 				case err != nil:
 					reason := "error getting containerd config"
 					cr.appendReason(reason)
-					log.Logger.Warnw(reason)
-				case !hasNvidiaRuntimeConfiguration(config):
+					log.Logger.Warnw(reason, "error", err)
+				case !configured:
 					configPath := c.configPath
 					if configPath == "" {
 						configPath = defaultContainerdConfigPath
@@ -618,51 +635,6 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
-}
-
-// hasNvidiaRuntimeConfiguration accepts both supported toolkit layouts:
-// NVIDIA as containerd's default runtime, or containerd native CDI enabled
-// with an NVIDIA runtime handler. The handler is required in both cases.
-func hasNvidiaRuntimeConfiguration(config []byte) bool {
-	hasNvidiaRuntimePlugin := bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)) ||
-		bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePluginV2))
-	if !hasNvidiaRuntimePlugin {
-		return false
-	}
-
-	return bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) ||
-		containerdConfigCDIEnabledRe.Match(config)
-}
-
-// appendImportedContainerdConfigs returns config with the contents of any
-// files referenced by an "imports = [...]" directive appended. Errors
-// reading individual imports are ignored so the substring checks still
-// run against whatever could be read.
-func appendImportedContainerdConfigs(config []byte) []byte {
-	m := containerdConfigImportsRe.FindSubmatch(config)
-	if len(m) < 2 {
-		return config
-	}
-	out := config
-	for _, raw := range strings.Split(string(m[1]), ",") {
-		pattern := strings.Trim(strings.TrimSpace(raw), `"'`)
-		if pattern == "" {
-			continue
-		}
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			continue
-		}
-		for _, f := range matches {
-			b, err := os.ReadFile(f)
-			if err != nil {
-				continue
-			}
-			out = append(out, '\n')
-			out = append(out, b...)
-		}
-	}
-	return out
 }
 
 // danglingPodCount returns the number of READY sandboxes whose pods have been

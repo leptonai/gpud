@@ -2214,7 +2214,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				config := `default_runtime_name = "nvidia"
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`
 				return []byte(config), nil
@@ -2244,7 +2245,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				config := `default_runtime_name = "nvidia"
+				config := `[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`
 				return []byte(config), nil
@@ -2328,7 +2330,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				config := `default_runtime_name = "nvidia"
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`
 				return []byte(config), nil
@@ -2358,7 +2361,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				config := `default_runtime_name = "nvidia"
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`
 				return []byte(config), nil
@@ -2388,7 +2392,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				config := `default_runtime_name = "nvidia"
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`
 				return []byte(config), nil
@@ -2412,7 +2417,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				config := `default_runtime_name = "nvidia"
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`
 				return []byte(config), nil
@@ -3697,7 +3703,8 @@ func TestContainerToolkitValidation(t *testing.T) {
 				containerToolkitCreationThreshold: tt.containerToolkitCreationThreshold,
 				getContainerdConfigFunc: func() ([]byte, error) {
 					// Return config with both nvidia settings to avoid the nvidia config warning
-					config := `default_runtime_name = "nvidia"
+					config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`
 					return []byte(config), nil

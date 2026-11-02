@@ -87,7 +87,8 @@ func TestSandboxRuntimeHandler(t *testing.T) {
 }
 
 func TestRuntimeDiagnosticsPreserveHealthChecks(t *testing.T) {
-	const validDisk = `default_runtime_name = "nvidia"
+	const validDisk = `[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]`
 	const invalidDisk = `default_runtime_name = "runc"`
 	const cdiOnly = `{"enableCDI":true,"containerd":{"defaultRuntimeName":"runc","runtimes":{"runc":{}}}}`

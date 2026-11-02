@@ -117,3 +117,64 @@ func TestConfiguredRuntimeServiceOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, uptime, "arbitrary active override must not grant grace from an unrelated unit")
 }
+
+// RKE2 and k3s run containerd under the agent or the server unit, depending
+// on the node role, so either unit being active must count.
+func TestConfiguredRuntimeServiceNames(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "systemctl")
+	require.NoError(t, os.WriteFile(script, []byte(`#!/bin/sh
+case "$1" in
+is-active)
+  if [ "$2" = "$ACTIVE_UNIT" ]; then printf 'active\n'; exit 0; fi
+  printf 'inactive\n'; exit 3
+  ;;
+show)
+  if [ "$3" = "$STARTED_UNIT" ]; then
+    printf 'InactiveExitTimestamp=%s\n' "$(date -u '+%a %Y-%m-%d %H:%M:%S UTC')"
+  else
+    printf 'InactiveExitTimestamp=n/a\n'
+  fi
+  ;;
+*) exit 1 ;;
+esac
+`), 0o700))
+
+	newComponent := func(t *testing.T, activeUnit, startedUnit string) *component {
+		t.Helper()
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: context.Background(),
+			Containerd: configcommon.ContainerdConfig{
+				ServiceName:       "rke2-agent, rke2-server",
+				SystemctlCommands: "ACTIVE_UNIT=" + activeUnit + " STARTED_UNIT=" + startedUnit + " sh '" + script + "'",
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, comp.Close()) })
+		return comp.(*component)
+	}
+
+	t.Run("server unit active", func(t *testing.T) {
+		c := newComponent(t, "rke2-server", "")
+		active, err := c.checkServiceActiveFunc(context.Background())
+		require.NoError(t, err)
+		require.True(t, active)
+	})
+
+	t.Run("no unit active", func(t *testing.T) {
+		c := newComponent(t, "", "")
+		active, err := c.checkServiceActiveFunc(context.Background())
+		require.NoError(t, err)
+		require.False(t, active)
+		uptime, err := c.getContainerdUptimeFunc()
+		require.NoError(t, err)
+		require.Nil(t, uptime, "units that never started grant no grace")
+	})
+
+	t.Run("recently started server unit grants grace", func(t *testing.T) {
+		c := newComponent(t, "", "rke2-server")
+		uptime, err := c.getContainerdUptimeFunc()
+		require.NoError(t, err)
+		require.NotNil(t, uptime)
+		require.Less(t, *uptime, defaultActivenssCheckUptimeThreshold)
+	})
+}

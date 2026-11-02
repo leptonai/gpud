@@ -6,29 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-// TestContainerdConfigConstants tests that the containerd config constants are properly defined
-func TestContainerdConfigConstants(t *testing.T) {
-	// Test that the constants match the expected values
-	assert.Equal(t, `default_runtime_name = "nvidia"`, containerdConfigNvidiaDefaultRuntime)
-	assert.Equal(t, `plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia`, containerdConfigNvidiaRuntimePlugin)
-	assert.Equal(t, `plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia`, containerdConfigNvidiaRuntimePluginV2)
-
-	// Test that the constants can be used as byte slices
-	assert.NotNil(t, []byte(containerdConfigNvidiaDefaultRuntime))
-	assert.NotNil(t, []byte(containerdConfigNvidiaRuntimePlugin))
-	assert.NotNil(t, []byte(containerdConfigNvidiaRuntimePluginV2))
-
-	// Test that the constants have the expected content
-	assert.Contains(t, containerdConfigNvidiaDefaultRuntime, "nvidia")
-	assert.Contains(t, containerdConfigNvidiaRuntimePlugin, "nvidia")
-	assert.Contains(t, containerdConfigNvidiaRuntimePlugin, "plugins")
-	assert.Contains(t, containerdConfigNvidiaRuntimePlugin, "containerd")
-	assert.Contains(t, containerdConfigNvidiaRuntimePlugin, "runtimes")
-	assert.Contains(t, containerdConfigNvidiaRuntimePluginV2, "nvidia")
-	assert.Contains(t, containerdConfigNvidiaRuntimePluginV2, "io.containerd.cri.v1.runtime")
-}
 
 func TestHasNvidiaRuntimeConfiguration(t *testing.T) {
 	tests := []struct {
@@ -37,29 +16,34 @@ func TestHasNvidiaRuntimeConfiguration(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "legacy plugin with nvidia as default runtime",
-			config: `default_runtime_name = "nvidia"
+			name: "v2 nvidia as default runtime",
+			config: `version = 2
+[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`,
 			want: true,
 		},
 		{
-			name: "v2 plugin with nvidia as default runtime",
-			config: `default_runtime_name = "nvidia"
+			name: "v3 nvidia as default runtime",
+			config: `version = 3
+[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`,
 			want: true,
 		},
 		{
-			name: "legacy plugin with native CDI",
-			config: `[plugins."io.containerd.grpc.v1.cri"]
+			name: "v2 native CDI",
+			config: `version = 2
+[plugins."io.containerd.grpc.v1.cri"]
   enable_cdi = true
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`,
 			want: true,
 		},
 		{
-			name: "v2 plugin with native CDI and runc as default",
+			name: "native CDI table after its subtable with runc as default",
 			config: `[plugins."io.containerd.cri.v1.runtime".containerd]
   default_runtime_name = "runc"
 [plugins."io.containerd.cri.v1.runtime"]
@@ -69,23 +53,73 @@ func TestHasNvidiaRuntimeConfiguration(t *testing.T) {
 			want: true,
 		},
 		{
+			// k3s/RKE2 version 2 template with --default-runtime=nvidia.
+			name: "k3s v2 template quotes the runtime key",
+			config: `version = 2
+[plugins."io.containerd.grpc.v1.cri".containerd]
+  snapshotter = "overlayfs"
+  default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes."nvidia"]
+  runtime_type = "io.containerd.runc.v2"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes."nvidia".options]
+  BinaryName = "/usr/local/nvidia/toolkit/nvidia-container-runtime"
+  SystemdCgroup = true`,
+			want: true,
+		},
+		{
+			// containerd 2.x enables CDI by default; the k3s/RKE2 version 3
+			// template quotes keys with single quotes and leaves enable_cdi unset.
+			name: "k3s v3 template relies on default CDI",
+			config: `version = 3
+[plugins.'io.containerd.cri.v1.runtime']
+  enable_selinux = false
+[plugins.'io.containerd.cri.v1.runtime'.containerd]
+  snapshotter = "overlayfs"
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.'nvidia']
+  runtime_type = "io.containerd.runc.v2"
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.'nvidia'.options]
+  BinaryName = "/usr/local/nvidia/toolkit/nvidia-container-runtime"
+[[plugins.'io.containerd.transfer.v1.local'.unpack_config]]
+  platform = "linux/amd64"
+  snapshotter = "overlayfs"`,
+			want: true,
+		},
+		{
+			name: "v3 with CDI explicitly disabled",
+			config: `version = 3
+[plugins.'io.containerd.cri.v1.runtime']
+  enable_cdi = false
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.'nvidia']
+  runtime_type = "io.containerd.runc.v2"`,
+			want: false,
+		},
+		{
+			name: "v2 nvidia handler without default or native CDI",
+			config: `version = 2
+[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "runc"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes."nvidia"]
+  runtime_type = "io.containerd.runc.v2"`,
+			want: false,
+		},
+		{
 			name: "native CDI without nvidia runtime handler",
 			config: `[plugins."io.containerd.cri.v1.runtime"]
   enable_cdi = true`,
 			want: false,
 		},
 		{
-			name: "nvidia runtime handler without default or native CDI",
-			config: `[plugins."io.containerd.cri.v1.runtime".containerd]
-  default_runtime_name = "runc"
+			name: "commented settings are ignored",
+			config: `# default_runtime_name = "nvidia"
+# enable_cdi = true
 [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`,
 			want: false,
 		},
 		{
-			name: "commented native CDI setting",
-			config: `# enable_cdi = true
-[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+			name: "default runtime outside the CRI plugin is ignored",
+			config: `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"`,
 			want: false,
 		},
@@ -98,57 +132,50 @@ func TestHasNvidiaRuntimeConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, hasNvidiaRuntimeConfiguration([]byte(tt.config)))
+			got, err := hasNvidiaRuntimeConfiguration([]byte(tt.config))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-// TestAppendImportedContainerdConfigs verifies that imports referenced in a
-// containerd config are read and appended so substring checks see drop-in files.
-func TestAppendImportedContainerdConfigs(t *testing.T) {
-	dir := t.TempDir()
-	dropIn := filepath.Join(dir, "99-nvidia.toml")
-	dropInBody := `[plugins."io.containerd.cri.v1.runtime"]
-  enable_cdi = true
-[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
-  runtime_type = "io.containerd.runc.v2"
-`
-	if err := os.WriteFile(dropIn, []byte(dropInBody), 0o644); err != nil {
-		t.Fatalf("write drop-in: %v", err)
+func TestHasNvidiaRuntimeConfigurationInvalidConfig(t *testing.T) {
+	_, err := hasNvidiaRuntimeConfiguration([]byte(`[plugins."io.containerd.grpc.v1.cri"`))
+	require.Error(t, err)
+}
+
+// Drop-ins written by nvidia-container-toolkit are merged after the main
+// config, so their explicit settings override it.
+func TestHasNvidiaRuntimeConfigurationImports(t *testing.T) {
+	writeDropIn := func(t *testing.T, dir, name, body string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644))
 	}
-
-	main := []byte("version = 3\nimports = [\"" + filepath.Join(dir, "*.toml") + "\"]\n")
-	out := appendImportedContainerdConfigs(main)
-
-	assert.True(t, containerdConfigCDIEnabledRe.Match(out))
-	assert.Contains(t, string(out), containerdConfigNvidiaRuntimePluginV2)
-	assert.True(t, hasNvidiaRuntimeConfiguration(out))
-}
-
-// TestAppendImportedContainerdConfigs_NoImports returns the input unchanged
-// when no imports directive is present.
-func TestAppendImportedContainerdConfigs_NoImports(t *testing.T) {
-	in := []byte("version = 3\n[metrics]\n  address = \"0.0.0.0:1338\"\n")
-	out := appendImportedContainerdConfigs(in)
-	assert.Equal(t, string(in), string(out))
-}
-
-// TestContainerdConfigWithBothNvidiaSettings tests configs that should contain both nvidia settings
-func TestContainerdConfigWithBothNvidiaSettings(t *testing.T) {
-	// Example of a valid config with both settings
-	validConfig := `
+	nvidiaDropIn := `version = 2
 [plugins."io.containerd.grpc.v1.cri".containerd]
   default_runtime_name = "nvidia"
-
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
-  privileged_without_host_devices = false
-  runtime_engine = ""
-  runtime_root = ""
   runtime_type = "io.containerd.runc.v2"
 `
 
-	// Test that a valid config contains both required strings
-	configBytes := []byte(validConfig)
-	assert.Contains(t, string(configBytes), containerdConfigNvidiaDefaultRuntime)
-	assert.Contains(t, string(configBytes), containerdConfigNvidiaRuntimePlugin)
+	t.Run("drop-in supplies the nvidia runtime", func(t *testing.T) {
+		dir := t.TempDir()
+		writeDropIn(t, dir, "99-nvidia.toml", nvidiaDropIn)
+		writeDropIn(t, dir, "00-broken.toml", "[unterminated")
+		main := "version = 2\nimports = [\"" + filepath.Join(dir, "*.toml") + "\"]\n" +
+			"[plugins.\"io.containerd.grpc.v1.cri\".containerd]\n  default_runtime_name = \"runc\"\n"
+		got, err := hasNvidiaRuntimeConfiguration([]byte(main))
+		require.NoError(t, err)
+		assert.True(t, got, "an invalid sibling drop-in must not hide the valid one")
+	})
+
+	t.Run("drop-in disables default CDI", func(t *testing.T) {
+		dir := t.TempDir()
+		writeDropIn(t, dir, "99-cdi.toml", "version = 3\n[plugins.'io.containerd.cri.v1.runtime']\n  enable_cdi = false\n")
+		main := "version = 3\nimports = [\"" + filepath.Join(dir, "*.toml") + "\"]\n" +
+			"[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.'nvidia']\n  runtime_type = \"io.containerd.runc.v2\"\n"
+		got, err := hasNvidiaRuntimeConfiguration([]byte(main))
+		require.NoError(t, err)
+		assert.False(t, got)
+	})
 }
