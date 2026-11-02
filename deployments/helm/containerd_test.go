@@ -15,6 +15,7 @@ func TestContainerdChart(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		name                                  string
+		kubeVersion                           string
 		values                                []string
 		socketDir, configDir, active, service string
 	}{
@@ -22,9 +23,17 @@ func TestContainerdChart(t *testing.T) {
 		{name: "legacy empty override", values: []string{"gpud.containerdServiceActiveCommands="}, socketDir: "/run/containerd", configDir: "/etc/containerd"},
 		{name: "rke2", values: []string{"gpud.containerd.endpoint=unix:///run/k3s/containerd/containerd.sock", "gpud.containerd.configPath=/var/lib/rancher/rke2/agent/etc/containerd/config.toml", "gpud.containerd.serviceName=rke2-agent"}, socketDir: "/run/k3s/containerd", configDir: "/var/lib/rancher/rke2/agent/etc/containerd", service: "rke2-agent"},
 		{name: "custom active override", values: []string{"gpud.containerd.serviceName=rke2-server", "gpud.containerdServiceActiveCommands=custom-health-check"}, socketDir: "/run/containerd", configDir: "/etc/containerd", active: "custom-health-check", service: "rke2-server"},
+		{name: "eks server keeps legacy defaults", kubeVersion: "v1.33.4-eks-abc", socketDir: "/run/containerd", configDir: "/etc/containerd", active: "nsenter --target 1 --mount -- systemctl is-active containerd"},
+		{name: "rke2 server auto-detected", kubeVersion: "v1.36.3+rke2r1", socketDir: "/run/k3s/containerd", configDir: "/var/lib/rancher/rke2/agent/etc/containerd", service: "rke2-agent,rke2-server"},
+		{name: "k3s server auto-detected", kubeVersion: "v1.33.1+k3s1", socketDir: "/run/k3s/containerd", configDir: "/var/lib/rancher/k3s/agent/etc/containerd", service: "k3s-agent,k3s"},
+		{name: "rke2 auto-detected with active override", kubeVersion: "v1.36.3+rke2r1", values: []string{"gpud.containerdServiceActiveCommands=custom-health-check"}, socketDir: "/run/k3s/containerd", configDir: "/var/lib/rancher/rke2/agent/etc/containerd", active: "custom-health-check", service: "rke2-agent,rke2-server"},
+		{name: "explicit value disables rke2 detection", kubeVersion: "v1.36.3+rke2r1", values: []string{"gpud.containerd.endpoint=unix:///run/containerd/containerd.sock"}, socketDir: "/run/containerd", configDir: "/etc/containerd", service: "containerd"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			args := []string{"template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml"}
+			if tt.kubeVersion != "" {
+				args = append(args, "--kube-version", tt.kubeVersion)
+			}
 			for _, value := range tt.values {
 				args = append(args, "--set-string", value)
 			}
