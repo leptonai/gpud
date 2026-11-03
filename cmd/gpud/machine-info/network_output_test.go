@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -55,6 +56,15 @@ func TestCommand_DistinguishesAssignedPublicIPFromEgress(t *testing.T) {
 					mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 						return &apiv1.MachineInfo{}, nil
 					}).Build()
+					// Host identity discovery must not depend on the CI runner's cloud-init files.
+					mockey.Mock(os.ReadFile).When(func(name string) bool {
+						switch name {
+						case "/var/lib/cloud/data/instance-id", "/host/var/lib/cloud/data/instance-id",
+							"/var/lib/cloud/data/firebird-instance-id", "/host/var/lib/cloud/data/firebird-instance-id":
+							return true
+						}
+						return false
+					}).Return([]byte(nil), os.ErrNotExist).Build()
 					mockey.Mock(netutil.PublicIP).To(func() (string, error) {
 						return tc.egress, tc.echoError
 					}).Build()
