@@ -20,6 +20,12 @@ const (
 	healthStateHealthy   = 0
 	healthStateDegraded  = 1
 	healthStateUnhealthy = 2
+
+	// xidContainedMemoryError is XID 94, a contained memory error that GPUd
+	// ignores: the driver contained it to the affected application.
+	//
+	// TODO(v0.15): remove together with the XID 94 override in addEventDetails.
+	xidContainedMemoryError = 94
 )
 
 func translateToStateHealth(health int) apiv1.HealthStateType {
@@ -62,7 +68,6 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
-	thresholds = normalizeThresholds(thresholds)
 	var lastSuggestedAction *apiv1.SuggestedActions
 	var lastXidErr *xidErrorEventDetail
 	lastHealth := healthStateHealthy
@@ -241,6 +246,21 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 	}
 
 	if detail != nil {
+		if xidCode == xidContainedMemoryError {
+			// Stored XID 94 events can carry the Fatal/REBOOT_SYSTEM classification
+			// of an older GPUd or an NVSentinel verdict. Apply the current catalog
+			// policy so XID 94 alone never drives node health or repair after an
+			// upgrade, without deleting the events.
+			//
+			// TODO(v0.15): remove this manual override in the v0.15 release, once
+			// XID 94 events stored by pre-fix GPUd versions have aged out of the
+			// lookback window. Before removing it, make sure NVSentinel no longer
+			// reports XID 94 as Critical/Fatal; otherwise those events would drive
+			// node health again.
+			ev.Type = string(detail.EventType)
+			xidErr.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
+		}
+
 		// Only set ev.Type from detail if not already set.
 		// The event may already have the correct Type from Match() which uses
 		// lookupNVLinkRule for precise unit-based matching. The detail from

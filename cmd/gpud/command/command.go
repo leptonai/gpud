@@ -369,7 +369,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				&cli.StringFlag{
 					Name:  "xid-thresholds",
-					Usage: `set per-XID thresholds in JSON, e.g. '{"overrides":{"94":{"rebootThreshold":1000}}}'`,
+					Usage: `set per-XID thresholds in JSON, e.g. '{"overrides":{"95":{"rebootThreshold":3}}}'`,
 				},
 				&cli.StringFlag{
 					Name:  "sxid-thresholds",
