@@ -1932,17 +1932,17 @@ var details = map[int]Detail{
 			// NOTE: DeepSeek AI paper explains Xid 94 indicates GPU memory ECC error, recommending GPU reset for optimal performance.
 			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
 			//
-			// Xid 94, marked as non-critical in GPUd, indicates a contained memory error: the driver contained the error to the application that encountered it.
-			// Restart that application; other applications keep running. Xid 94 alone does not justify a system reboot or hardware inspection:
+			// Xid 94, ignored in GPUd, indicates a contained memory error: the driver contained the error to the application that encountered it.
+			// Other applications keep running. Xid 94 alone does not justify a system reboot or hardware inspection:
 			// the remapped-rows component suggests a reboot when NVML reports a pending row remap, and uncontained or uncorrectable errors (Xid 48/95/140) stay fatal.
 			// A workload can emit Xid 94 frequently without degradation, so rebooting the node for every Xid 94 drains healthy capacity.
 			RepairActions: []apiv1.RepairActionType{
-				apiv1.RepairActionTypeCheckUserAppAndGPU,
+				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
 		},
 
-		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
-		EventType: apiv1.EventTypeWarning,
+		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		EventType: apiv1.EventTypeInfo,
 	},
 	95: {
 		Code:        95,

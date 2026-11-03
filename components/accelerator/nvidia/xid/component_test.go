@@ -873,7 +873,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.Len(t, xid94States, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, xid94States[0].Health, "XID 94 alone must not mark the node unhealthy")
 	require.NotNil(t, xid94States[0].SuggestedActions)
-	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeCheckUserAppAndGPU}, xid94States[0].SuggestedActions.RepairActions)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}, xid94States[0].SuggestedActions.RepairActions)
 
 	// Now test with XID 79 (GPU has fallen off the bus) which should recommend reboot
 	xid79Time := time.Now().Add(-4 * time.Minute)

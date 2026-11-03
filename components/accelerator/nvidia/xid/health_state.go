@@ -21,8 +21,8 @@ const (
 	healthStateDegraded  = 1
 	healthStateUnhealthy = 2
 
-	// xidContainedMemoryError is XID 94, a contained memory error that only
-	// requires restarting the affected application.
+	// xidContainedMemoryError is XID 94, a contained memory error that GPUd
+	// ignores: the driver contained it to the affected application.
 	//
 	// TODO(v0.15): remove together with the XID 94 override in addEventDetails.
 	xidContainedMemoryError = 94

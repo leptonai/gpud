@@ -151,7 +151,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health, "stored as %s", stored)
 			require.NotNil(t, state.SuggestedActions)
-			assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeCheckUserAppAndGPU}, state.SuggestedActions.RepairActions, "stored as %s", stored)
+			assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}, state.SuggestedActions.RepairActions, "stored as %s", stored)
 		}
 	})
 
@@ -890,7 +890,7 @@ func Test_HealthStateReason_evolveHealthyState_Integration(t *testing.T) {
 			name: "Recovered after reboot",
 			events: eventstore.Events{
 				{Name: "reboot", Time: time.Now()},
-				createXidEvent(time.Now().Add(-1*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+				createXidEvent(time.Now().Add(-1*time.Minute), 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedContains: []string{
