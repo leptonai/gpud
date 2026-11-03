@@ -94,10 +94,3 @@ func recoveryDetail(transition *RecoveryActionTransition) *Detail {
 func knownRecoveryAction(transition *RecoveryActionTransition) bool {
 	return transition != nil && transition.Valid && transition.To <= 7
 }
-
-func sameRecoveryAction(a, b *RecoveryActionTransition) bool {
-	if a == nil || b == nil || !a.Valid || !b.Valid {
-		return a != nil && b != nil && *a == *b
-	}
-	return a.From == b.From && a.To == b.To && a.FromName == b.FromName && a.ToName == b.ToName
-}

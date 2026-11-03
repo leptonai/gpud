@@ -86,7 +86,7 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 				continue
 			}
 			if currXidErr.Xid == 154 && currXidErr.RecoveryAction != nil {
-				recovery.update(currXidErr, resolvedEvent.Type, devices)
+				recovery.update(currXidErr, resolvedEvent.Type, event.Time, devices)
 				continue
 			}
 

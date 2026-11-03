@@ -3,6 +3,7 @@ package xid
 import (
 	"slices"
 	"strings"
+	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
@@ -34,8 +35,9 @@ func healthPriority(health apiv1.HealthStateType) int {
 }
 
 type recoveryEntry struct {
-	detail xidErrorEventDetail
-	health apiv1.HealthStateType
+	detail    xidErrorEventDetail
+	health    apiv1.HealthStateType
+	timestamp time.Time
 }
 
 // Keep XID 154 ownership separate from originating faults. A recognized transition
@@ -49,24 +51,23 @@ func (r *recoveryAccumulator) reboot() {
 	clear(r.active)
 }
 
-func (r *recoveryAccumulator) update(detail xidErrorEventDetail, eventType string, devices map[string]device.Device) {
-	key := detail.DeviceUUID
-	if uuid := convertBusIDToUUID(key, devices); uuid != "" {
-		key = uuid
-	} else if !strings.HasPrefix(key, "GPU-") {
-		key = strings.ToLower(normalizePCIBDF(strings.TrimSuffix(key, ".0")))
+func xidDeviceKey(id string, devices map[string]device.Device) string {
+	if uuid := convertBusIDToUUID(id, devices); uuid != "" {
+		return uuid
 	}
-	if detail.RecoveryAction != nil && detail.RecoveryAction.Valid && detail.RecoveryAction.To == 0 {
-		delete(r.active, key)
-		return
+	if strings.HasPrefix(id, "GPU-") {
+		return id
 	}
+	return strings.ToLower(normalizePCIBDF(strings.TrimSuffix(id, ".0")))
+}
+
+func (r *recoveryAccumulator) update(detail xidErrorEventDetail, eventType string, timestamp time.Time, devices map[string]device.Device) {
+	key := xidDeviceKey(detail.DeviceUUID, devices)
+	current, exists := r.active[key]
 	// Unreadable or future ABI values cannot retire a known recovery request.
 	// Their raw evidence remains available through the Events API.
-	if !knownRecoveryAction(detail.RecoveryAction) && knownRecoveryAction(r.active[key].detail.RecoveryAction) {
+	if !knownRecoveryAction(detail.RecoveryAction) && knownRecoveryAction(current.detail.RecoveryAction) {
 		return
-	}
-	if r.active == nil {
-		r.active = make(map[string]recoveryEntry)
 	}
 	health := apiv1.HealthStateTypeHealthy
 	switch eventType {
@@ -75,9 +76,25 @@ func (r *recoveryAccumulator) update(detail xidErrorEventDetail, eventType strin
 	case string(apiv1.EventTypeCritical):
 		health = apiv1.HealthStateTypeDegraded
 	}
+	clearRequest := knownRecoveryAction(detail.RecoveryAction) && detail.RecoveryAction.To == 0
+	// SQLite keeps whole seconds, and producer arrival order is not driver
+	// order. Tied or missing timestamps cannot establish a weaker recovery
+	// state, including None. A strictly later transition can still retire it.
+	if exists && (timestamp.IsZero() || current.timestamp.IsZero() || !timestamp.After(current.timestamp)) &&
+		(clearRequest || healthPriority(health) < healthPriority(current.health) ||
+			(health == current.health && repairPriority(detail.SuggestedActionsByGPUd) < repairPriority(current.detail.SuggestedActionsByGPUd))) {
+		return
+	}
+	if clearRequest {
+		delete(r.active, key)
+		return
+	}
+	if r.active == nil {
+		r.active = make(map[string]recoveryEntry)
+	}
 	// XID 154 reports an action, not a diagnosis. Repeated requests cannot
 	// establish hardware failure; originating XIDs keep their own thresholds.
-	r.active[key] = recoveryEntry{detail: detail, health: health}
+	r.active[key] = recoveryEntry{detail: detail, health: health, timestamp: timestamp}
 }
 
 func (r *recoveryAccumulator) health(devices map[string]device.Device) apiv1.HealthState {

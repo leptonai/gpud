@@ -91,6 +91,10 @@ func TestRecoveryOwnershipAndOriginalFault(t *testing.T) {
 	none := recoveryEvent(t, "0000:01:00", "0x0 (None)")
 	p2p := recoveryEvent(t, "0000:01:00", "0x3 (Drain P2P)")
 	other := recoveryEvent(t, "0000:02:00", "0x2 (Node Reboot Required)")
+	reboot.Time = time.Unix(1, 0)
+	other.Time = reboot.Time
+	none.Time = time.Unix(2, 0)
+	p2p.Time = none.Time
 	hardware := createXidEvent(time.Time{}, 79, apiv1.EventTypeFatal, apiv1.RepairActionTypeHardwareInspection)
 	state := evolveHealthyState(eventstore.Events{reboot, hardware}, nil, 2)
 	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
@@ -155,21 +159,21 @@ func TestRecoveryProducerEventStoreHealth(t *testing.T) {
 	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, c.LastHealthStates()[0].SuggestedActions.RepairActions[0])
 }
 
-func TestRecoveryNVSentinelAndDedup(t *testing.T) {
+func TestRecoveryNVSentinelNoneReport(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
 	go c.start(make(chan kmsg.Message), time.Hour)
 	ev := newNVSentinelXidEvent("154", "GPU-recovery")
+	ev.GeneratedTimestamp = time.Now().UTC().Truncate(time.Second).Add(-time.Second)
 	ev.Message = recoveryLine("0000:01:00", "0x3 (Drain P2P)")
 	ev.Action = nvsentinel.RecommendedActionContactSupport
 	ev.IsFatal = false
 	src.Send(ev)
 	require.Eventually(t, func() bool { return c.LastHealthStates()[0].Health == apiv1.HealthStateTypeDegraded }, 10*time.Second, 10*time.Millisecond)
 	assert.Contains(t, c.LastHealthStates()[0].SuggestedActions.Description, "quiesce P2P")
-	assert.True(t, c.hasStoredXidTwin(154, "GPU-recovery", ev.GeneratedTimestamp, parseRecoveryAction(ev.Message)))
-	assert.False(t, c.hasStoredXidTwin(154, "GPU-recovery", ev.GeneratedTimestamp, parseRecoveryAction(recoveryLine("0000:01:00", "0x2 (Node Reboot Required)"))))
+	assert.False(t, c.hasStoredXidTwin(154, "GPU-recovery", ev.GeneratedTimestamp))
 	ev.ID = "recovery-none"
-	ev.GeneratedTimestamp = ev.GeneratedTimestamp.Add(time.Millisecond)
+	ev.GeneratedTimestamp = ev.GeneratedTimestamp.Add(time.Second)
 	ev.Message = recoveryLine("0000:01:00", "0x0 (None)")
 	ev.Action = nvsentinel.RecommendedActionNone
 	src.Send(ev)

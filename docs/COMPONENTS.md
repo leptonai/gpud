@@ -59,10 +59,32 @@ faults remain independent. Unknown or malformed reports cannot replace a known
 request; their evidence remains in the Events API. A reboot clears all active
 recovery guidance because the driver starts with a fresh recovery state.
 
+Persisted events have one-second timestamp precision. When timestamps tie or are
+missing, GPUd keeps the stronger recovery request regardless of insertion order.
+A None report must be strictly later to retire an active request. This can retain
+a request when recovery happens within the same second; a later None or reboot
+clears it.
+
+XID 154 bypasses NVSentinel's time-window deduplication in both directions. A
+reset request can recur after None within that window, and NVSentinel timestamps
+reflect processing time rather than kernel order. GPUd retains these observations,
+including possible copies from both producers. Identical reports do not escalate
+health or count toward hardware inspection. Other XIDs retain their existing
+deduplication window, with PCI IDs normalized to GPU UUIDs when NVML provides the
+mapping. Delayed cross-producer ordering still requires a shared occurrence ID or
+kernel timestamp; this policy does not infer either from processing time.
+
 One recovery report is sufficient to recommend an action. XID 154 never escalates
 to hardware inspection, including after repeated reboots or with a threshold
 override. It reports recovery guidance and cannot diagnose hardware failure.
 Originating XIDs retain their existing reboot thresholds and precedence.
+
+The reboot executor must enforce a per-node reboot budget and stop automatic
+retries for operator investigation when the same request recurs after recovery.
+A cooldown limits the rate but does not permanently break a deterministic
+driver/kernel reboot loop. GPUd keeps reporting the driver's request; this
+component does not enforce an executor budget or diagnose repeated requests as
+hardware failures.
 
 When combining originating faults with recovery guidance, GPUd selects health and
 actions together: higher health severity wins, then repair priority breaks a tie.

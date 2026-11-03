@@ -54,6 +54,8 @@ func TestRecoveryNativeAndNVSentinelShareDeviceOwnership(t *testing.T) {
 	}
 	native := recoveryEvent(t, "0000:01:00", "0x2 (OS Reboot)")
 	none := recoveryEvent(t, "0000:01:00", "0x0 (None)")
+	native.Time = time.Unix(1, 0)
+	none.Time = time.Unix(2, 0)
 	var payload xidErrorEventDetail
 	require.NoError(t, json.Unmarshal([]byte(none.ExtraInfo[EventKeyErrorXidData]), &payload))
 	payload.DeviceUUID = "GPU-recovery"
@@ -66,19 +68,19 @@ func TestRecoveryNativeAndNVSentinelShareDeviceOwnership(t *testing.T) {
 	assert.Nil(t, state.SuggestedActions)
 }
 
-func TestRecoveryCoverageRequiresTheSameTransitionEvidence(t *testing.T) {
+func TestRecoveryCoverageDoesNotSuppressTransitions(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
 	ev := newNVSentinelXidEvent("154", "PCI:0000:01:00")
 	ev.Message = recoveryLine("0000:01:00", "0x2 (OS Reboot)")
 	src.RecordCoverage(ev)
-	assert.True(t, c.nvsentinelCoversXid(Match(ev.Message)))
+	assert.False(t, c.nvsentinelCoversXid(Match(ev.Message)))
 	assert.False(t, c.nvsentinelCoversXid(Match(recoveryLine("0000:01:00", "0x0 (None)"))))
 	assert.False(t, c.nvsentinelCoversXid(Match(recoveryLine("0000:01:00", "truncated"))))
 
 	ev.Message = recoveryLine("0000:01:00", "truncated")
 	src.RecordCoverage(ev)
-	assert.True(t, c.nvsentinelCoversXid(Match(ev.Message)))
+	assert.False(t, c.nvsentinelCoversXid(Match(ev.Message)))
 	assert.False(t, c.nvsentinelCoversXid(Match(recoveryLine("0000:01:00", "differently truncated"))))
 	assert.False(t, c.nvsentinelCoversXid(&Error{Xid: 154, DeviceUUID: "PCI:0000:01:00"}))
 }

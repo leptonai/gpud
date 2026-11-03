@@ -296,16 +296,16 @@ func TestHasStoredXidTwinJSONFormat(t *testing.T) {
 	}))
 
 	// Same Xid and device: twin found.
-	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now, nil))
+	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now))
 
 	// Different Xid: no twin.
-	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now, nil))
+	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now))
 
 	// Different device UUID: no twin.
-	assert.False(t, c.hasStoredXidTwin(79, "GPU-other", now, nil))
+	assert.False(t, c.hasStoredXidTwin(79, "GPU-other", now))
 
 	// Empty device UUID on the query: still a twin.
-	assert.True(t, c.hasStoredXidTwin(79, "", now, nil))
+	assert.True(t, c.hasStoredXidTwin(79, "", now))
 }
 
 func TestHasStoredXidTwinLegacyFormat(t *testing.T) {
@@ -323,10 +323,10 @@ func TestHasStoredXidTwinLegacyFormat(t *testing.T) {
 		},
 	}))
 
-	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now, nil))
-	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now, nil))
+	assert.True(t, c.hasStoredXidTwin(79, "GPU-abc", now))
+	assert.False(t, c.hasStoredXidTwin(94, "GPU-abc", now))
 	// Legacy event with empty stored UUID: twin when query UUID is also empty.
-	assert.True(t, c.hasStoredXidTwin(79, "", now, nil))
+	assert.True(t, c.hasStoredXidTwin(79, "", now))
 }
 
 func TestHasStoredXidTwinDifferentEventName(t *testing.T) {
@@ -342,7 +342,7 @@ func TestHasStoredXidTwinDifferentEventName(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", now, nil))
+	assert.False(t, c.hasStoredXidTwin(79, "", now))
 }
 
 func TestHasStoredXidTwinOutsideWindow(t *testing.T) {
@@ -358,7 +358,7 @@ func TestHasStoredXidTwinOutsideWindow(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", time.Now().UTC(), nil))
+	assert.False(t, c.hasStoredXidTwin(79, "", time.Now().UTC()))
 }
 
 func TestHasStoredXidTwinCorruptPayload(t *testing.T) {
@@ -374,7 +374,7 @@ func TestHasStoredXidTwinCorruptPayload(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", now, nil))
+	assert.False(t, c.hasStoredXidTwin(79, "", now))
 }
 
 func TestNVSentinelXidNonFatalEvent(t *testing.T) {
@@ -581,7 +581,7 @@ func TestHasStoredXidTwinSkipsFutureEvents(t *testing.T) {
 		},
 	}))
 
-	assert.False(t, c.hasStoredXidTwin(79, "", now, nil))
+	assert.False(t, c.hasStoredXidTwin(79, "", now))
 }
 
 func TestNewNVSentinelWithoutEventStore(t *testing.T) {
