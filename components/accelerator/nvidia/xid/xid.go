@@ -1933,9 +1933,23 @@ var details = map[int]Detail{
 			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
 			//
 			// Xid 94, ignored in GPUd, indicates a contained memory error: the driver contained the error to the application that encountered it.
-			// Other applications keep running. Xid 94 alone does not justify a system reboot or hardware inspection:
-			// the remapped-rows component suggests a reboot when NVML reports a pending row remap, and uncontained or uncorrectable errors (Xid 48/95/140) stay fatal.
+			// Other applications keep running, and dynamic page offlining keeps new allocations off the faulty page without a GPU reset.
 			// A workload can emit Xid 94 frequently without degradation, so rebooting the node for every Xid 94 drains healthy capacity.
+			//
+			// The NVIDIA catalog marks Xid 94 investigatory resolution as "IGNORE (sympathetic)": it accompanies the underlying memory error,
+			// which other signals report and which still drive repair in GPUd:
+			//   - Xid 48 (double bit ECC error): the uncorrectable error itself, Fatal with REBOOT_SYSTEM/HARDWARE_INSPECTION.
+			//   - Xid 63 (row remapping recording event): the faulty row was recorded in the InfoROM and takes effect after a GPU reset,
+			//     Fatal with REBOOT_SYSTEM/HARDWARE_INSPECTION.
+			//   - Xid 64 (row remapping recording failure): Fatal with REBOOT_SYSTEM/HARDWARE_INSPECTION.
+			//   - Xid 95 (uncontained memory error) and Xid 140 (unrecovered ECC error): containment failed, Fatal.
+			//   - Xid 160 (channel retirement event, select Blackwell GPUs): a DRAM channel or L2 slice is marked for repair after repeated
+			//     uncorrectable errors in a remapped bank. Currently a Warning without repair actions in GPUd.
+			//   - The remapped-rows component reads NVML row remapping state independently of kmsg: a pending remap suggests REBOOT_SYSTEM
+			//     and a failed remap suggests HARDWARE_INSPECTION. It only runs when the product name maps to row remapping support
+			//     (see pkg/nvidia/product.SupportedMemoryMgmtCapsByGPUProduct).
+			// "NVIDIA GPU Memory Error Management: User Visible Statistics", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/latest/user-visible-statistics.html (accessed on Nov 3, 2026)
+			// "NVIDIA GPU Memory Error Management: RAS Repair", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/latest/hbm-channel-repair.html (accessed on Nov 3, 2026)
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
