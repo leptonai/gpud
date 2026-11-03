@@ -23,6 +23,8 @@ const (
 
 	// xidContainedMemoryError is XID 94, a contained memory error that only
 	// requires restarting the affected application.
+	//
+	// TODO(v0.15): remove together with the XID 94 override in addEventDetails.
 	xidContainedMemoryError = 94
 )
 
@@ -249,6 +251,12 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 			// of an older GPUd or an NVSentinel verdict. Apply the current catalog
 			// policy so XID 94 alone never drives node health or repair after an
 			// upgrade, without deleting the events.
+			//
+			// TODO(v0.15): remove this manual override in the v0.15 release, once
+			// XID 94 events stored by pre-fix GPUd versions have aged out of the
+			// lookback window. Before removing it, make sure NVSentinel no longer
+			// reports XID 94 as Critical/Fatal; otherwise those events would drive
+			// node health again.
 			ev.Type = string(detail.EventType)
 			xidErr.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
 		}
