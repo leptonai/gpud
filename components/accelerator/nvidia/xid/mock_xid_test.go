@@ -527,7 +527,7 @@ func TestThresholds_WithMockey(t *testing.T) {
 		// Get default
 		thresholds := GetDefaultThresholds()
 		assert.Equal(t, DefaultRebootThreshold, GetDefaultRebootThreshold())
-		assert.Equal(t, 1000, thresholds.Overrides[94].RebootThreshold)
+		assert.Empty(t, thresholds.Overrides)
 
 		// Set new global threshold separately from per-XID overrides.
 		SetDefaultRebootThreshold(5)
