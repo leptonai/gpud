@@ -1,8 +1,31 @@
 {{- $containerd := .Values.gpud.containerd | default dict -}}
+{{- $explicitRuntime := or $containerd.endpoint $containerd.configPath $containerd.serviceName $containerd.systemctlCommands -}}
+{{- /*
+RKE2 and K3s embed containerd in their own systemd unit, with the socket under
+/run/k3s/containerd and the config under /var/lib/rancher/<distro>, so the
+stock defaults find no containerd and the check is skipped. The distro shows up
+only in the server version suffix (e.g. v1.36.3+rke2r1), so detection needs Helm
+to render against a live API server rather than with --client-only. Any
+explicit gpud.containerd value disables detection.
+*/ -}}
+{{- $distro := "" -}}
+{{- if not $explicitRuntime -}}
+{{- if contains "+rke2" .Capabilities.KubeVersion.Version -}}
+{{- $distro = "rke2" -}}
+{{- else if contains "+k3s" .Capabilities.KubeVersion.Version -}}
+{{- $distro = "k3s" -}}
+{{- end -}}
+{{- end -}}
 {{- $endpoint := $containerd.endpoint | default "unix:///run/containerd/containerd.sock" -}}
 {{- $configPath := $containerd.configPath | default "/etc/containerd/config.toml" -}}
 {{- $serviceName := $containerd.serviceName | default "containerd" -}}
-{{- $explicitRuntime := or $containerd.endpoint $containerd.configPath $containerd.serviceName $containerd.systemctlCommands -}}
+{{- if $distro -}}
+{{- $endpoint = "unix:///run/k3s/containerd/containerd.sock" -}}
+{{- $configPath = printf "/var/lib/rancher/%s/agent/etc/containerd/config.toml" $distro -}}
+{{- /* Agent nodes run containerd under the agent unit, server nodes under the server unit. */ -}}
+{{- $serviceName = ternary "rke2-agent,rke2-server" "k3s-agent,k3s" (eq $distro "rke2") -}}
+{{- end -}}
+{{- $configuredRuntime := or $explicitRuntime $distro -}}
 {{- if not (hasPrefix "unix:///" $endpoint) -}}
 {{- fail "gpud.containerd.endpoint must be unix:///absolute/socket/path" -}}
 {{- end -}}
@@ -16,7 +39,7 @@
 {{- $activeCommands := .Values.gpud.containerdServiceActiveCommands -}}
 {{- if eq $activeCommands nil -}}
 {{- $activeCommands = "" -}}
-{{- if not $explicitRuntime -}}
+{{- if not $configuredRuntime -}}
 {{- $activeCommands = "nsenter --target 1 --mount -- systemctl is-active containerd" -}}
 {{- end -}}
 {{- end -}}
@@ -532,7 +555,7 @@ spec:
                 set -- "$@" --containerd-service-active-commands="$GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS"
               fi
 
-              {{- if $explicitRuntime }}
+              {{- if $configuredRuntime }}
               set -- "$@" --containerd-endpoint="$GPUD_CONTAINERD_ENDPOINT" \
                 --containerd-config-path="$GPUD_CONTAINERD_CONFIG_PATH" \
                 --containerd-service-name="$GPUD_CONTAINERD_SERVICE_NAME" \
@@ -610,7 +633,7 @@ spec:
             - name: GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS
               value: {{ $activeCommands | quote }}
             {{- end }}
-            {{- if $explicitRuntime }}
+            {{- if $configuredRuntime }}
             - name: GPUD_CONTAINERD_ENDPOINT
               value: {{ $endpoint | quote }}
             - name: GPUD_CONTAINERD_CONFIG_PATH

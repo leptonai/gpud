@@ -23,6 +23,12 @@ func TestContainerdConfig(t *testing.T) {
 	require.Error(t, (ContainerdConfig{ConfigPath: "relative.toml"}).Validate())
 	require.Error(t, (ContainerdConfig{ServiceName: "--help"}).Validate())
 	require.Error(t, (ContainerdConfig{ServiceName: "rke2-agent; exit 0"}).Validate())
+	require.Error(t, (ContainerdConfig{ServiceName: "rke2-agent,"}).Validate())
+	require.Error(t, (ContainerdConfig{ServiceName: "rke2-agent,--help"}).Validate())
+	units := ContainerdConfig{ServiceName: "rke2-agent, rke2-server"}
+	require.NoError(t, units.Validate())
+	require.Equal(t, []string{"rke2-agent", "rke2-server"}, units.ServiceNames())
+	require.Equal(t, []string{"containerd"}, zero.ServiceNames())
 	cfg := ContainerdConfig{Endpoint: "unix:///run/k3s/containerd/containerd.sock", ServiceName: "rke2-agent.service"}
 	require.NoError(t, cfg.Validate())
 	require.False(t, cfg.IsZero())

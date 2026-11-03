@@ -12,7 +12,29 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 )
+
+func TestRuntimeDiagnosticsConfiguredEndpoint(t *testing.T) {
+	const config = `{"enableCDI":true,"containerd":{"defaultRuntimeName":"runc","runtimes":{"runc":{},"nvidia":{}}}}`
+	srv := &verboseRuntimeServer{fakeRuntimeServer{statusResp: &runtimeapi.StatusResponse{Info: map[string]string{"config": config}}}}
+	endpoint, cleanup := startFakeRuntimeServer(t, srv)
+	defer cleanup()
+	comp, err := New(&components.GPUdInstance{RootCtx: t.Context(), Containerd: configcommon.ContainerdConfig{Endpoint: endpoint}})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, comp.Close()) }()
+	got, err := comp.(*component).getRuntimeConfigFunc()
+	require.NoError(t, err)
+	require.Equal(t, config, string(got))
+	c := comp.(*component)
+	c.getContainerdConfigFunc = func() ([]byte, error) {
+		return []byte(`version = 2
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]`), nil
+	}
+	configured, err := c.nvidiaRuntimeConfigured()
+	require.NoError(t, err)
+	require.True(t, configured, "the selected endpoint supplies the implicit CDI default")
+}
 
 func TestParseRuntimeConfig(t *testing.T) {
 	for _, data := range []string{"", "null", "{}", `{"containerd":{"defaultRuntimeName":"runc"}}`, `{"containerd":{"runtimes":{"runc":{}}}}`, `{"enableCDI":"true"}`} {
@@ -73,11 +95,17 @@ func TestSandboxRuntimeHandler(t *testing.T) {
 }
 
 func TestRuntimeDiagnosticsPreserveHealthChecks(t *testing.T) {
-	const validDisk = `default_runtime_name = "nvidia"
+	const validDisk = `[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "nvidia"
 [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]`
 	const invalidDisk = `default_runtime_name = "runc"`
 	const cdiOnly = `{"enableCDI":true,"containerd":{"defaultRuntimeName":"runc","runtimes":{"runc":{}}}}`
 	const loadedNvidia = `{"enableCDI":true,"containerd":{"defaultRuntimeName":"runc","runtimes":{"runc":{},"nvidia":{}}}}`
+	const v2ImplicitCDI = `version = 2
+[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "runc"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]`
+	const cdiDisabled = `{"enableCDI":false,"containerd":{"defaultRuntimeName":"runc","runtimes":{"runc":{},"nvidia":{}}}}`
 	now := time.Now()
 	for _, tt := range []struct {
 		name, disk, live, handler string
@@ -87,7 +115,10 @@ func TestRuntimeDiagnosticsPreserveHealthChecks(t *testing.T) {
 		expected                  apiv1.HealthStateType
 		diagnostic                string
 		wantCalls                 int
+		liveChangesHealth         bool
 	}{
+		{name: "v2 config on containerd 2 uses live CDI default", disk: v2ImplicitCDI, live: loadedNvidia, age: time.Hour, expected: apiv1.HealthStateTypeHealthy, wantCalls: 1, liveChangesHealth: true},
+		{name: "v2 config with live CDI disabled stays unhealthy", disk: v2ImplicitCDI, live: cdiDisabled, age: time.Hour, expected: apiv1.HealthStateTypeUnhealthy, diagnostic: "native CDI enabled=false", wantCalls: 2},
 		{name: "CDI cannot bypass invalid disk config", disk: invalidDisk, live: cdiOnly, age: time.Hour, expected: apiv1.HealthStateTypeUnhealthy, diagnostic: "native CDI enabled=true", wantCalls: 1},
 		{name: "missing required handler names pod", disk: invalidDisk, live: cdiOnly, handler: "nvidia", age: time.Hour, expected: apiv1.HealthStateTypeUnhealthy, diagnostic: `pod gpu-operator/device-plugin requires runtime handler "nvidia"`, wantCalls: 1},
 		{name: "loaded handlers cannot hide broken restart config", disk: invalidDisk, live: loadedNvidia, handler: "nvidia", age: time.Hour, expected: apiv1.HealthStateTypeUnhealthy, diagnostic: `configured handlers ["nvidia" "runc"]`, wantCalls: 1},
@@ -119,14 +150,19 @@ func TestRuntimeDiagnosticsPreserveHealthChecks(t *testing.T) {
 			c.getRuntimeConfigFunc = func() ([]byte, error) { calls++; return []byte(tt.live), tt.liveErr }
 			result := c.Check().(*checkResult)
 			assert.Equal(t, tt.expected, result.health)
-			assert.Equal(t, baseline.health, result.health)
+			if tt.liveChangesHealth {
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, baseline.health)
+				assert.NotContains(t, result.reason, "missing NVIDIA runtime configuration")
+			} else {
+				assert.Equal(t, baseline.health, result.health)
+			}
 			assert.Equal(t, baseline.err, result.err)
 			assert.Equal(t, baseline.suggestedAction, result.suggestedAction)
 			assert.Equal(t, tt.wantCalls, calls)
 			if tt.diagnostic != "" {
 				assert.Contains(t, result.reason, baseline.reason+"; ")
 				assert.Contains(t, result.reason, tt.diagnostic)
-			} else {
+			} else if !tt.liveChangesHealth {
 				assert.Equal(t, baseline.reason, result.reason)
 			}
 		})

@@ -229,6 +229,41 @@ the containerd check behaves as before. On nodes that run neither containerd
 nor CRI-O, set `gpud.mountContainerd: false` and
 `gpud.containerdServiceActiveCommands: ""`.
 
+On RKE2 and K3s, containerd runs inside the distro's own systemd unit with its
+socket at `/run/k3s/containerd/containerd.sock`. When every
+`gpud.containerd.*` value is empty and the Kubernetes server version carries a
+`+rke2` or `+k3s` suffix (for example `v1.36.3+rke2r1`), the chart configures
+the runtime automatically:
+
+| Setting | RKE2 | K3s |
+|---|---|---|
+| Endpoint | `unix:///run/k3s/containerd/containerd.sock` | `unix:///run/k3s/containerd/containerd.sock` |
+| Config path | `/var/lib/rancher/rke2/agent/etc/containerd/config.toml` | `/var/lib/rancher/k3s/agent/etc/containerd/config.toml` |
+| Service names | `rke2-agent,rke2-server` | `k3s-agent,k3s` |
+
+GPUd queries the units through `nsenter --target 1 --mount -- systemctl` and
+treats containerd as active when either unit is, because agent nodes run
+containerd under the agent unit and server nodes under the server unit. The
+startup grace for a recently started unit still applies. The comma-separated
+service names need a GPUd image from the same release as this chart; older
+images reject them at startup, so set `gpud.containerd.*` explicitly when
+pinning an older `image.tag` on RKE2 or K3s.
+
+When the NVIDIA container toolkit runs on the node, GPUd also checks that the
+containerd config (plus its `imports` drop-ins) registers the `nvidia` runtime
+and either makes it the default or enables CDI. GPUd decodes the TOML, so the
+quoted keys in the RKE2/K3s templates match, and a version 3 config counts as
+CDI-enabled unless it sets `enable_cdi = false`, as containerd 2.x does.
+For a version 2 config with no explicit CDI setting, GPUd uses the running
+containerd CRI status to distinguish the containerd 1.x and 2.x defaults.
+Explicit settings in the config or its imports still take precedence.
+
+The suffix is available only when Helm renders against the cluster's API
+server, as `helm install` and `helm upgrade` do. Client-only renders such as
+`helm template` without `--kube-version` use the stock containerd defaults.
+Setting any `gpud.containerd.*` value turns detection off. Renders on other
+clusters are unchanged.
+
 ### NVSentinel Integration
 
 By default the chart enables GPUd's NVSentinel sink: GPUd serves the

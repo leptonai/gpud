@@ -296,7 +296,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				cli.StringFlag{
 					Name:  "containerd-service-name",
-					Usage: "containerd systemd unit (empty: containerd); use rke2-agent for RKE2 workers, rke2-server for RKE2 servers, k3s-agent or k3s for k3s",
+					Usage: "comma-separated containerd systemd units, active when any is active (empty: containerd); use rke2-agent,rke2-server for RKE2, k3s-agent,k3s for k3s",
 				},
 				cli.StringFlag{
 					Name:  "containerd-systemctl-commands",

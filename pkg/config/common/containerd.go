@@ -22,7 +22,9 @@ type ContainerdConfig struct {
 	Endpoint string `json:"endpoint,omitempty"`
 	// Use /var/lib/rancher/rke2/agent/etc/containerd/config.toml for RKE2.
 	ConfigPath string `json:"config_path,omitempty"`
-	// Use rke2-agent for RKE2 workers, or rke2-server for RKE2 servers.
+	// Comma-separated systemd units; containerd is active when any of them is.
+	// Use rke2-agent,rke2-server for RKE2 or k3s-agent,k3s for k3s: the unit
+	// that runs containerd depends on the node's role.
 	ServiceName string `json:"service_name,omitempty"`
 	// Optional command prefix, e.g. nsenter --target 1 --mount -- systemctl.
 	// Both activeness and uptime must query the same service manager.
@@ -55,10 +57,21 @@ func (c ContainerdConfig) Validate() error {
 	if !filepath.IsAbs(c.ConfigPath) || filepath.Clean(c.ConfigPath) == "/" {
 		return fmt.Errorf("containerd config path must be an absolute file path: %q", c.ConfigPath)
 	}
-	if !containerdServiceNameRE.MatchString(c.ServiceName) {
-		return fmt.Errorf("invalid containerd service name: %q", c.ServiceName)
+	for _, name := range c.ServiceNames() {
+		if !containerdServiceNameRE.MatchString(name) {
+			return fmt.Errorf("invalid containerd service name: %q", c.ServiceName)
+		}
 	}
 	return nil
+}
+
+// ServiceNames returns the configured systemd units in order.
+func (c ContainerdConfig) ServiceNames() []string {
+	names := strings.Split(c.WithDefaults().ServiceName, ",")
+	for i, name := range names {
+		names[i] = strings.TrimSpace(name)
+	}
+	return names
 }
 
 func (c ContainerdConfig) SocketPath() (string, error) {

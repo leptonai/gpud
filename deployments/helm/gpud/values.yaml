@@ -180,14 +180,18 @@ gpud:
   # (exit code 0 means active). Requires the host containerd mounts below
   # (mountContainerd) plus the same hostPID/privileged settings as above.
   # null generates the legacy command above for the default installation, or
-  # uses containerd.systemctlCommands with containerd.serviceName when configured.
+  # uses containerd.systemctlCommands with containerd.serviceName when the
+  # runtime is configured or auto-detected (RKE2/K3s).
   # A non-empty override takes precedence for activeness. For an explicitly
   # configured runtime it disables uptime-based grace: an arbitrary script does
   # not identify the service manager whose uptime would be trustworthy.
   # Set to "" to use the built-in check (the configured prefix still applies).
   containerdServiceActiveCommands: null
 
-  # Empty fields preserve legacy detection and defaults. Setting any field pins
+  # Empty fields preserve legacy detection and defaults, except that on RKE2/K3s
+  # (server version suffix "+rke2"/"+k3s", seen only when Helm renders against
+  # the live API server) all-empty fields select that distro's endpoint, config
+  # path and both role units. Setting any field disables that detection and pins
   # monitoring to this installation; a failed socket never falls back to CRI-O.
   # These values require an image supporting the corresponding gpud run flags.
   containerd:
@@ -199,11 +203,10 @@ gpud:
     # Use "configPath: /var/lib/rancher/k3s/agent/etc/containerd/config.toml" if running k3s.
     # Point to the effective runtime config, not the GPU Operator's unused config.
     configPath: ""
-    # CLI: --containerd-service-name. Empty: containerd.
-    # Use "serviceName: rke2-agent" if running an RKE2 worker.
-    # Use "serviceName: rke2-server" if running an RKE2 server.
-    # Use "serviceName: k3s-agent" or "serviceName: k3s" for the corresponding k3s role.
-    # Mixed-role clusters need separate node-selected releases with the right unit.
+    # CLI: --containerd-service-name. Empty: containerd. Comma-separated units
+    # count as active when any unit is active (escape commas as "\," with --set).
+    # Use "serviceName: rke2-agent,rke2-server" if running RKE2.
+    # Use "serviceName: k3s-agent,k3s" if running k3s.
     serviceName: ""
     # CLI: --containerd-systemctl-commands (empty CLI default runs systemctl directly).
     # For configured Helm installs, empty uses "nsenter --target 1 --mount -- systemctl"
