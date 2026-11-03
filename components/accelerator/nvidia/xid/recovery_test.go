@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
+	"github.com/leptonai/gpud/pkg/nvsentinel"
 	"github.com/leptonai/gpud/pkg/nvsentinel/nvsentineltest"
 )
 
@@ -26,10 +27,10 @@ func recoveryEvent(t *testing.T, device, to string) eventstore.Event {
 	t.Helper()
 	parsed := Match(recoveryLine(device, to))
 	require.NotNil(t, parsed)
-	payload := xidErrorEventDetail{Xid: 154, DeviceUUID: parsed.DeviceUUID, RecoveryAction: parsed.RecoveryAction}
+	payload := xidErrorEventDetail{Xid: 154, DeviceUUID: parsed.DeviceUUID, RecoveryAction: parsed.RecoveryAction, Description: parsed.Detail.Description, SuggestedActionsByGPUd: parsed.Detail.SuggestedActionsByGPUd}
 	raw, err := json.Marshal(payload)
 	require.NoError(t, err)
-	return eventstore.Event{Name: EventNameErrorXid, ExtraInfo: map[string]string{EventKeyErrorXidData: string(raw)}}
+	return eventstore.Event{Name: EventNameErrorXid, Type: string(parsed.Detail.EventType), ExtraInfo: map[string]string{EventKeyErrorXidData: string(raw)}}
 }
 
 func TestRecoveryActionPolicy(t *testing.T) {
@@ -44,7 +45,12 @@ func TestRecoveryActionPolicy(t *testing.T) {
 		{"0x1 (GPU Reset Required)", apiv1.EventTypeFatal, apiv1.HealthStateTypeUnhealthy, apiv1.RepairActionTypeRebootSystem, true},
 		{"0x2 (Node Reboot Required)", apiv1.EventTypeFatal, apiv1.HealthStateTypeUnhealthy, apiv1.RepairActionTypeRebootSystem, true},
 		{"0x3 (Drain P2P)", apiv1.EventTypeCritical, apiv1.HealthStateTypeDegraded, apiv1.RepairActionTypeCheckUserAppAndGPU, true},
-		{"0x4 (Drain and Reset)", apiv1.EventTypeFatal, apiv1.HealthStateTypeUnhealthy, apiv1.RepairActionTypeRebootSystem, true},
+		{"0x4 (Drain and Reset)", apiv1.EventTypeWarning, apiv1.HealthStateTypeHealthy, "", true},
+		{"0x5 (Recover IMEX Domain)", apiv1.EventTypeCritical, apiv1.HealthStateTypeDegraded, apiv1.RepairActionTypeCheckUserAppAndGPU, true},
+		{"0x6 (Bus Reset)", apiv1.EventTypeFatal, apiv1.HealthStateTypeUnhealthy, apiv1.RepairActionTypeRebootSystem, true},
+		{"0x7 (System Reboot)", apiv1.EventTypeFatal, apiv1.HealthStateTypeUnhealthy, apiv1.RepairActionTypeRebootSystem, true},
+		{"0x1 (PF FLR)", apiv1.EventTypeFatal, apiv1.HealthStateTypeUnhealthy, apiv1.RepairActionTypeRebootSystem, true},
+		{"0x2 (OS Reboot)", apiv1.EventTypeFatal, apiv1.HealthStateTypeUnhealthy, apiv1.RepairActionTypeRebootSystem, true},
 		{"0x9 (Node Reboot Required)", apiv1.EventTypeCritical, apiv1.HealthStateTypeDegraded, apiv1.RepairActionTypeCheckUserAppAndGPU, true},
 		{"not-a-number (Node Reboot Required)", apiv1.EventTypeCritical, apiv1.HealthStateTypeDegraded, apiv1.RepairActionTypeCheckUserAppAndGPU, false},
 		{"0x100000000 (Node Reboot Required)", apiv1.EventTypeCritical, apiv1.HealthStateTypeDegraded, apiv1.RepairActionTypeCheckUserAppAndGPU, false},
@@ -77,7 +83,7 @@ func TestRecoveryActionPolicy(t *testing.T) {
 		})
 	}
 	legacy := eventstore.Event{Name: EventNameErrorXid, ExtraInfo: map[string]string{EventKeyErrorXidData: "154"}}
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, evolveHealthyState(eventstore.Events{legacy}, nil, 2).Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, evolveHealthyState(eventstore.Events{legacy}, nil, 2).Health)
 }
 
 func TestRecoveryOwnershipAndOriginalFault(t *testing.T) {
@@ -112,13 +118,13 @@ func TestRecoveryRebootCycles(t *testing.T) {
 	state := evolveHealthyState(eventstore.Events{a, r, a}, nil, 2)
 	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
 	state = evolveHealthyState(eventstore.Events{a, r, a, r, a}, nil, 2)
-	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
 	state = evolveHealthyState(eventstore.Events{b, r, a, r, a}, nil, 2)
 	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
 	state = evolveHealthyState(eventstore.Events{a, r, r, a}, nil, 2)
-	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0], "a reboot without an active recovery request is not a failed cycle")
+	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
 	state = evolveHealthyStateWithThresholds(eventstore.Events{a, r, a}, nil, 2, Thresholds{Overrides: map[int]ThresholdOverride{154: {RebootThreshold: 1}}})
-	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0], "XID 154 does not diagnose hardware failure, even with a threshold override")
 }
 
 // Real producer -> SQLite eventstore -> Events API -> health consumer smoke.
@@ -155,6 +161,8 @@ func TestRecoveryNVSentinelAndDedup(t *testing.T) {
 	go c.start(make(chan kmsg.Message), time.Hour)
 	ev := newNVSentinelXidEvent("154", "GPU-recovery")
 	ev.Message = recoveryLine("0000:01:00", "0x3 (Drain P2P)")
+	ev.Action = nvsentinel.RecommendedActionContactSupport
+	ev.IsFatal = false
 	src.Send(ev)
 	require.Eventually(t, func() bool { return c.LastHealthStates()[0].Health == apiv1.HealthStateTypeDegraded }, 10*time.Second, 10*time.Millisecond)
 	assert.Contains(t, c.LastHealthStates()[0].SuggestedActions.Description, "quiesce P2P")
@@ -163,9 +171,17 @@ func TestRecoveryNVSentinelAndDedup(t *testing.T) {
 	ev.ID = "recovery-none"
 	ev.GeneratedTimestamp = ev.GeneratedTimestamp.Add(time.Millisecond)
 	ev.Message = recoveryLine("0000:01:00", "0x0 (None)")
-	ev.IsHealthy = true
+	ev.Action = nvsentinel.RecommendedActionNone
 	src.Send(ev)
 	require.Eventually(t, func() bool { return c.LastHealthStates()[0].Health == apiv1.HealthStateTypeHealthy }, 10*time.Second, 10*time.Millisecond)
+	// The second real NVSentinel event is healthy and has no error code.
+	ev.IsHealthy = true
+	ev.ErrorCodes = nil
+	ev.Message = "GPU recovery action returned to None"
+	c.onNVSentinelEvent(ev)
+	events, err := c.Events(context.Background(), ev.GeneratedTimestamp.Add(-time.Minute))
+	require.NoError(t, err)
+	require.Len(t, events, 2)
 }
 
 func TestRecoveryScan(t *testing.T) {
@@ -179,6 +195,10 @@ func TestRecoveryScan(t *testing.T) {
 	}{
 		{"0x2 (Node Reboot Required)", apiv1.HealthStateTypeUnhealthy},
 		{"0x3 (Drain P2P)", apiv1.HealthStateTypeDegraded},
+		{"0x4 (Drain and Reset)", apiv1.HealthStateTypeHealthy},
+		{"0x5 (Recover IMEX Domain)", apiv1.HealthStateTypeDegraded},
+		{"0x6 (Bus Reset)", apiv1.HealthStateTypeUnhealthy},
+		{"0x7 (System Reboot)", apiv1.HealthStateTypeUnhealthy},
 		{"0x0 (None)", apiv1.HealthStateTypeHealthy},
 	} {
 		c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
@@ -190,15 +210,15 @@ func TestRecoveryScan(t *testing.T) {
 	}
 }
 
-func TestRecoveryEvaluationFallbackAndLinkedNodeAction(t *testing.T) {
+func TestRecoveryPreservesNVLinkFallbackAndLinkedNodeAction(t *testing.T) {
 	line := "NVRM: Xid (PCI:0000:01:00): 145, RLW_SRC_TRACK Nonfatal XC0 i0 Link 00 (0x00000007 0x00000004 0x00000000 0x00000000)"
 	parsed := Match(line)
 	require.NotNil(t, parsed)
 	require.NotNil(t, parsed.Detail.SuggestedActionsByGPUd)
-	assert.Equal(t, apiv1.RepairActionTypeCheckUserAppAndGPU, parsed.Detail.SuggestedActionsByGPUd.RepairActions[0], "XID_154_EVAL without 154 falls back to affected application investigation/restart")
+	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, parsed.Detail.SuggestedActionsByGPUd.RepairActions[0], "XID 145 fallback remains unchanged by the XID 154 fix")
 	fault := createXidEvent(time.Time{}, 145, parsed.Detail.EventType, parsed.Detail.SuggestedActionsByGPUd.RepairActions[0])
 	state := evolveHealthyState(eventstore.Events{fault}, nil, 2)
-	assert.Equal(t, apiv1.RepairActionTypeCheckUserAppAndGPU, state.SuggestedActions.RepairActions[0])
+	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	state = evolveHealthyState(eventstore.Events{recoveryEvent(t, "0000:01:00", "0x2 (Node Reboot Required)"), fault}, nil, 2)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])

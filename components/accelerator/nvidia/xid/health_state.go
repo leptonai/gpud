@@ -85,8 +85,8 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
 			}
-			if currXidErr.Xid == 154 {
-				recovery.update(currXidErr, devices, defaultRebootThreshold, thresholds)
+			if currXidErr.Xid == 154 && currXidErr.RecoveryAction != nil {
+				recovery.update(currXidErr, resolvedEvent.Type, devices)
 				continue
 			}
 
@@ -96,9 +96,6 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 				currEvent = healthStateDegraded
 			case string(apiv1.EventTypeFatal):
 				currEvent = healthStateUnhealthy
-			}
-			if currEvent == lastHealth && repairPriority(lastSuggestedAction) > repairPriority(currXidErr.SuggestedActionsByGPUd) {
-				continue
 			}
 			if currEvent < lastHealth {
 				continue
@@ -261,12 +258,11 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 	}
 
 	detail, ok := getDetailWithSubCodeAndStatus(xidCode, xidErr.SubCode, xidErr.ErrorStatus)
-	if xidCode == 154 {
+	if xidCode == 154 && xidErr.RecoveryAction != nil {
+		// Producers store the classification. Use transition-specific details
+		// only to fill missing fields, as with the other XIDs below.
 		detail = recoveryDetail(xidErr.RecoveryAction)
 		ok = true
-		ev.Type = string(detail.EventType)
-		xidErr.Description = detail.Description
-		xidErr.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
 	}
 	if !ok {
 		detail = nil

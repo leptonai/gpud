@@ -72,14 +72,14 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	xidNum, deviceUUID, ok := c.matchNVSentinelXid(ev)
-	if !ok {
+	// NVSentinel sends the raw XID 154 -> None report as an unhealthy event
+	// with code 154. Healthy recovery/cancellation events carry no new XID.
+	if ev.IsHealthy {
+		log.Logger.Debugw("skipping healthy nvsentinel event", "checkName", ev.CheckName)
 		return
 	}
-	// A healthy XID 154 can retire this GPU's recovery guidance. Other
-	// healthy reports still carry no new XID data point.
-	if ev.IsHealthy && xidNum != 154 {
-		log.Logger.Debugw("skipping healthy nvsentinel event", "checkName", ev.CheckName)
+	xidNum, deviceUUID, ok := c.matchNVSentinelXid(ev)
+	if !ok {
 		return
 	}
 
@@ -230,7 +230,7 @@ func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 		// A healthy event carries no new data point: it must never
 		// suppress a native incident. The source already excludes healthy
 		// events from coverage; this guard keeps the intent explicit here.
-		if ev.IsHealthy && xidErr.Xid != 154 {
+		if ev.IsHealthy {
 			return false
 		}
 		evXid, evUUID, ok := c.matchNVSentinelXid(ev)

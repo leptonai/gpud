@@ -1,7 +1,6 @@
 package xid
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -23,18 +22,6 @@ func repairPriority(actions *apiv1.SuggestedActions) int {
 	}
 }
 
-func recoveryHealthType(transition *RecoveryActionTransition) apiv1.HealthStateType {
-	if transition != nil && transition.Valid {
-		switch transition.To {
-		case 0:
-			return apiv1.HealthStateTypeHealthy
-		case 1, 2, 4:
-			return apiv1.HealthStateTypeUnhealthy
-		}
-	}
-	return apiv1.HealthStateTypeDegraded
-}
-
 func healthPriority(health apiv1.HealthStateType) int {
 	switch health {
 	case apiv1.HealthStateTypeUnhealthy:
@@ -46,23 +33,23 @@ func healthPriority(health apiv1.HealthStateType) int {
 	}
 }
 
-// Keep XID 154 ownership separate from originating faults. The latest transition
-// on a GPU replaces only that GPU's recovery guidance, never another diagnosis.
+type recoveryEntry struct {
+	detail xidErrorEventDetail
+	health apiv1.HealthStateType
+}
+
+// Keep XID 154 ownership separate from originating faults. A recognized transition
+// replaces only that GPU's recovery guidance, never another diagnosis.
 type recoveryAccumulator struct {
-	active        map[string]xidErrorEventDetail
-	failedReboots map[string]int
+	active map[string]recoveryEntry
 }
 
 func (r *recoveryAccumulator) reboot() {
-	for key, detail := range r.active {
-		if repairPriority(detail.SuggestedActionsByGPUd) == 2 {
-			r.failedReboots[key]++
-			delete(r.active, key)
-		}
-	}
+	// Reboot resets the driver's recovery state; it need not emit a None report.
+	clear(r.active)
 }
 
-func (r *recoveryAccumulator) update(detail xidErrorEventDetail, devices map[string]device.Device, rebootThreshold int, thresholds Thresholds) {
+func (r *recoveryAccumulator) update(detail xidErrorEventDetail, eventType string, devices map[string]device.Device) {
 	key := detail.DeviceUUID
 	if uuid := convertBusIDToUUID(key, devices); uuid != "" {
 		key = uuid
@@ -71,18 +58,26 @@ func (r *recoveryAccumulator) update(detail xidErrorEventDetail, devices map[str
 	}
 	if detail.RecoveryAction != nil && detail.RecoveryAction.Valid && detail.RecoveryAction.To == 0 {
 		delete(r.active, key)
-		delete(r.failedReboots, key)
+		return
+	}
+	// Unreadable or future ABI values cannot retire a known recovery request.
+	// Their raw evidence remains available through the Events API.
+	if !knownRecoveryAction(detail.RecoveryAction) && knownRecoveryAction(r.active[key].detail.RecoveryAction) {
 		return
 	}
 	if r.active == nil {
-		r.active = make(map[string]xidErrorEventDetail)
-		r.failedReboots = make(map[string]int)
+		r.active = make(map[string]recoveryEntry)
 	}
-	if repairPriority(detail.SuggestedActionsByGPUd) == 2 && r.failedReboots[key] >= rebootThresholdForXID(154, rebootThreshold, thresholds) {
-		detail.SuggestedActionsByGPUd.RepairActions[0] = apiv1.RepairActionTypeHardwareInspection
-		detail.SuggestedActionsByGPUd.Description = fmt.Sprintf("GPU recovery remains requested after %d failed reboot cycles; hardware inspection is required. Driver guidance: %s", r.failedReboots[key], detail.Description)
+	health := apiv1.HealthStateTypeHealthy
+	switch eventType {
+	case string(apiv1.EventTypeFatal):
+		health = apiv1.HealthStateTypeUnhealthy
+	case string(apiv1.EventTypeCritical):
+		health = apiv1.HealthStateTypeDegraded
 	}
-	r.active[key] = detail
+	// XID 154 reports an action, not a diagnosis. Repeated requests cannot
+	// establish hardware failure; originating XIDs keep their own thresholds.
+	r.active[key] = recoveryEntry{detail: detail, health: health}
 }
 
 func (r *recoveryAccumulator) health(devices map[string]device.Device) apiv1.HealthState {
@@ -94,8 +89,8 @@ func (r *recoveryAccumulator) health(devices map[string]device.Device) apiv1.Hea
 	}
 	slices.Sort(keys)
 	for _, key := range keys {
-		detail := r.active[key]
-		health := recoveryHealthType(detail.RecoveryAction)
+		entry := r.active[key]
+		detail, health := entry.detail, entry.health
 		if healthPriority(health) > healthPriority(state.Health) || (health == state.Health && repairPriority(detail.SuggestedActionsByGPUd) >= repairPriority(state.SuggestedActions)) {
 			state.Health = health
 			state.SuggestedActions = detail.SuggestedActionsByGPUd
@@ -112,18 +107,20 @@ func mergeRecoveryHealth(fault, recovery apiv1.HealthState) apiv1.HealthState {
 	if recovery.Reason == "" {
 		return fault
 	}
-	if fault.Reason == "XIDComponent is healthy" || fault.Reason == "" {
+	// Choose health and actions together. Repair priority only breaks a tie
+	// in health, so an informational IGNORE cannot mask degraded guidance.
+	if healthPriority(recovery.Health) > healthPriority(fault.Health) ||
+		(recovery.Health == fault.Health && repairPriority(recovery.SuggestedActions) > repairPriority(fault.SuggestedActions)) {
+		fault.Health = recovery.Health
+		fault.SuggestedActions = recovery.SuggestedActions
+		if fault.Reason != "" && fault.Reason != "XIDComponent is healthy" {
+			recovery.Reason += "; " + fault.Reason
+		}
+		fault.Reason = recovery.Reason
+	} else if fault.Reason == "XIDComponent is healthy" || fault.Reason == "" {
 		fault.Reason = recovery.Reason
 	} else {
 		fault.Reason += "; " + recovery.Reason
-	}
-	if healthPriority(recovery.Health) > healthPriority(fault.Health) {
-		fault.Health = recovery.Health
-	}
-	// Hardware inspection must not be downgraded by equally fatal recovery
-	// guidance. Conversely, recovery can supplement a non-paging app fault.
-	if repairPriority(recovery.SuggestedActions) > repairPriority(fault.SuggestedActions) {
-		fault.SuggestedActions = recovery.SuggestedActions
 	}
 	return fault
 }

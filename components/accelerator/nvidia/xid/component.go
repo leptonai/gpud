@@ -336,9 +336,13 @@ func (c *component) Check() components.CheckResult {
 	var scanEvents eventstore.Events
 	nonRecoveryUnhealthy := false
 	for _, foundErr := range cr.FoundErrors {
+		xidValue, ok := uint64FromInt(foundErr.Xid)
+		if !ok {
+			continue
+		}
 		payload := xidErrorEventDetail{
 			DeviceUUID:     foundErr.DeviceUUID,
-			Xid:            uint64(foundErr.Xid),
+			Xid:            xidValue,
 			RecoveryAction: foundErr.RecoveryAction,
 		}
 		if foundErr.Detail != nil {

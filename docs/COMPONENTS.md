@@ -44,28 +44,34 @@ The XID component reports suggested actions; this change adds no automatic repai
 | --- | --- | --- |
 | `0x0` None | Healthy for this recovery report | No new repair. Retain independently actionable originating faults. |
 | `0x1` GPU Reset Required (R610 PF FLR) | Unhealthy | Terminate GPU processes before reset. GPUd uses its existing system-reboot recommendation for GPU-reset conditions. |
-| `0x2` Node Reboot Required | Unhealthy | Reboot the node before restarting applications. A warm reboot is sufficient. |
+| `0x2` Node Reboot Required (R610 OS Reboot) | Unhealthy | Reboot the node before restarting applications. A warm reboot is sufficient. |
 | `0x3` Drain P2P | Degraded | Stop new scheduling, quiesce P2P traffic and UVM persistence, then re-query recovery guidance. Reset only if Drain P2P remains. No blind reboot. |
-| `0x4` Drain and Reset | Unhealthy | Stop new work; let unaffected work finish or checkpoint before reset. GPUd recommends a reboot under its GPU-reset convention after draining. |
+| `0x4` Drain and Reset | Healthy for this recovery report | Keep the drain/checkpoint guidance as evidence. The remapped-rows component owns pending-remap reboot and remapping-failure decisions. |
+| `0x5` Recover IMEX Domain | Degraded | Operator investigation and coordinated recovery of the multi-node IMEX domain. No inferred local reboot or hardware failure. |
+| `0x6` Bus Reset | Unhealthy | Reboot the node before restarting GPU applications. |
+| `0x7` System Reboot | Unhealthy | Reboot the node before restarting GPU applications. |
 | Unknown or malformed | Degraded | Investigate the originating XIDs and driver guidance. No guessed reboot. |
+| Legacy event without transition data | Preserve stored severity | Keep the original description and actions. Older native Warning/no-action events remain informational. |
 
-The latest XID 154 governs only its GPU's recovery guidance. A later None report
-retires that GPU's recovery recommendation, not another GPU's report or an
-originating fault. Hardware-inspection recommendations remain stronger than a
-reboot recommendation, even when both reports are fatal.
+The latest recognized XID 154 governs only its GPU's recovery guidance. A later
+None report retires that GPU's recovery recommendation. Other GPUs and originating
+faults remain independent. Unknown or malformed reports cannot replace a known
+request; their evidence remains in the Events API. A reboot clears all active
+recovery guidance because the driver starts with a fresh recovery state.
 
-One recovery report is sufficient to recommend an action. This is separate from
-the default threshold of two failed reboot cycles before recommending hardware
-inspection. `--xid-thresholds` can override XID 154's reboot threshold.
-Only reboots after an active reboot recommendation count as failed recovery cycles.
+One recovery report is sufficient to recommend an action. XID 154 never escalates
+to hardware inspection, including after repeated reboots or with a threshold
+override. It reports recovery guidance and cannot diagnose hardware failure.
+Originating XIDs retain their existing reboot thresholds and precedence.
 
-The NVIDIA catalog's `XID_154` bucket means follow the reported recovery guidance.
-`XID_154_EVAL` means follow XID 154 when present; otherwise restart the affected app.
-`IGNORE` is non-paging guidance, not permission to discard diagnostic evidence or
-associated investigation guidance.
+When combining originating faults with recovery guidance, GPUd selects health and
+actions together: higher health severity wins, then repair priority breaks a tie.
+Both reasons remain visible. Producers persist the classification; reading events
+fills missing details without replacing stored severity, descriptions, or actions.
 
 Sources: [NVIDIA XID catalog](https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html)
-and [NVIDIA GPU Recovery Action guidance](https://docs.nvidia.com/deploy/nvidia-smi/index.html).
+and [NVIDIA GPU Recovery Action guidance](https://docs.nvidia.com/deploy/nvidia-smi/index.html#gpu-recovery-action).
+The R610 mappings also follow [NVSentinel's XID 154 parser](https://github.com/NVIDIA/NVSentinel/blob/1b15313777c71bd06657e4f6350f2e16756fb4db/health-monitors/syslog-health-monitor/pkg/xid/parser/csv.go).
 
 
 ## NFS health policy

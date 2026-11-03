@@ -46,10 +46,15 @@ func parseRecoveryAction(line string) *RecoveryActionTransition {
 func recoveryDetail(transition *RecoveryActionTransition) *Detail {
 	base, _ := GetDetail(154)
 	detail := *base
+	// Older persisted events have no transition evidence. Preserve their
+	// informational catalog entry instead of inventing malformed guidance.
+	if transition == nil {
+		return &detail
+	}
 	detail.EventType = apiv1.EventTypeCritical
 	description := "Missing or malformed GPU recovery action; investigate the originating XIDs and driver recovery guidance before choosing a repair."
 	action := apiv1.RepairActionTypeCheckUserAppAndGPU
-	if transition != nil && transition.Valid {
+	if transition.Valid {
 		switch transition.To {
 		case 0:
 			detail.EventType = apiv1.EventTypeWarning
@@ -67,9 +72,16 @@ func recoveryDetail(transition *RecoveryActionTransition) *Detail {
 		case 3:
 			description = "Drain P2P: disable new GPU scheduling, quiesce P2P traffic and UVM persistence, then re-query GPU Recovery Action. Reset only if Drain P2P remains; do not reboot blindly."
 		case 4:
+			detail.EventType = apiv1.EventTypeWarning
+			detail.SuggestedActionsByGPUd = nil
+			detail.Description = "Drain and Reset: prevent new GPU work and allow unaffected work to finish or checkpoint before reset. Retain this as row-remap evidence; the remapped-rows component owns pending-remap reboot and remapping-failure decisions."
+			return &detail
+		case 5:
+			description = "Recover IMEX Domain: operator intervention is required to recover the multi-node IMEX domain. Investigate the originating XIDs and coordinate domain recovery; do not infer a local reboot or hardware failure."
+		case 6, 7:
 			detail.EventType = apiv1.EventTypeFatal
 			action = apiv1.RepairActionTypeRebootSystem
-			description = "Drain and Reset: prevent new GPU work, allow unaffected work to finish or checkpoint, then reset. GPUd recommends a system reboot under its existing GPU-reset convention after draining."
+			description = "Bus Reset or System Reboot required (R610): reboot the node before restarting GPU applications."
 		default:
 			description = fmt.Sprintf("Unknown GPU recovery action 0x%x; investigate the originating XIDs and driver recovery guidance before choosing a repair.", transition.To)
 		}
@@ -77,6 +89,10 @@ func recoveryDetail(transition *RecoveryActionTransition) *Detail {
 	detail.Description = description
 	detail.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{action}, Description: description}
 	return &detail
+}
+
+func knownRecoveryAction(transition *RecoveryActionTransition) bool {
+	return transition != nil && transition.Valid && transition.To <= 7
 }
 
 func sameRecoveryAction(a, b *RecoveryActionTransition) bool {
