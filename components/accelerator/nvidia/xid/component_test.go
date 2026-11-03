@@ -860,35 +860,20 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.Len(t, initialStates, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, initialStates[0].Health, "Initial state should be healthy")
 
-	// XID 94 has EventTypeFatal in the catalog. In real usage, Match() returns
-	// the correct EventType from the catalog when parsing kmsg.
-	fatalTime := time.Now().Add(-5 * time.Minute)
-	xid94Event := eventstore.Event{
-		Time: fatalTime,
-		Name: EventNameErrorXid,
-		Type: string(apiv1.EventTypeFatal), // XID 94 is Fatal in catalog
-		ExtraInfo: map[string]string{
-			EventKeyErrorXidData: "94",
-			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
-		},
-	}
-
-	// First, process the event through resolveXIDEvent to ensure correct format
-	xid94Event = resolveXIDEvent(xid94Event, nil)
-
+	// An XID 94 event stored by an older GPUd carries Fatal/REBOOT_SYSTEM.
+	// The current policy reclassifies it on read, so it no longer asks for a reboot.
+	xid94Event := createXidEvent(time.Now().Add(-5*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem)
 	err = c.eventBucket.Insert(ctx, xid94Event)
 	assert.NoError(t, err)
 
-	// Update state based on the fatal event
 	err = c.updateCurrentState()
 	assert.NoError(t, err)
 
-	// Check that the state was updated to unhealthy (XID 94 is fatal in catalog)
-	fatalStates := comp.LastHealthStates()
-	assert.Len(t, fatalStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, fatalStates[0].Health, "State should be unhealthy after XID 94 event")
-	assert.NotNil(t, fatalStates[0].SuggestedActions, "Should have suggested actions")
-	assert.Contains(t, fatalStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	xid94States := comp.LastHealthStates()
+	assert.Len(t, xid94States, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, xid94States[0].Health, "XID 94 alone must not mark the node unhealthy")
+	require.NotNil(t, xid94States[0].SuggestedActions)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeCheckUserAppAndGPU}, xid94States[0].SuggestedActions.RepairActions)
 
 	// Now test with XID 79 (GPU has fallen off the bus) which should recommend reboot
 	xid79Time := time.Now().Add(-4 * time.Minute)

@@ -136,20 +136,38 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
-	t.Run("xid 94 uses reboot threshold override", func(t *testing.T) {
-		events := eventstore.Events{
-			createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-			{Name: "reboot"},
-			createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-			{Name: "reboot"},
-			createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-		}
+	t.Run("xid 94 alone stays healthy regardless of stored severity", func(t *testing.T) {
+		// Fatal/REBOOT_SYSTEM is what older GPUd versions stored; Critical is an
+		// NVSentinel verdict without isFatal.
+		for _, stored := range []apiv1.EventType{apiv1.EventTypeFatal, apiv1.EventTypeCritical} {
+			events := eventstore.Events{
+				createXidEvent(time.Time{}, 94, stored, apiv1.RepairActionTypeRebootSystem),
+				{Name: "reboot"},
+				createXidEvent(time.Time{}, 94, stored, apiv1.RepairActionTypeRebootSystem),
+				{Name: "reboot"},
+				createXidEvent(time.Time{}, 94, stored, apiv1.RepairActionTypeRebootSystem),
+			}
 
-		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-		require.NotNil(t, state.SuggestedActions)
-		require.NotEmpty(t, state.SuggestedActions.RepairActions)
-		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
+			state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health, "stored as %s", stored)
+			require.NotNil(t, state.SuggestedActions)
+			assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeCheckUserAppAndGPU}, state.SuggestedActions.RepairActions, "stored as %s", stored)
+		}
+	})
+
+	t.Run("xid 94 does not mask a fatal xid in either order", func(t *testing.T) {
+		xid94 := createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem)
+		xid95 := createXidEvent(time.Time{}, 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem)
+		for name, events := range map[string]eventstore.Events{
+			"xid 94 after xid 95": {xid94, xid95},
+			"xid 95 after xid 94": {xid95, xid94},
+		} {
+			state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+			assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health, name)
+			require.NotNil(t, state.SuggestedActions, name)
+			assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions, name)
+			assert.Contains(t, state.Reason, "XID 95", name)
+		}
 	})
 
 	// Tests for reboot recovery behavior based on SuggestedActionsByGPUd.
@@ -221,10 +239,10 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("rebootCountingResetAfterPurgeMatchesLegacy", func(t *testing.T) {
 		now := time.Now()
 		localEvents := eventstore.Events{
-			createXidEvent(now, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			createXidEvent(now, 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			{Time: now.Add(-1 * time.Minute), Name: "SetHealthy"},
-			createXidEvent(now.Add(-2*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-			createXidEvent(now.Add(-4*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			createXidEvent(now.Add(-2*time.Minute), 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			createXidEvent(now.Add(-4*time.Minute), 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 
 		trimmed := trimEventsAfterSetHealthy(localEvents)
@@ -858,11 +876,11 @@ func Test_HealthStateReason_evolveHealthyState_Integration(t *testing.T) {
 			},
 		},
 		{
-			name: "Standard XID 94 fatal event",
+			name: "XID 94 contained error stays healthy",
 			events: eventstore.Events{
 				createXidEvent(time.Now(), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
-			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedContains: []string{
 				"XID 94",
 				"ROBUST_CHANNEL_CONTAINED_ERROR",
