@@ -254,6 +254,9 @@ containerd config (plus its `imports` drop-ins) registers the `nvidia` runtime
 and either makes it the default or enables CDI. GPUd decodes the TOML, so the
 quoted keys in the RKE2/K3s templates match, and a version 3 config counts as
 CDI-enabled unless it sets `enable_cdi = false`, as containerd 2.x does.
+For a version 2 config with no explicit CDI setting, GPUd uses the running
+containerd CRI status to distinguish the containerd 1.x and 2.x defaults.
+Explicit settings in the config or its imports still take precedence.
 
 The suffix is available only when Helm renders against the cluster's API
 server, as `helm install` and `helm upgrade` do. Client-only renders such as

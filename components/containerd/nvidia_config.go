@@ -43,7 +43,7 @@ func (c *component) nvidiaRuntimeConfigured() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return hasNvidiaRuntimeConfiguration(config)
+	return hasNvidiaRuntimeConfiguration(config, c.getRuntimeConfigFunc)
 }
 
 // hasNvidiaRuntimeConfiguration accepts both supported toolkit layouts:
@@ -51,8 +51,9 @@ func (c *component) nvidiaRuntimeConfigured() (bool, error) {
 // NVIDIA runtime handler. The handler is required in both cases. Files listed
 // in "imports" (e.g. drop-ins written by nvidia-container-toolkit) are merged
 // after the main config, so their explicit settings win, as in containerd.
-// Unreadable or invalid imports are skipped.
-func hasNvidiaRuntimeConfiguration(config []byte) (bool, error) {
+// Unreadable or invalid imports are skipped. Live status resolves the CDI
+// default when a version 2 config could belong to containerd 1.x or 2.x.
+func hasNvidiaRuntimeConfiguration(config []byte, getRuntimeConfig func() ([]byte, error)) (bool, error) {
 	var main containerdConfigFile
 	if err := toml.Unmarshal(config, &main); err != nil {
 		return false, fmt.Errorf("failed to parse containerd config: %w", err)
@@ -79,9 +80,7 @@ func hasNvidiaRuntimeConfiguration(config []byte) (bool, error) {
 		}
 	}
 
-	// containerd 2.x, the only release that reads config version 3, enables
-	// CDI by default; the k3s/RKE2 version 3 template leaves enable_cdi unset.
-	cdi := main.Version >= 3
+	var cdi *bool
 	handler := false
 	defaultRuntime := ""
 	for _, f := range files {
@@ -93,9 +92,34 @@ func hasNvidiaRuntimeConfiguration(config []byte) (bool, error) {
 				defaultRuntime = plugin.Containerd.DefaultRuntimeName
 			}
 			if plugin.EnableCDI != nil {
-				cdi = *plugin.EnableCDI
+				cdi = plugin.EnableCDI
 			}
 		}
 	}
-	return handler && (defaultRuntime == nvidiaRuntimeName || cdi), nil
+	if !handler {
+		return false, nil
+	}
+	if defaultRuntime == nvidiaRuntimeName {
+		return true, nil
+	}
+	if cdi != nil {
+		return *cdi, nil
+	}
+	// Only containerd 2.x reads version 3, but it can also migrate version 2
+	// without changing its enabled CDI default. Version 2 alone is ambiguous.
+	if main.Version >= 3 {
+		return true, nil
+	}
+	if getRuntimeConfig == nil {
+		return false, nil
+	}
+	data, err := getRuntimeConfig()
+	if err != nil {
+		return false, fmt.Errorf("get containerd CDI default: %w", err)
+	}
+	live, err := parseRuntimeConfig(data)
+	if err != nil {
+		return false, err
+	}
+	return live.EnableCDI, nil
 }
