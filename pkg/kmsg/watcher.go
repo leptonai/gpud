@@ -84,6 +84,11 @@ func (m Message) DescribeTimestamp(since time.Time) string {
 
 // ReadAll reads all messages from the kmsg file, with no follow mode.
 func ReadAll(ctx context.Context) ([]Message, error) {
+	return ReadAllWithOptions(ctx)
+}
+
+// ReadAllWithOptions reads kernel messages with the supplied deduplication policy.
+func ReadAllWithOptions(ctx context.Context, opts ...OpOption) ([]Message, error) {
 	kmsgFile, err := os.Open(kmsgFilePath)
 	if err != nil {
 		return nil, err
@@ -107,7 +112,7 @@ func ReadAll(ctx context.Context) ([]Message, error) {
 	return readAll(
 		kmsgFile,
 		bootTime,
-		newDeduper(defaultCacheExpiration, defaultCachePurgeInterval),
+		newDeduper(defaultCacheExpiration, defaultCachePurgeInterval, opts...),
 	)
 }
 

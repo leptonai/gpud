@@ -36,6 +36,7 @@ const (
 type pendingEvent struct {
 	event    *eventstore.Event
 	nvsEvent *nvsentinel.HealthEvent
+	xid      int
 }
 
 // watchNVSentinel subscribes the component to the NVSentinel event source
@@ -138,6 +139,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 			EventKeyNVSentinelEventID:   ev.ID,
 		},
 	}
+	if xidNum == 154 {
+		event.ExtraInfo[eventKeyRecoveryTimestamp] = ev.GeneratedTimestamp.Format(time.RFC3339Nano)
+	}
 
 	// When GPUd's kmsg detection won the delivery race, its copy is
 	// already in the bucket. Skip this NVSentinel copy so the incident
@@ -154,15 +158,18 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 
 	// Count NVSentinel-delivered Xid errors the same as kmsg-detected ones,
 	// so the metric keeps meaning "Xid occurred on this node".
-	metricXIDErrs.With(prometheus.Labels{
-		"uuid": convertBusIDToUUID(deviceUUID, c.devices),
-		"xid":  strconv.Itoa(xidNum),
-	}).Inc()
+	// Recovery reports are counted after the event loop selects the producer.
+	if xidNum != 154 {
+		metricXIDErrs.With(prometheus.Labels{
+			"uuid": convertBusIDToUUID(deviceUUID, c.devices),
+			"xid":  strconv.Itoa(xidNum),
+		}).Inc()
+	}
 
 	// Coverage is reported by the start loop only after the bucket insert
 	// succeeds. Until then the kmsg path stays free to store its own copy.
 	select {
-	case c.extraEventCh <- pendingEvent{event: event, nvsEvent: &ev}:
+	case c.extraEventCh <- pendingEvent{event: event, nvsEvent: &ev, xid: xidNum}:
 	case <-c.ctx.Done():
 	}
 }

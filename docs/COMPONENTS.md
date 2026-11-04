@@ -59,20 +59,26 @@ faults remain independent. Unknown or malformed reports cannot replace a known
 request; their evidence remains in the Events API. A reboot clears all active
 recovery guidance because the driver starts with a fresh recovery state.
 
-Persisted events have one-second timestamp precision. When timestamps tie or are
-missing, GPUd keeps the stronger recovery request regardless of insertion order.
-A None report must be strictly later to retire an active request. This can retain
-a request when recovery happens within the same second; a later None or reboot
-clears it.
+The event store's timestamp column has one-second precision. XID 154 also stores
+the full producer timestamp and uses it when ordering recovery transitions.
+For tied timestamps, including older records, a report whose numeric `From`
+matches the current `To` advances the transition chain. This lets a matching None
+retire a request within the same second. Missing timestamps or unmatched ties
+retain the stronger request; a later None or reboot clears it.
 
-XID 154 bypasses NVSentinel's time-window deduplication in both directions. A
-reset request can recur after None within that window, and NVSentinel timestamps
-reflect processing time rather than kernel order. GPUd retains these observations,
-including possible copies from both producers. Identical reports do not escalate
-health or count toward hardware inspection. Other XIDs retain their existing
-deduplication window, with PCI IDs normalized to GPU UUIDs when NVML provides the
-mapping. Delayed cross-producer ordering still requires a shared occurrence ID or
-kernel timestamp; this policy does not infer either from processing time.
+While the native kmsg stream is running, GPUd drops NVSentinel's XID 154 copies
+before storage or metric counting. NVSentinel stamps journal batches with
+processing time, so replaying them could revive recovery requests already cleared
+by the native stream. NVSentinel supplies XID 154 when no native stream is running,
+including after the native channel closes. Its timestamp orders its own reports;
+it does not establish kernel order across producers.
+
+XID 154 bypasses NVSentinel's time-window deduplication. Native collection and scan
+deduplicate these reports by exact kernel timestamp, sequence number, and text,
+so request → None → request survives even within one second. Identical reports
+do not escalate health or count toward hardware inspection. Other XIDs retain
+their existing deduplication window, with PCI IDs normalized to GPU UUIDs when
+NVML provides the mapping.
 
 One recovery report is sufficient to recommend an action. XID 154 never escalates
 to hardware inspection, including after repeated reboots or with a threshold

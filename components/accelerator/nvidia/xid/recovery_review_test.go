@@ -227,6 +227,9 @@ func TestRecoveryProducersPersistPolicy(t *testing.T) {
 			t.Run(producer+"/"+tc.to, func(t *testing.T) {
 				c, _ := newTestComponentWithNVSentinel(t, nil)
 				ch := make(chan kmsg.Message, 1)
+				if producer == "nvsentinel" {
+					ch = nil
+				}
 				go c.start(ch, time.Hour)
 				now := time.Now().UTC()
 				line := recoveryLine("0000:01:00", tc.to)

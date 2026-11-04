@@ -2,6 +2,7 @@ package xid
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -23,14 +24,15 @@ import (
 func TestRecoveryRepeatedTransitionSurvivesDelivery(t *testing.T) {
 	for _, producers := range [][3]string{
 		{"nvsentinel", "nvsentinel", "nvsentinel"},
-		{"nvsentinel", "kmsg", "kmsg"},
-		{"kmsg", "nvsentinel", "nvsentinel"},
 		{"kmsg", "kmsg", "kmsg"},
 	} {
 		for _, awaitInsert := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%v/await-insert=%t", producers, awaitInsert), func(t *testing.T) {
 				c, _ := newTestComponentWithNVSentinel(t, nvsentineltest.NewFakeSource())
 				ch := make(chan kmsg.Message, 3)
+				if producers[0] == "nvsentinel" {
+					ch = nil
+				}
 				go c.start(ch, time.Hour)
 				now := time.Now().UTC().Truncate(time.Second).Add(-10 * time.Second)
 				request := "NVRM: Xid (PCI:0000:01:00): 154, GPU recovery action changed from 0x0 (None) to 0x1 (GPU Reset Required)"
@@ -129,9 +131,15 @@ func TestStoredXidTwinNormalizesNativeDeviceIdentity(t *testing.T) {
 	}
 }
 
-func TestRecoveryInformationalRequestNeedsLaterNone(t *testing.T) {
+func TestRecoveryInformationalRequestIgnoresUnmatchedTiedNone(t *testing.T) {
 	request := recoveryEvent(t, "0000:01:00", "0x4 (Drain and Reset)")
 	none := recoveryEvent(t, "0000:01:00", "0x0 (None)")
+	var detail xidErrorEventDetail
+	require.NoError(t, json.Unmarshal([]byte(none.ExtraInfo[EventKeyErrorXidData]), &detail))
+	detail.RecoveryAction.From = 1
+	raw, err := json.Marshal(detail)
+	require.NoError(t, err)
+	none.ExtraInfo[EventKeyErrorXidData] = string(raw)
 	request.Time = time.Unix(1, 0)
 	none.Time = request.Time
 	for _, events := range []eventstore.Events{{request, none}, {none, request}} {

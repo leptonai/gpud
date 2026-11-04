@@ -77,10 +77,13 @@ func (r *recoveryAccumulator) update(detail xidErrorEventDetail, eventType strin
 		health = apiv1.HealthStateTypeDegraded
 	}
 	clearRequest := knownRecoveryAction(detail.RecoveryAction) && detail.RecoveryAction.To == 0
-	// SQLite keeps whole seconds, and producer arrival order is not driver
-	// order. Tied or missing timestamps cannot establish a weaker recovery
-	// state, including None. A strictly later transition can still retire it.
+	// A matching From -> To chain can establish recovery in a tied batch.
+	// Without that evidence, retain the stronger request on uncertain order.
+	followsCurrent := !timestamp.IsZero() && timestamp.Equal(current.timestamp) &&
+		knownRecoveryAction(detail.RecoveryAction) && knownRecoveryAction(current.detail.RecoveryAction) &&
+		detail.RecoveryAction.From == current.detail.RecoveryAction.To
 	if exists && (timestamp.IsZero() || current.timestamp.IsZero() || !timestamp.After(current.timestamp)) &&
+		!followsCurrent &&
 		(clearRequest || healthPriority(health) < healthPriority(current.health) ||
 			(health == current.health && repairPriority(detail.SuggestedActionsByGPUd) < repairPriority(current.detail.SuggestedActionsByGPUd))) {
 		return

@@ -162,7 +162,7 @@ func TestRecoveryProducerEventStoreHealth(t *testing.T) {
 func TestRecoveryNVSentinelNoneReport(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
-	go c.start(make(chan kmsg.Message), time.Hour)
+	go c.start(nil, time.Hour)
 	ev := newNVSentinelXidEvent("154", "GPU-recovery")
 	ev.GeneratedTimestamp = time.Now().UTC().Truncate(time.Second).Add(-time.Second)
 	ev.Message = recoveryLine("0000:01:00", "0x3 (Drain P2P)")

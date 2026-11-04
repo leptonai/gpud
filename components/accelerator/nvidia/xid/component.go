@@ -77,7 +77,8 @@ type component struct {
 
 	// nvsSource is the optional NVSentinel event source. When set, the
 	// component prefers NVSentinel Xid data points and suppresses its own
-	// kmsg detection of the same data point.
+	// kmsg detection of the same data point, except for XID 154, which uses
+	// the native stream while it is running to preserve kernel ordering.
 	nvsSource      nvsentinel.Source
 	nvsDedupWindow time.Duration
 	nvsUnsubscribe func()
@@ -114,7 +115,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgWatcher, err = kmsg.NewWatcher()
+			c.kmsgWatcher, err = kmsg.NewWatcher(kmsg.WithExactDedupMatch(isRecoveryMessage))
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -123,7 +124,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		c.readAllKmsg = kmsg.ReadAll
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return kmsg.ReadAllWithOptions(ctx, kmsg.WithExactDedupMatch(isRecoveryMessage))
+		}
 	}
 
 	if gpudInstance.NVSentinel != nil && c.eventBucket != nil {
@@ -517,9 +520,21 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			if pending.event == nil {
 				continue
 			}
+			recoveryFromNVSentinel := pending.nvsEvent != nil && pending.xid == 154
+			// NVSentinel replays journal batches using processing timestamps.
+			// Prefer the native stream, including over copies queued before Start.
+			if recoveryFromNVSentinel && kmsgCh != nil {
+				continue
+			}
 			if err := c.eventBucket.Insert(c.ctx, *pending.event); err != nil {
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
+			}
+			if recoveryFromNVSentinel {
+				metricXIDErrs.With(prometheus.Labels{
+					"uuid": convertBusIDToUUID(pending.event.ExtraInfo[EventKeyDeviceUUID], c.devices),
+					"xid":  "154",
+				}).Inc()
 			}
 			// Coverage is reported only after the insert succeeds: a failed
 			// insert must never suppress native detection of this incident.
@@ -531,7 +546,12 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-		case message := <-kmsgCh:
+		case message, ok := <-kmsgCh:
+			if !ok {
+				// Resume NVSentinel delivery if the native reader exits.
+				kmsgCh = nil
+				continue
+			}
 			xidErr := Match(message.Message)
 			if xidErr == nil {
 				log.Logger.Debugw("not xid event, skip", "kmsg", message)
@@ -604,6 +624,12 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				ExtraInfo: map[string]string{
 					EventKeyDeviceUUID: xidErr.DeviceUUID,
 				},
+			}
+			if xidErr.Xid == 154 {
+				// Keep producer precision and identity through SQLite's seconds-only
+				// timestamp column, including repeated transitions within a second.
+				event.ExtraInfo[eventKeyRecoveryTimestamp] = message.Timestamp.Format(time.RFC3339Nano)
+				event.ExtraInfo[eventKeyKmsgSequence] = strconv.Itoa(message.SequenceNumber)
 			}
 			// IMPORTANT: Set event.Type from Match() result to preserve precise unit-based severity.
 			//
@@ -701,8 +727,15 @@ func mergeEvents(a, b eventstore.Events) eventstore.Events {
 	result := make(eventstore.Events, 0, totalLen)
 	result = append(result, a...)
 	result = append(result, b...)
+	for i := range result {
+		if raw := result[i].ExtraInfo[eventKeyRecoveryTimestamp]; raw != "" {
+			if ts, err := time.Parse(time.RFC3339Nano, raw); err == nil && ts.Unix() == result[i].Time.Unix() {
+				result[i].Time = ts
+			}
+		}
+	}
 
-	sort.Slice(result, func(i, j int) bool {
+	sort.SliceStable(result, func(i, j int) bool {
 		return result[i].Time.After(result[j].Time)
 	})
 

@@ -12,6 +12,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func TestExactDedupPreservesRecurringTransitions(t *testing.T) {
+	d := newDeduper(time.Minute, time.Hour, WithExactDedupMatch(func(m Message) bool {
+		return m.Message == "request" || m.Message == "none"
+	}))
+	now := metav1.NewTime(time.Unix(1000, 0))
+	for i, line := range []string{"request", "none", "request"} {
+		m := Message{Timestamp: now, SequenceNumber: i + 1, Message: line}
+		assert.Equal(t, 1, d.addCache(m), "distinct kernel sequence must survive")
+		assert.Equal(t, 2, d.addCache(m), "exact copy must still be deduplicated")
+	}
+	for i := range 2 {
+		m := Message{Timestamp: now, SequenceNumber: i + 1, Message: "ordinary fault"}
+		assert.Equal(t, i+1, d.addCache(m), "other messages retain time-window deduplication")
+	}
+}
+
 func TestDeduper(t *testing.T) {
 	t.Run("new deduper should create cache with correct expiration", func(t *testing.T) {
 		d := newDeduper(5*time.Minute, 10*time.Minute)

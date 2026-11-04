@@ -6,7 +6,18 @@ import (
 	"strconv"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/kmsg"
 )
+
+const (
+	eventKeyRecoveryTimestamp = "recovery_timestamp"
+	eventKeyKmsgSequence      = "kmsg_sequence"
+)
+
+func isRecoveryMessage(message kmsg.Message) bool {
+	parsed := Match(message.Message)
+	return parsed != nil && parsed.Xid == 154
+}
 
 // RecoveryActionTransition preserves the driver-reported XID 154 transition.
 // Valid distinguishes a decoded None (zero) from missing or malformed guidance.
