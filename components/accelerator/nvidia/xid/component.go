@@ -77,7 +77,8 @@ type component struct {
 
 	// nvsSource is the optional NVSentinel event source. When set, the
 	// component prefers NVSentinel Xid data points and suppresses its own
-	// kmsg detection of the same data point.
+	// kmsg detection of the same data point, except for XID 154, which uses
+	// the native stream while it is running to preserve kernel ordering.
 	nvsSource      nvsentinel.Source
 	nvsDedupWindow time.Duration
 	nvsUnsubscribe func()
@@ -114,7 +115,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgWatcher, err = kmsg.NewWatcher()
+			c.kmsgWatcher, err = kmsg.NewWatcher(kmsg.WithExactDedupMatch(isRecoveryMessage))
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -123,7 +124,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		c.readAllKmsg = kmsg.ReadAll
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return kmsg.ReadAllWithOptions(ctx, kmsg.WithExactDedupMatch(isRecoveryMessage))
+		}
 	}
 
 	if gpudInstance.NVSentinel != nil && c.eventBucket != nil {
@@ -331,14 +334,44 @@ func (c *component) Check() components.CheckResult {
 
 	cr.reason = fmt.Sprintf("matched %d xid errors from %d kmsg(s)", len(cr.FoundErrors), len(kmsgs))
 
-	// only used for "gpud scan"
-	// if there are any critical errors, the health state will be unhealthy
-	cr.health = apiv1.HealthStateTypeHealthy
+	// Scan shares XID 154 recovery ownership with the durable consumer, while
+	// retaining its existing non-154 Critical/Fatal => Unhealthy policy.
+	var scanEvents eventstore.Events
+	nonRecoveryUnhealthy := false
 	for _, foundErr := range cr.FoundErrors {
-		if foundErr.Detail != nil && (foundErr.Detail.EventType == apiv1.EventTypeCritical || foundErr.Detail.EventType == apiv1.EventTypeFatal) {
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			break
+		xidValue, ok := uint64FromInt(foundErr.Xid)
+		if !ok {
+			continue
 		}
+		payload := xidErrorEventDetail{
+			DeviceUUID:     foundErr.DeviceUUID,
+			Xid:            xidValue,
+			RecoveryAction: foundErr.RecoveryAction,
+		}
+		if foundErr.Detail != nil {
+			payload.Description = foundErr.Detail.Description
+			payload.SubCode = foundErr.Detail.SubCode
+			payload.ErrorStatus = foundErr.Detail.ErrorStatus
+			payload.SuggestedActionsByGPUd = foundErr.Detail.SuggestedActionsByGPUd
+		}
+		raw, _ := json.Marshal(payload)
+		event := eventstore.Event{Time: foundErr.Kmsg.Timestamp.Time, Name: EventNameErrorXid, ExtraInfo: map[string]string{EventKeyErrorXidData: string(raw)}}
+		if foundErr.Detail != nil {
+			if foundErr.Xid != 154 && (foundErr.Detail.EventType == apiv1.EventTypeCritical || foundErr.Detail.EventType == apiv1.EventTypeFatal) {
+				nonRecoveryUnhealthy = true
+			}
+			event.Type = string(foundErr.Detail.EventType)
+		}
+		scanEvents = append(scanEvents, event)
+	}
+	state := evolveHealthyState(mergeEvents(nil, scanEvents), c.devices, GetDefaultRebootThreshold())
+	cr.health = state.Health
+	if nonRecoveryUnhealthy {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+	}
+	cr.suggestedActions = state.SuggestedActions
+	if len(scanEvents) > 0 {
+		cr.reason += "; " + state.Reason
 	}
 
 	return cr
@@ -458,12 +491,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedActions,
 	}
 	return apiv1.HealthStates{state}
 }
@@ -486,9 +520,21 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			if pending.event == nil {
 				continue
 			}
+			recoveryFromNVSentinel := pending.nvsEvent != nil && pending.xid == 154
+			// NVSentinel replays journal batches using processing timestamps.
+			// Prefer the native stream, including over copies queued before Start.
+			if recoveryFromNVSentinel && kmsgCh != nil {
+				continue
+			}
 			if err := c.eventBucket.Insert(c.ctx, *pending.event); err != nil {
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
+			}
+			if recoveryFromNVSentinel {
+				metricXIDErrs.With(prometheus.Labels{
+					"uuid": convertBusIDToUUID(pending.event.ExtraInfo[EventKeyDeviceUUID], c.devices),
+					"xid":  "154",
+				}).Inc()
 			}
 			// Coverage is reported only after the insert succeeds: a failed
 			// insert must never suppress native detection of this incident.
@@ -500,7 +546,12 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-		case message := <-kmsgCh:
+		case message, ok := <-kmsgCh:
+			if !ok {
+				// Resume NVSentinel delivery if the native reader exits.
+				kmsgCh = nil
+				continue
+			}
 			xidErr := Match(message.Message)
 			if xidErr == nil {
 				log.Logger.Debugw("not xid event, skip", "kmsg", message)
@@ -547,10 +598,11 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			}
 
 			xidPayload := xidErrorEventDetail{
-				Time:       metav1.NewTime(message.Timestamp.Time),
-				DataSource: "kmsg",
-				DeviceUUID: xidErr.DeviceUUID,
-				Xid:        xidValue,
+				Time:           metav1.NewTime(message.Timestamp.Time),
+				DataSource:     "kmsg",
+				DeviceUUID:     xidErr.DeviceUUID,
+				Xid:            xidValue,
+				RecoveryAction: xidErr.RecoveryAction,
 			}
 			if xidErr.Detail != nil {
 				xidPayload.SubCode = xidErr.Detail.SubCode
@@ -572,6 +624,12 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				ExtraInfo: map[string]string{
 					EventKeyDeviceUUID: xidErr.DeviceUUID,
 				},
+			}
+			if xidErr.Xid == 154 {
+				// Keep producer precision and identity through SQLite's seconds-only
+				// timestamp column, including repeated transitions within a second.
+				event.ExtraInfo[eventKeyRecoveryTimestamp] = message.Timestamp.Format(time.RFC3339Nano)
+				event.ExtraInfo[eventKeyKmsgSequence] = strconv.Itoa(message.SequenceNumber)
 			}
 			// IMPORTANT: Set event.Type from Match() result to preserve precise unit-based severity.
 			//
@@ -669,8 +727,15 @@ func mergeEvents(a, b eventstore.Events) eventstore.Events {
 	result := make(eventstore.Events, 0, totalLen)
 	result = append(result, a...)
 	result = append(result, b...)
+	for i := range result {
+		if raw := result[i].ExtraInfo[eventKeyRecoveryTimestamp]; raw != "" {
+			if ts, err := time.Parse(time.RFC3339Nano, raw); err == nil && ts.Unix() == result[i].Time.Unix() {
+				result[i].Time = ts
+			}
+		}
+	}
 
-	sort.Slice(result, func(i, j int) bool {
+	sort.SliceStable(result, func(i, j int) bool {
 		return result[i].Time.After(result[j].Time)
 	})
 

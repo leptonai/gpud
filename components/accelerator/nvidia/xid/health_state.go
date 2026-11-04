@@ -68,6 +68,10 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
+	var recovery recoveryAccumulator
+	defer func() {
+		ret = mergeRecoveryHealth(ret, recovery.health(devices))
+	}()
 	var lastSuggestedAction *apiv1.SuggestedActions
 	var lastXidErr *xidErrorEventDetail
 	lastHealth := healthStateHealthy
@@ -79,6 +83,10 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 			var currXidErr xidErrorEventDetail
 			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
+				continue
+			}
+			if currXidErr.Xid == 154 && currXidErr.RecoveryAction != nil {
+				recovery.update(currXidErr, resolvedEvent.Type, event.Time, devices)
 				continue
 			}
 
@@ -107,6 +115,7 @@ func evolveHealthyStateWithThresholds(events eventstore.Events, devices map[stri
 				lastSuggestedAction = currXidErr.SuggestedActionsByGPUd
 			}
 		} else if event.Name == "reboot" {
+			recovery.reboot()
 			// Clear the error state on reboot ONLY if:
 			// 1. lastSuggestedAction is not nil (XID must have SuggestedActionsByGPUd defined)
 			// 2. The first repair action is RebootSystem or CheckUserAppAndGPU
@@ -151,6 +160,14 @@ func (xidErr *xidErrorEventDetail) buildMessage(devices map[string]device.Device
 	// only 144-150 has subcode information
 	if xidErr.Xid >= 144 && xidErr.Xid <= 150 {
 		header = fmt.Sprintf("XID %d.%d (err status 0x%08x)", xidErr.Xid, xidErr.SubCode, xidErr.ErrorStatus)
+	}
+	if xidErr.Xid == 154 && xidErr.RecoveryAction != nil {
+		transition := xidErr.RecoveryAction
+		if transition.Valid {
+			header += fmt.Sprintf(" recovery action 0x%x (%s) -> 0x%x (%s)", transition.From, transition.FromName, transition.To, transition.ToName)
+		} else {
+			header += fmt.Sprintf(" malformed recovery action (%s)", transition.Raw)
+		}
 	}
 
 	xidCode, ok := intFromUint64(xidErr.Xid)
@@ -241,6 +258,12 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 	}
 
 	detail, ok := getDetailWithSubCodeAndStatus(xidCode, xidErr.SubCode, xidErr.ErrorStatus)
+	if xidCode == 154 && xidErr.RecoveryAction != nil {
+		// Producers store the classification. Use transition-specific details
+		// only to fill missing fields, as with the other XIDs below.
+		detail = recoveryDetail(xidErr.RecoveryAction)
+		ok = true
+	}
 	if !ok {
 		detail = nil
 	}
@@ -320,6 +343,8 @@ type xidErrorEventDetail struct {
 	// Xid is the corresponding Xid from the raw event.
 	// The monitoring component can use this Xid to decide its own action.
 	Xid uint64 `json:"xid"`
+
+	RecoveryAction *RecoveryActionTransition `json:"recovery_action,omitempty"`
 
 	// SubCode represents the NVLink sub-code extracted from intrinfo (bits 20-25).
 	SubCode int `json:"sub_code,omitempty"`

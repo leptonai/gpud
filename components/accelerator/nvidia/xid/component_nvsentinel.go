@@ -36,6 +36,7 @@ const (
 type pendingEvent struct {
 	event    *eventstore.Event
 	nvsEvent *nvsentinel.HealthEvent
+	xid      int
 }
 
 // watchNVSentinel subscribes the component to the NVSentinel event source
@@ -72,20 +73,19 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	// A healthy event does not carry a new data point for this component.
-	// GPUd heals its xid state through the lookback window and reboot
-	// tracking, so the event is logged and skipped.
+	// NVSentinel sends the raw XID 154 -> None report as an unhealthy event
+	// with code 154. Healthy recovery/cancellation events carry no new XID.
 	if ev.IsHealthy {
 		log.Logger.Debugw("skipping healthy nvsentinel event", "checkName", ev.CheckName)
 		return
 	}
-
 	xidNum, deviceUUID, ok := c.matchNVSentinelXid(ev)
 	if !ok {
 		return
 	}
 
-	// The NVSentinel verdict drives the GPUd event severity.
+	// The NVSentinel verdict drives severity except for XID 154, whose
+	// numeric driver recovery guidance owns both severity and actions.
 	// isFatal → Fatal. Unhealthy and not fatal → Critical.
 	// The GPUd catalog enriches the description and repair actions at
 	// read time regardless of severity.
@@ -114,7 +114,13 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 	if actions := ev.SuggestedRepairActions(); len(actions) > 0 {
 		payload.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: actions}
 	}
-
+	if xidNum == 154 {
+		payload.RecoveryAction = parseRecoveryAction(ev.Message)
+		detail := recoveryDetail(payload.RecoveryAction)
+		payload.Description = detail.Description
+		payload.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
+		eventType = string(detail.EventType)
+	}
 	rawPayload, err := json.Marshal(payload)
 	if err != nil {
 		log.Logger.Errorw("failed to marshal nvsentinel xid payload", "error", err)
@@ -133,6 +139,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 			EventKeyNVSentinelEventID:   ev.ID,
 		},
 	}
+	if xidNum == 154 {
+		event.ExtraInfo[eventKeyRecoveryTimestamp] = ev.GeneratedTimestamp.Format(time.RFC3339Nano)
+	}
 
 	// When GPUd's kmsg detection won the delivery race, its copy is
 	// already in the bucket. Skip this NVSentinel copy so the incident
@@ -149,15 +158,18 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 
 	// Count NVSentinel-delivered Xid errors the same as kmsg-detected ones,
 	// so the metric keeps meaning "Xid occurred on this node".
-	metricXIDErrs.With(prometheus.Labels{
-		"uuid": convertBusIDToUUID(deviceUUID, c.devices),
-		"xid":  strconv.Itoa(xidNum),
-	}).Inc()
+	// Recovery reports are counted after the event loop selects the producer.
+	if xidNum != 154 {
+		metricXIDErrs.With(prometheus.Labels{
+			"uuid": convertBusIDToUUID(deviceUUID, c.devices),
+			"xid":  strconv.Itoa(xidNum),
+		}).Inc()
+	}
 
 	// Coverage is reported by the start loop only after the bucket insert
 	// succeeds. Until then the kmsg path stays free to store its own copy.
 	select {
-	case c.extraEventCh <- pendingEvent{event: event, nvsEvent: &ev}:
+	case c.extraEventCh <- pendingEvent{event: event, nvsEvent: &ev, xid: xidNum}:
 	case <-c.ctx.Done():
 	}
 }
@@ -215,11 +227,14 @@ func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 	if c.nvsSource == nil || xidErr == nil {
 		return false
 	}
-
-	deviceUUID := xidErr.DeviceUUID
-	if uuid := convertBusIDToUUID(deviceUUID, c.devices); uuid != "" {
-		deviceUUID = uuid
+	// XID 154 changes state: A -> None -> A can recur within the window.
+	// Coverage has no shared occurrence ID or kernel ordering, so it cannot
+	// prove that a matching transition is a duplicate. Retain the evidence.
+	if xidErr.Xid == 154 {
+		return false
 	}
+
+	deviceUUID := xidDeviceKey(xidErr.DeviceUUID, c.devices)
 
 	return c.nvsSource.Covers(c.nvsDedupWindow, func(ev nvsentinel.HealthEvent) bool {
 		// A healthy event carries no new data point: it must never
@@ -236,7 +251,7 @@ func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 		// copy unless the two sides name different devices — then they
 		// describe distinct incidents on different GPUs.
 		if deviceUUID != "" && evUUID != "" {
-			return deviceUUID == evUUID
+			return deviceUUID == xidDeviceKey(evUUID, c.devices)
 		}
 		return true
 	})
@@ -246,6 +261,12 @@ func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 // the same Xid data point within the dedup window around ts. It handles
 // both the JSON payload format and the legacy plain-number format.
 func (c *component) hasStoredXidTwin(xidNum int, deviceUUID string, ts time.Time) bool {
+	// A matching XID 154 transition may be a new occurrence after recovery,
+	// including while intervening events are still queued for insertion.
+	if xidNum == 154 {
+		return false
+	}
+	deviceUUID = xidDeviceKey(deviceUUID, c.devices)
 	ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 	events, err := c.eventBucket.Get(ctx, ts.Add(-c.nvsDedupWindow))
 	cancel()
@@ -268,7 +289,7 @@ func (c *component) hasStoredXidTwin(xidNum int, deviceUUID string, ts time.Time
 		if err := json.Unmarshal([]byte(raw), &detail); err == nil {
 			storedXid, ok := intFromUint64(detail.Xid)
 			if ok && storedXid == xidNum {
-				if deviceUUID == "" || detail.DeviceUUID == "" || detail.DeviceUUID == deviceUUID {
+				if deviceUUID == "" || detail.DeviceUUID == "" || xidDeviceKey(detail.DeviceUUID, c.devices) == deviceUUID {
 					return true
 				}
 			}
@@ -278,7 +299,7 @@ func (c *component) hasStoredXidTwin(xidNum int, deviceUUID string, ts time.Time
 		if legacyXid, err := strconv.Atoi(raw); err == nil && legacyXid == xidNum {
 			// Legacy events carry the device UUID in the device_uuid key.
 			storedUUID := stored.ExtraInfo[EventKeyDeviceUUID]
-			if deviceUUID == "" || storedUUID == "" || storedUUID == deviceUUID {
+			if deviceUUID == "" || storedUUID == "" || xidDeviceKey(storedUUID, c.devices) == deviceUUID {
 				return true
 			}
 		}

@@ -192,9 +192,10 @@ func calculateSubCode(intrinfo uint32) int {
 
 // Error describes a parsed XID kernel message.
 type Error struct {
-	Xid        int     `json:"xid"`
-	DeviceUUID string  `json:"device_uuid"`
-	Detail     *Detail `json:"detail,omitempty"`
+	Xid            int                       `json:"xid"`
+	DeviceUUID     string                    `json:"device_uuid"`
+	Detail         *Detail                   `json:"detail,omitempty"`
+	RecoveryAction *RecoveryActionTransition `json:"recovery_action,omitempty"`
 }
 
 // Match returns a matching xid error object if found.
@@ -220,10 +221,16 @@ func Match(line string) *Error {
 		if !ok {
 			return nil
 		}
+		var recoveryAction *RecoveryActionTransition
+		if extractedID == 154 {
+			recoveryAction = parseRecoveryAction(line)
+			detail = recoveryDetail(recoveryAction)
+		}
 		return &Error{
-			Xid:        extractedID,
-			DeviceUUID: deviceUUID,
-			Detail:     detail,
+			Xid:            extractedID,
+			DeviceUUID:     deviceUUID,
+			Detail:         detail,
+			RecoveryAction: recoveryAction,
 		}
 	}
 
@@ -307,5 +314,9 @@ var xidExampleMsgs = map[int]MessageToInject{
 	79: {
 		Priority: "KERN_ERR",
 		Message:  "NVRM: Xid (PCI:0000:04:00): 79, GPU has fallen off the bus",
+	},
+	154: {
+		Priority: "KERN_WARNING",
+		Message:  "NVRM: Xid (PCI:0000:01:00): 154, GPU recovery action changed from 0x0 (None) to 0x2 (Node Reboot Required)",
 	},
 }

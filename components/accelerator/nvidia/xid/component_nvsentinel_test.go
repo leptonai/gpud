@@ -271,6 +271,7 @@ func TestNVSentinelEventSkippedWhenGPUdTwinStored(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
 }
+
 func TestHasStoredXidTwinJSONFormat(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
@@ -426,6 +427,7 @@ func TestNVSentinelXidUnknownCodeEvent(t *testing.T) {
 	assert.Equal(t, uint64(9999), detail.Xid)
 	assert.Equal(t, "GPU-xyz", detail.DeviceUUID)
 }
+
 func TestNVSentinelXidNonMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
@@ -461,6 +463,7 @@ func TestNVSentinelXidCoversNilError(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, src)
 	assert.False(t, c.nvsentinelCoversXid(nil))
 }
+
 func TestNVSentinelXidCoversMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
@@ -536,6 +539,7 @@ func TestNVSentinelXidDefaultDedupWindowFallback(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, nvsentinel.DefaultEventDedupWindow, c.nvsDedupWindow)
 }
+
 func TestMatchNVSentinelXidRowRemappingDiscard(t *testing.T) {
 	// Xid 63/64 are discarded in favor of the remapped-rows component when
 	// the platform supports row remapping.
@@ -632,8 +636,11 @@ func TestNVSentinelEventsProcessedWithoutKmsgWatcher(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
-	// No kmsgWatcher (zero value): this is the non-root / no-kmsg case.
-	require.Nil(t, c.kmsgWatcher)
+	// Linux may initialize a watcher; explicitly exercise the NVSentinel-only path.
+	if c.kmsgWatcher != nil {
+		require.NoError(t, c.kmsgWatcher.Close())
+		c.kmsgWatcher = nil
+	}
 	require.NoError(t, c.Start())
 
 	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))

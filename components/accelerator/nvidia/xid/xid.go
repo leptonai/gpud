@@ -36,8 +36,9 @@ type Detail struct {
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 
 	// EventType is the type of the event.
-	// The xid component health state is set to "Unhealthy"
-	// if this event type is "Critical" or "Fatal".
+	// The durable consumer maps Fatal to Unhealthy and Critical to Degraded.
+	// Scan maps non-154 Critical and Fatal to Unhealthy; XID 154 uses the
+	// durable recovery policy in both paths.
 	EventType apiv1.EventType `json:"event_type"`
 }
 

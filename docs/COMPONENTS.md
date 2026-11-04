@@ -33,6 +33,75 @@
 - [**`pci`**](https://pkg.go.dev/github.com/leptonai/gpud/components/pci): Tracks the PCI devices and their Access Control Services (ACS) status.
 - [**`tailscale`**](https://pkg.go.dev/github.com/leptonai/gpud/components/tailscale): Tracks the tailscale state (e.g., version) if available.
 
+## XID 154 recovery guidance
+
+XID 154 supplements the originating fault. GPUd preserves the numeric recovery-action
+transition and the driver-printed names in scan output and persisted event payloads.
+Policy uses the numeric destination, not words such as `Reboot` in a printed name.
+The XID component reports suggested actions; this change adds no automatic repairs.
+
+| Destination | GPUd health | Suggested action and preconditions |
+| --- | --- | --- |
+| `0x0` None | Healthy for this recovery report | No new repair. Retain independently actionable originating faults. |
+| `0x1` GPU Reset Required (R610 PF FLR) | Unhealthy | Terminate GPU processes before reset. GPUd uses its existing system-reboot recommendation for GPU-reset conditions. |
+| `0x2` Node Reboot Required (R610 OS Reboot) | Unhealthy | Reboot the node before restarting applications. A warm reboot is sufficient. |
+| `0x3` Drain P2P | Degraded | Stop new scheduling, quiesce P2P traffic and UVM persistence, then re-query recovery guidance. Reset only if Drain P2P remains. No blind reboot. |
+| `0x4` Drain and Reset | Healthy for this recovery report | Keep the drain/checkpoint guidance as evidence. The remapped-rows component owns pending-remap reboot and remapping-failure decisions. |
+| `0x5` Recover IMEX Domain | Degraded | Operator investigation and coordinated recovery of the multi-node IMEX domain. No inferred local reboot or hardware failure. |
+| `0x6` Bus Reset | Unhealthy | Reboot the node before restarting GPU applications. |
+| `0x7` System Reboot | Unhealthy | Reboot the node before restarting GPU applications. |
+| Unknown or malformed | Degraded | Investigate the originating XIDs and driver guidance. No guessed reboot. |
+| Legacy event without transition data | Preserve stored severity | Keep the original description and actions. Older native Warning/no-action events remain informational. |
+
+The latest recognized XID 154 governs only its GPU's recovery guidance. A later
+None report retires that GPU's recovery recommendation. Other GPUs and originating
+faults remain independent. Unknown or malformed reports cannot replace a known
+request; their evidence remains in the Events API. A reboot clears all active
+recovery guidance because the driver starts with a fresh recovery state.
+
+The event store's timestamp column has one-second precision. XID 154 also stores
+the full producer timestamp and uses it when ordering recovery transitions.
+For tied timestamps, including older records, a report whose numeric `From`
+matches the current `To` advances the transition chain. This lets a matching None
+retire a request within the same second. Missing timestamps or unmatched ties
+retain the stronger request; a later None or reboot clears it.
+
+While the native kmsg stream is running, GPUd drops NVSentinel's XID 154 copies
+before storage or metric counting. NVSentinel stamps journal batches with
+processing time, so replaying them could revive recovery requests already cleared
+by the native stream. NVSentinel supplies XID 154 when no native stream is running,
+including after the native channel closes. Its timestamp orders its own reports;
+it does not establish kernel order across producers.
+
+XID 154 bypasses NVSentinel's time-window deduplication. Native collection and scan
+deduplicate these reports by exact kernel timestamp, sequence number, and text,
+so request → None → request survives even within one second. Identical reports
+do not escalate health or count toward hardware inspection. Other XIDs retain
+their existing deduplication window, with PCI IDs normalized to GPU UUIDs when
+NVML provides the mapping.
+
+One recovery report is sufficient to recommend an action. XID 154 never escalates
+to hardware inspection, including after repeated reboots or with a threshold
+override. It reports recovery guidance and cannot diagnose hardware failure.
+Originating XIDs retain their existing reboot thresholds and precedence.
+
+The reboot executor must enforce a per-node reboot budget and stop automatic
+retries for operator investigation when the same request recurs after recovery.
+A cooldown limits the rate but does not permanently break a deterministic
+driver/kernel reboot loop. GPUd keeps reporting the driver's request; this
+component does not enforce an executor budget or diagnose repeated requests as
+hardware failures.
+
+When combining originating faults with recovery guidance, GPUd selects health and
+actions together: higher health severity wins, then repair priority breaks a tie.
+Both reasons remain visible. Producers persist the classification; reading events
+fills missing details without replacing stored severity, descriptions, or actions.
+
+Sources: [NVIDIA XID catalog](https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html)
+and [NVIDIA GPU Recovery Action guidance](https://docs.nvidia.com/deploy/nvidia-smi/index.html#gpu-recovery-action).
+The R610 mappings also follow [NVSentinel's XID 154 parser](https://github.com/NVIDIA/NVSentinel/blob/1b15313777c71bd06657e4f6350f2e16756fb4db/health-monitors/syslog-health-monitor/pkg/xid/parser/csv.go).
+
+
 ## NFS health policy
 
 GPUd reports unresolved NFS server warnings, lock-reclaim failures, and repeated

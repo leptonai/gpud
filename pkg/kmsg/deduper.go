@@ -20,6 +20,7 @@ type Op struct {
 	cacheKeyTruncateSeconds int
 	disableDedup            bool
 	eventDedupWindowFunc    EventDedupWindowFunc
+	exactDedupMatch         func(Message) bool
 }
 
 type OpOption func(*Op)
@@ -55,6 +56,15 @@ func WithEventDedupWindowFunc(fn EventDedupWindowFunc) OpOption {
 	}
 }
 
+// WithExactDedupMatch preserves distinct occurrences of state transitions that
+// may repeat within a time window. Matching messages use their kernel timestamp
+// and sequence number instead of a rounded timestamp for deduplication.
+func WithExactDedupMatch(match func(Message) bool) OpOption {
+	return func(op *Op) {
+		op.exactDedupMatch = match
+	}
+}
+
 func (m Message) cacheKey() string {
 	return m.cacheKeyWithTruncateSeconds(defaultCacheKeyTruncateSeconds)
 }
@@ -76,6 +86,7 @@ func (m Message) cacheKeyWithTruncateSeconds(truncateSeconds int) string {
 type deduper struct {
 	cache                   *cache.Cache
 	cacheKeyTruncateSeconds int
+	exactDedupMatch         func(Message) bool
 }
 
 type windowEntry struct {
@@ -98,6 +109,7 @@ func newDeduper(cacheExpiration time.Duration, cachePurgeInterval time.Duration,
 	return &deduper{
 		cache:                   cache.New(cacheExpiration, cachePurgeInterval),
 		cacheKeyTruncateSeconds: op.cacheKeyTruncateSeconds,
+		exactDedupMatch:         op.exactDedupMatch,
 	}
 }
 
@@ -114,6 +126,9 @@ func (d *deduper) addCache(m Message) int {
 // underlying cache instance.
 func (d *deduper) addCacheWithWindow(m Message, truncateSeconds int, expiration time.Duration) int {
 	k := m.cacheKeyWithTruncateSeconds(truncateSeconds)
+	if d.exactDedupMatch != nil && d.exactDedupMatch(m) {
+		k = fmt.Sprintf("exact-%d-%d-%s", m.Timestamp.UnixNano(), m.SequenceNumber, m.Message)
+	}
 
 	var freq int
 	cur, found := d.cache.Get(k)
