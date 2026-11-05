@@ -42,6 +42,10 @@ func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeC
 	}
 }
 
+func (d *MockDevice) GetAddressingModeAsString() (string, error) {
+	return "", nvml.ERROR_NOT_SUPPORTED
+}
+
 func (d *MockDevice) GetArchitectureAsString() (string, error) {
 	return d.Architecture, nil
 }

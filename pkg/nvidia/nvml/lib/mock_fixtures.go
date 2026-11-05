@@ -170,7 +170,7 @@ var hasNvmlPropertyExtractor = &nvinfo.PropertyExtractorMock{
 	HasTegraFilesFunc: func() (bool, string) {
 		return false, ""
 	},
-	UsesOnlyNVGPUModuleFunc: func() (bool, string) {
+	HasAnIntegratedGPUFunc: func() (bool, string) {
 		return false, ""
 	},
 }

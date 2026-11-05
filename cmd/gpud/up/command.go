@@ -129,10 +129,10 @@ func Command(cliContext *cli.Context) (retErr error) {
 	// only the server's runtime database respects the --db-in-memory flag.
 	//
 	// IMPORTANT: The --token flag is NEVER written to the env file.
-	// The env file only contains: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
+	// The env file contains runtime options, including the experimental collector flag.
 	// Session credentials are stored in the persistent state file, not the systemd env file.
 
-	if err := systemdInit(endpoint, dataDir, dbInMemory, cliContext.String("session-protocol")); err != nil {
+	if err := systemdInit(endpoint, dataDir, dbInMemory, cliContext.Bool("experimental-health-validation"), cliContext.String("session-protocol")); err != nil {
 		return err
 	}
 	log.Logger.Debugw("successfully started systemd init")
@@ -180,11 +180,11 @@ func recordLoginSuccessState(ctx context.Context, dataDir string) error {
 	return nil
 }
 
-func systemdInit(endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+func systemdInit(endpoint string, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 	// Always create/overwrite env file (consistent with v0.8.0 behavior).
 	// IMPORTANT: The --token flag is NEVER written to the env file.
-	// Only runtime configuration flags are written: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
-	if err := systemd.CreateDefaultEnvFile(endpoint, dataDir, dbInMemory, sessionProtocol...); err != nil {
+	// Runtime options include the selected collector mode.
+	if err := systemd.CreateDefaultEnvFile(endpoint, dataDir, dbInMemory, experimentalHealthValidation, sessionProtocol...); err != nil {
 		return err
 	}
 	systemdUnitFileData := systemd.GPUdServiceUnitFileContents()

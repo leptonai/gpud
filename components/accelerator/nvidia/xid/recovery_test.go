@@ -14,7 +14,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
 	"github.com/leptonai/gpud/pkg/nvsentinel/nvsentineltest"
 )
@@ -135,10 +134,10 @@ func TestRecoveryRebootCycles(t *testing.T) {
 // This does not execute any GPU repair or write to a host kernel log.
 func TestRecoveryProducerEventStoreHealth(t *testing.T) {
 	c, _ := newTestComponentWithNVSentinel(t, nil)
-	ch := make(chan kmsg.Message, 1)
-	go c.start(ch, time.Hour)
+	ch := make(chan apiv1.KernelMessage, 1)
+	go c.startKernelTest(ch, time.Hour)
 	now := time.Now().UTC()
-	ch <- kmsg.Message{Timestamp: metav1.NewTime(now), Message: GetMessageToInject(154).Message}
+	ch <- apiv1.KernelMessage{Timestamp: metav1.NewTime(now), Message: GetMessageToInject(154).Message}
 	require.Eventually(t, func() bool {
 		states := c.LastHealthStates()
 		return len(states) == 1 && states[0].Health == apiv1.HealthStateTypeUnhealthy
@@ -205,9 +204,9 @@ func TestRecoveryScan(t *testing.T) {
 		{"0x7 (System Reboot)", apiv1.HealthStateTypeUnhealthy},
 		{"0x0 (None)", apiv1.HealthStateTypeHealthy},
 	} {
-		c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
-			return []kmsg.Message{{Timestamp: metav1.NewTime(time.Now()), Message: recoveryLine("0000:01:00", tc.to)}}, nil
-		}
+		c.readAllKmsg = kernelReaderForTest(func(context.Context) ([]apiv1.KernelMessage, error) {
+			return []apiv1.KernelMessage{{Timestamp: metav1.NewTime(time.Now()), Message: recoveryLine("0000:01:00", tc.to)}}, nil
+		})
 		result := c.Check()
 		assert.Equal(t, tc.health, result.HealthStateType())
 		assert.Equal(t, tc.health, result.HealthStates()[0].Health)
@@ -236,12 +235,12 @@ func TestRecoveryScanNoneDoesNotClearOriginalFault(t *testing.T) {
 	t.Cleanup(func() { _ = comp.Close() })
 	c := mustComponent(t, comp)
 	now := time.Now()
-	c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
-		return []kmsg.Message{
+	c.readAllKmsg = kernelReaderForTest(func(context.Context) ([]apiv1.KernelMessage, error) {
+		return []apiv1.KernelMessage{
 			{Timestamp: metav1.NewTime(now), Message: "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus"},
 			{Timestamp: metav1.NewTime(now.Add(time.Second)), Message: recoveryLine("0000:01:00", "0x0 (None)")},
 		}, nil
-	}
+	})
 	result := c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "XID 79")

@@ -62,7 +62,7 @@ func TestNewComponent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(&components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{ExperimentalHealthValidation: true,
 		RootCtx:    ctx,
 		EventStore: store,
 		MachineID:  "test-machine",
@@ -83,7 +83,7 @@ func TestNewComponentDefaultFunctionFields(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	comp, err := newComponent(&components.GPUdInstance{
+	comp, err := newComponent(&components.GPUdInstance{ExperimentalHealthValidation: true,
 		RootCtx:   ctx,
 		MachineID: "test-machine",
 	}, "darwin", os.Geteuid(), nil)
@@ -755,7 +755,7 @@ func TestComponentWithRealData(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(&components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{ExperimentalHealthValidation: true,
 		RootCtx:    ctx,
 		EventStore: store,
 		MachineID:  "test-machine",
