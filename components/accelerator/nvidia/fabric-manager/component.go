@@ -107,6 +107,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
+	"github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 const (
@@ -192,7 +193,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkFMActiveFunc: checkFMActive,
 
 		// Enable testing mode when failure injection is configured (e.g., --gpu-product-name override).
-		// This allows testing fabric state injection on single-GPU systems.
+		// External rack fabrics also do not depend on the number of local GPUs.
 		testingMode: gpudInstance.FailureInjector != nil && gpudInstance.FailureInjector.GPUProductNameOverride != "",
 	}
 
@@ -336,11 +337,11 @@ func (c *component) Check() components.CheckResult {
 	//      - FabricStateSupported() returns false because PCIe cards don't have NVSwitch fabric
 	//      - WORKAROUND: Use --gpu-product-name="NVIDIA H100 80GB HBM3" to simulate SXM variant
 	//
-	//   2. Non-Hopper/GB200 GPUs (A100, V100, etc.):
-	//      - FabricStateSupported() returns false; only H100-SXM, H200-SXM, GB200 are supported
+	//   2. GPUs without fabric telemetry (A100, V100, etc.):
+	//      - FabricStateSupported() returns false; Hopper SXM and Blackwell NVSwitch products are supported
 	//      - WORKAROUND: Use --gpu-product-name="NVIDIA H100 80GB HBM3" to simulate H100-SXM
 	//
-	//   3. Single-GPU systems (count < 2):
+	//   3. Single-GPU systems without an external rack fabric (count < 2):
 	//      - In production, we skip the check because NVLink fabric requires multiple GPUs
 	//      - WORKAROUND: Using --gpu-product-name enables "testing mode" which bypasses this check
 	//
@@ -361,8 +362,9 @@ func (c *component) Check() components.CheckResult {
 		cr.FabricStateSupported = true
 
 		// Skip the GPU count check in testing mode (when --gpu-product-name is used).
-		// This allows testing fabric state injection on single-GPU systems.
-		if !c.testingMode && c.getCountLspci != nil {
+		// External rack fabrics also do not depend on the number of local GPUs.
+		externalFabric := product.HasExternalFabricByGPUProduct(c.nvmlInstance.ProductName())
+		if !c.testingMode && !externalFabric && c.getCountLspci != nil {
 			count, err := c.getCountLspci(c.ctx)
 			if err != nil {
 				log.Logger.Warnw("failed to count GPUs via lspci for fabric check", "error", err)
@@ -384,7 +386,9 @@ func (c *component) Check() components.CheckResult {
 		// This check must happen BEFORE collectFabricState() to avoid false unhealthy reports.
 		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
 		// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
-		if !c.testingMode && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+		// Rack switches are external to the compute node; local PCI visibility
+		// must not suppress NVML telemetry for GB200/GB300 NVL72.
+		if !c.testingMode && !externalFabric && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
 			log.Logger.Infow("skipping fabric state check because NVSwitch not detected")
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = c.nvmlInstance.ProductName() + ": NVSwitch not detected, skipping fabric state check"

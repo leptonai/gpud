@@ -2,135 +2,77 @@ package product
 
 import "strings"
 
-var (
-	// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#supported-gpus
-	memMgmtCapAllSupported = MemoryErrorManagementCapabilities{
-		ErrorContainment:     true,
-		DynamicPageOfflining: true,
-		RowRemapping:         true,
-	}
-	memMgmtCapOnlyRowRemappingSupported = MemoryErrorManagementCapabilities{
-		RowRemapping: true,
-	}
-	gpuProductToMemMgmtCaps = map[string]MemoryErrorManagementCapabilities{
-		"a100":  memMgmtCapAllSupported,
-		"b100":  memMgmtCapAllSupported,
-		"b200":  memMgmtCapAllSupported,
-		"gb200": memMgmtCapAllSupported,
-		"h100":  memMgmtCapAllSupported,
-		"h200":  memMgmtCapAllSupported,
-		"a10":   memMgmtCapOnlyRowRemappingSupported,
-	}
+type capabilities struct {
+	memoryManagement MemoryErrorManagementCapabilities
+	fabricManager    bool
+	fabricState      bool
+	externalFabric   bool
+}
 
-	gpuProductToFMSupported = map[string]bool{
-		"a100": true,
-		"b100": true,
-		"b200": true,
-		// GB200 compute nodes rely on NVOS-managed fabric services that run on
-		// NVLink Switch Trays, while the nodes themselves run NVSM. The traditional
-		// nv-fabricmanager daemon (port 6666) never starts on the compute nodes and
-		// returns NV_WARN_NOTHING_TO_DO because no NVSwitch kernel devices exist.
-		// See NVIDIA NVOS, NMX Controller, and NVSM documentation referenced in the
-		// reverted GB200 NVOS monitoring commit for architectural details. Since
-		// SupportedFMByGPUProduct tracks support for the on-node nv-fabricmanager
-		// service only, we explicitly report GB200 as unsupported here.
-		"gb200": false,
-		// GH200 (Grace Hopper Superchip) uses NVLink-C2C for internal CPU-GPU connection.
-		// NVSwitch is only used in large-scale DGX GH200 configurations (up to 256 nodes).
-		// Standalone GH200 systems do not have NVSwitch and do not need fabric manager.
-		// Since we cannot determine NVSwitch presence from product name alone, we return
-		// false here and let component-level NVSwitch detection (via lspci) handle it.
-		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
-		// Ref: https://www.nvidia.com/en-in/data-center/dgx-gh200/
-		"gh200": false,
-		"h100":  true,
-		"h200":  true,
-		"a10":   false,
+// Keep memory recovery, fabric telemetry, and management topology in one
+// product registry so additions can be reviewed and tested together.
+// Memory features: https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/latest/supported-gpus.html
+// HGX/DGX fabric: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
+// Rack fabric: https://docs.nvidia.com/dgx/dgxgb200-user-guide/software.html
+var (
+	memMgmtCapAllSupported = MemoryErrorManagementCapabilities{
+		ErrorContainment: true, DynamicPageOfflining: true, RowRemapping: true,
+	}
+	gpuProductCapabilities = map[string]capabilities{
+		"a10":  {memoryManagement: MemoryErrorManagementCapabilities{RowRemapping: true}},
+		"a100": {memoryManagement: memMgmtCapAllSupported, fabricManager: true},
+		"h100": {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
+		"h200": {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
+		// Preserve memory support without treating standalone Grace Hopper as HGX H200.
+		"gh200": {memoryManagement: memMgmtCapAllSupported},
+		"b100":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
+		"b200":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
+		"b300":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
+		// NVL72 fabric services run on switch trays, not on compute nodes.
+		"gb200": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabric: true},
+		"gb300": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabric: true},
 	}
 )
 
-// SupportedFMByGPUProduct returns the GPU fabric manager support status
-// based on the GPU product name. This only reflects the legacy nv-fabricmanager
-// daemon that listens on port 6666 on compute nodes and does not cover NVOS/
-// NVSM-based fabric state telemetry available on newer systems like GB200.
+func capabilitiesByGPUProduct(gpuProductName string) capabilities {
+	p := strings.ToLower(gpuProductName)
+	longestName := ""
+	var caps capabilities
+	for name, candidate := range gpuProductCapabilities {
+		if len(name) > len(longestName) && strings.Contains(p, name) {
+			longestName, caps = name, candidate
+		}
+	}
+	// PCIe variants retain memory recovery but do not use NVSwitch fabrics.
+	if strings.Contains(p, "pcie") {
+		caps.fabricManager, caps.fabricState, caps.externalFabric = false, false, false
+	}
+	return caps
+}
+
+// SupportedFMByGPUProduct reports support for the on-node nv-fabricmanager
+// daemon. This is separate from NVML fabric telemetry on NVOS-managed racks.
 func SupportedFMByGPUProduct(gpuProductName string) bool {
-	p := strings.ToLower(gpuProductName)
-	// PCIe variants of H100/H200 do not use NVSwitches and thus do not require/support
-	// the NVIDIA Fabric Manager, which is designed for NVSwitch systems (e.g., HGX/DGX SXM).
-	// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
-	// "The NVIDIA Fabric Manager for NVSwitch Systems User Guide"
-	if strings.Contains(p, "pcie") {
-		return false
-	}
-	longestName, supported := "", false
-	for k, v := range gpuProductToFMSupported {
-		if !strings.Contains(p, k) {
-			continue
-		}
-		if len(longestName) < len(k) {
-			longestName = k
-			supported = v
-		}
-	}
-	return supported
+	return capabilitiesByGPUProduct(gpuProductName).fabricManager
 }
 
-// SupportFabricStateByGPUProduct reports whether the GPU surface exposes NVML
-// fabric state telemetry (nvmlDeviceGetGpuFabricInfo*). This is available on
-// Hopper + NVSwitch systems (e.g., H100, H200) where GPUs are registered with NVIDIA
-// Fabric Manager, as well as on newer NVOS-managed systems like GB200.
-//
-// The nvmlDeviceGetGpuFabricInfo API is specifically designed for Hopper architecture GPUs
-// with NVSwitch, allowing monitoring of GPU registration status with the NVLink fabric.
-// GPU fabric registration status is exposed through the NVML APIs and nvidia-smi.
-//
-// References:
-//   - NVML API: https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html
-//     "On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
-//     This API reports the current state of the GPU in the NVLink fabric."
-//   - Fabric Manager Guide: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
-//     Documents H100/H200 fabric state monitoring and registration process
+// SupportFabricStateByGPUProduct reports support for NVML GPU fabric telemetry.
 func SupportFabricStateByGPUProduct(gpuProductName string) bool {
-	p := strings.ToLower(gpuProductName)
-	// PCIe variants of H100/H200 do not use NVSwitches and thus do not support
-	// the fabric state API, which queries NVSwitch fabric registration status.
-	// Calling this API on PCIe cards returns "Not Supported".
-	// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
-	if strings.Contains(p, "pcie") {
-		return false
-	}
-	// GH200 (Grace Hopper Superchip) fabric state support depends on NVSwitch presence.
-	// - Standalone GH200: Uses NVLink-C2C for CPU-GPU, NO NVSwitch, fabric state returns "Not Supported"
-	// - DGX GH200: Uses NVLink Switch System for multi-node GPU-GPU, HAS NVSwitch
-	// Since we cannot determine NVSwitch presence from product name alone, we return false
-	// here and let component-level NVSwitch detection (via lspci) handle it.
-	// IMPORTANT: This check must come BEFORE the "h200" check because "gh200" contains "h200".
-	// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
-	// Ref: https://www.nvidia.com/en-in/data-center/dgx-gh200/
-	if strings.Contains(p, "gh200") {
-		return false
-	}
-	return strings.Contains(p, "gb200") ||
-		strings.Contains(p, "h100") ||
-		strings.Contains(p, "h200")
+	return capabilitiesByGPUProduct(gpuProductName).fabricState
 }
 
-// SupportedMemoryMgmtCapsByGPUProduct returns the GPU memory error management capabilities
-// based on the GPU product name.
-// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#supported-gpus
+// HasExternalFabricByGPUProduct reports whether fabric switches and management
+// reside outside the compute node, so local PCI enumeration is not a prerequisite
+// for querying NVML fabric telemetry.
+func HasExternalFabricByGPUProduct(gpuProductName string) bool {
+	return capabilitiesByGPUProduct(gpuProductName).externalFabric
+}
+
+// SupportedMemoryMgmtCapsByGPUProduct returns memory error management capabilities.
+// Product policy is intentional: some unsupported GPUs return successful NVML
+// remapped-row queries, so API success alone is not sufficient feature detection.
 func SupportedMemoryMgmtCapsByGPUProduct(gpuProductName string) MemoryErrorManagementCapabilities {
-	p := strings.ToLower(gpuProductName)
-	longestName, memCaps := "", MemoryErrorManagementCapabilities{}
-	for k, v := range gpuProductToMemMgmtCaps {
-		if !strings.Contains(p, k) {
-			continue
-		}
-		if len(longestName) < len(k) {
-			longestName = k
-			memCaps = v
-		}
-	}
-	return memCaps
+	return capabilitiesByGPUProduct(gpuProductName).memoryManagement
 }
 
 // Contains information about the GPU's memory error management capabilities.
