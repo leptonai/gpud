@@ -19,6 +19,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/fabric"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -54,6 +55,7 @@ type component struct {
 	eventBucket              eventstore.Bucket
 	kmsgSyncer               *kmsg.Syncer
 	readAllKmsg              func(context.Context) ([]kmsg.Message, error)
+	fabricRegistration       fabric.Registration
 
 	lastMu               sync.RWMutex
 	lastCheckResult      *checkResult
@@ -114,6 +116,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 	if gpudInstance.EventStore == nil && runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		c.readAllKmsg = kmsg.ReadAll
+	}
+	if err := c.fabricRegistration.Open(c.ctx, gpudInstance.DBRW, Name, pkghost.BootID()); err != nil {
+		_ = c.Close()
+		return nil, err
 	}
 	return c, nil
 }
@@ -308,6 +314,12 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
+	var fabricReport *fabric.Report
+	if len(devs) > 1 && c.nvmlInstance.FabricStateSupported() {
+		report := fabric.Collect(devs)
+		fabricReport = &report
+		cr.FabricStates = report.Entries
+	}
 	// Only expect NVLink by default on multi-GPU hosts that advertise NVIDIA
 	// fabric support. This keeps 1-GPU machines safe: for a single GPU,
 	// `nvidia-smi topo -p2p n` legitimately shows only the self entry:
@@ -451,6 +463,18 @@ func (c *component) Check() components.CheckResult {
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no nvlink issue found", len(devs))
+	if fabricReport != nil {
+		health, reason, err := c.fabricRegistration.Evaluate(c.ctx, cr.ts, fabricReport.Pending, fabricReport.Failed)
+		if health != apiv1.HealthStateTypeHealthy {
+			cr.health = health
+			cr.reason = reason + ": " + fabricReport.Reason
+			cr.err = errors.Join(fabricReport.Err, err)
+			// An incomplete or failed registration does not diagnose a hardware
+			// defect. Keep consumers from inventing a hardware-inspection action.
+			cr.suggestedActions = fabric.SuggestedActions(fabricReport.Err)
+			return cr
+		}
+	}
 
 	evaluateHealthStateWithThresholds(cr)
 
@@ -464,7 +488,8 @@ type checkResult struct {
 	MatchedKmsgs []kmsg.Message `json:"-"`
 
 	// NVLinks contains detailed NVLink information for all GPUs checked
-	NVLinks []NVLink `json:"nvlinks,omitempty"`
+	NVLinks      []NVLink                  `json:"nvlinks,omitempty"`
+	FabricStates []device.FabricStateEntry `json:"fabric_states,omitempty"`
 
 	// ActiveNVLinkUUIDs lists GPUs where NVLink is supported AND all links have FeatureEnabled=true
 	// (i.e., len(States) > 0 && States.AllFeatureEnabled() == true)

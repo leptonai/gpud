@@ -123,10 +123,24 @@ func (fs FabricState) GetIssues() []string {
 		issues = append(issues, fmt.Sprintf("state=%s", entry.State))
 	}
 
-	// Check status
-	if fs.Status != nvml.SUCCESS {
+	// NVML defines status only after the registration probe completes.
+	if fs.State == nvml.GPU_FABRIC_STATE_COMPLETED && fs.Status != nvml.SUCCESS {
 		issues = append(issues, fmt.Sprintf("status=%s", entry.Status))
 	}
+	issues = append(issues, fs.GetHealthIssues()...)
+	sort.Strings(issues)
+	return issues
+}
+
+// RegistrationPending reports the two NVML registration states that may recover
+// normally. Unsupported and unknown states are not evidence of initialization.
+func (fs FabricState) RegistrationPending() bool {
+	return fs.State == nvml.GPU_FABRIC_STATE_NOT_STARTED || fs.State == nvml.GPU_FABRIC_STATE_IN_PROGRESS
+}
+
+// GetHealthIssues reports fabric faults independently of registration progress.
+func (fs FabricState) GetHealthIssues() []string {
+	issues := make([]string, 0)
 
 	// Check health summary
 	switch fs.HealthSummary {

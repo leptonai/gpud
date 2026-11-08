@@ -87,6 +87,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -100,7 +101,9 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/fabric"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
 	"github.com/leptonai/gpud/pkg/nvidia/driverroot"
@@ -127,7 +130,9 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance nvidianvml.Instance
+	nvmlInstance       nvidianvml.Instance
+	fabricRegistration fabric.Registration
+	getTimeNowFunc     func() time.Time
 
 	getCountLspci func(ctx context.Context) (int, error)
 
@@ -214,6 +219,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		c.logLineProcessor = newLogLineProcessor(cctx, w, Match, c.eventBucket)
 	}
 
+	if err := c.fabricRegistration.Open(c.ctx, gpudInstance.DBRW, Name, pkghost.BootID()); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
 	return c, nil
 }
 
@@ -287,6 +296,9 @@ func (c *component) Check() components.CheckResult {
 
 	cr := &checkResult{
 		ts: time.Now().UTC(),
+	}
+	if c.getTimeNowFunc != nil {
+		cr.ts = c.getTimeNowFunc()
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -394,8 +406,19 @@ func (c *component) Check() components.CheckResult {
 
 		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
+		if report.Err != nil {
+			cr.suggestedActions = fabric.SuggestedActions(report.Err)
+		}
 		if report.Reason != "" {
 			cr.FabricStateReason = report.Reason
+		}
+		health, reason, err := c.fabricRegistration.Evaluate(c.ctx, cr.ts, report.Pending, report.Failed || (!report.Healthy && !report.Pending))
+		if report.Pending || err != nil {
+			cr.health = health
+			cr.reason = reason + ": " + report.Reason
+			cr.err = errors.Join(report.Err, err)
+			cr.suggestedActions = fabric.SuggestedActions(report.Err)
+			return cr
 		}
 
 		// GB200 NVL72 Fabric Management Architecture
@@ -745,12 +768,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedActions,
 	}
 
 	b, _ := json.Marshal(cr)
