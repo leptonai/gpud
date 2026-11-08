@@ -1,7 +1,8 @@
 package common
 
 type ToolOverwrites struct {
-	InfinibandClassRootDir string `json:"infiniband_class_root_dir"`
+	IMEX                   IMEXConfig `json:"imex,omitempty"`
+	InfinibandClassRootDir string     `json:"infiniband_class_root_dir"`
 
 	// ExcludedInfinibandDevices is a list of InfiniBand device names to exclude from monitoring.
 	// Device names should be like "mlx5_0", "mlx5_1", etc. (not full paths).

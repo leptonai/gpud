@@ -1024,9 +1024,9 @@ func TestNvDevice_GetFabricState_V3Success(t *testing.T) {
 }
 
 func TestNvDevice_GetFabricState_V3FallbackToV1(t *testing.T) {
-	mockey.PatchConvey("GetFabricState falls back to V1 when V3 fails", t, func() {
+	mockey.PatchConvey("GetFabricState falls back to V1 when V3 is unsupported", t, func() {
 		mockey.Mock(nvml.GpuFabricInfoHandler.V3).To(func(_ nvml.GpuFabricInfoHandler) (nvml.GpuFabricInfo_v3, nvml.Return) {
-			return nvml.GpuFabricInfo_v3{}, nvml.ERROR_UNKNOWN
+			return nvml.GpuFabricInfo_v3{}, nvml.ERROR_NOT_SUPPORTED
 		}).Build()
 
 		clusterUUID := [16]uint8{0xaa, 0xbb, 0xcc, 0xdd, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb}
@@ -1168,4 +1168,19 @@ func TestTestDevice_GetTotalEccErrors_GPUReset(t *testing.T) {
 	count2, ret2 := td2.GetTotalEccErrors(nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.VOLATILE_ECC)
 	assert.Equal(t, nvml.SUCCESS, ret2)
 	assert.Equal(t, uint64(42), count2)
+}
+
+func TestFabricV3QueryFailureIsNotHiddenByV1(t *testing.T) {
+	mockey.PatchConvey("unknown query errors must not fall back to less complete telemetry", t, func() {
+		mockey.Mock(nvml.GpuFabricInfoHandler.V3).To(func(_ nvml.GpuFabricInfoHandler) (nvml.GpuFabricInfo_v3, nvml.Return) {
+			return nvml.GpuFabricInfo_v3{}, nvml.ERROR_UNKNOWN
+		}).Build()
+		md := &mock.Device{GetGpuFabricInfoVFunc: func() nvml.GpuFabricInfoHandler { return nvml.GpuFabricInfoHandler{} }, GetGpuFabricInfoFunc: func() (nvml.GpuFabricInfo, nvml.Return) {
+			t.Fatal("V1 must not be called after a real query failure")
+			return nvml.GpuFabricInfo{}, nvml.SUCCESS
+		}}
+		dev := &nvDevice{Device: newStubDevice(md), driverMajor: MinDriverVersionForV3FabricAPI}
+		_, err := dev.GetFabricState()
+		require.Error(t, err)
+	})
 }

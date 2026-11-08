@@ -381,11 +381,8 @@ func TestCheck_RemappingFailed_WithMockey(t *testing.T) {
 }
 
 // TestCheck_GPULostError_WithMockey tests Check when GPU lost error occurs
-// Note: When getRemappedRowsFunc returns an error, the component continues to next device
-// and the final health is determined by whether issues were found (not by the error itself).
-// The error IS stored in cr.err but health may be reset to Healthy if no issues found.
 func TestCheck_GPULostError_WithMockey(t *testing.T) {
-	mockey.PatchConvey("Check with GPU lost error - error is stored but health determined by issues", t, func() {
+	mockey.PatchConvey("Check with GPU lost error - query error remains unhealthy", t, func() {
 		ctx := context.Background()
 
 		uuid := "gpu-uuid-lost"
@@ -416,16 +413,17 @@ func TestCheck_GPULostError_WithMockey(t *testing.T) {
 
 		// Error is stored in cr.err
 		assert.True(t, errors.Is(cr.err, nvmlerrors.ErrGPULost))
-		// Health is determined by issues at the end, since no issues found, it's Healthy
-		// (component continues past errors and resets health at end of Check)
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		// A query failure must not be overwritten by the absence of reported issues.
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		require.NotNil(t, cr.Evaluated)
+		assert.False(t, *cr.Evaluated)
+		assert.Contains(t, cr.HealthStates()[0].Reason, uuid)
 	})
 }
 
 // TestCheck_GPURequiresReset_WithMockey tests Check when GPU requires reset
-// Note: Same as GPULost - error is stored but health is determined by issues at the end
 func TestCheck_GPURequiresReset_WithMockey(t *testing.T) {
-	mockey.PatchConvey("Check with GPU requires reset - error is stored but health determined by issues", t, func() {
+	mockey.PatchConvey("Check with GPU requires reset - query error remains unhealthy", t, func() {
 		ctx := context.Background()
 
 		uuid := "gpu-uuid-reset"
@@ -456,8 +454,11 @@ func TestCheck_GPURequiresReset_WithMockey(t *testing.T) {
 
 		// Error is stored
 		assert.True(t, errors.Is(cr.err, nvmlerrors.ErrGPURequiresReset))
-		// Health is determined by issues at the end
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		// A reset requirement remains a failure even without row-remapping counters.
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		require.NotNil(t, cr.Evaluated)
+		assert.False(t, *cr.Evaluated)
+		assert.Contains(t, cr.HealthStates()[0].Reason, uuid)
 	})
 }
 

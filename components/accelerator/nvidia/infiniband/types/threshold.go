@@ -2,6 +2,10 @@ package types //nolint:revive // The directory name is intentionally generic for
 
 // ExpectedPortStates configures the expected state of the ports.
 type ExpectedPortStates struct {
+	// Enabled distinguishes disabled validation from a request for a product default.
+	// A nil value preserves the legacy behavior of zero thresholds.
+	Enabled *bool `json:"enabled,omitempty"`
+
 	// The minimum number of ports.
 	// If not set, it defaults to 0.
 	AtLeastPorts int `json:"at_least_ports"`

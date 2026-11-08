@@ -155,3 +155,21 @@ func TestExpectedPortStatesIsZero(t *testing.T) {
 		})
 	}
 }
+
+func TestGB300DefaultRequiresInfiniBandIntent(t *testing.T) {
+	yes, no := true, false
+	for _, tc := range []struct {
+		configured  types.ExpectedPortStates
+		ports, rate int
+	}{
+		{types.ExpectedPortStates{Enabled: &yes}, 4, 800},
+		{types.ExpectedPortStates{}, 0, 0},
+		{types.ExpectedPortStates{Enabled: &no, AtLeastPorts: 8, AtLeastRate: 400}, 0, 0},
+		{types.ExpectedPortStates{Enabled: &yes, AtLeastPorts: 2, AtLeastRate: 400}, 2, 400},
+		{types.ExpectedPortStates{Enabled: &yes, AtLeastPorts: 2}, 2, 0},
+	} {
+		got := resolveExpectedPortStates("NVIDIA GB300", tc.configured)
+		require.Equal(t, tc.ports, got.AtLeastPorts)
+		require.Equal(t, tc.rate, got.AtLeastRate)
+	}
+}
