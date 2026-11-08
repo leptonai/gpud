@@ -314,6 +314,9 @@ func (c *PackageController) installPackage(ctx context.Context, pkg *packages.Pa
 	if recovered {
 		c.Lock()
 		c.packageStatus[pkg.Name].IsInstalled = true
+		// Recovery only bridges startup dependency checks. Revalidate the
+		// installation on subsequent cycles so runtime damage can be repaired.
+		delete(c.recoveredInstalled, pkg.Name)
 		c.Unlock()
 		return
 	}
