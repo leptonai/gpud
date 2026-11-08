@@ -65,6 +65,7 @@ type component struct {
 	stopKernel       func()
 	kmsgWatcher      kmsg.Watcher
 	started          atomic.Bool
+	monitoring       atomic.Bool
 
 	readAllKmsg  func(context.Context) ([]apiv1.KernelMessage, error)
 	extraEventCh chan pendingEvent
@@ -205,7 +206,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	state := c.currState
-	if state.Evaluated == nil {
+	if state.Evaluated == nil || (*state.Evaluated && !c.monitoring.Load()) {
 		state.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 	}
 	return apiv1.HealthStates{state}
@@ -473,6 +474,9 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 }
 
 func (c *component) start(kmsgCh <-chan apiv1.KernelMessage, updatePeriod time.Duration) {
+	c.monitoring.Store(kmsgCh != nil || c.nvsSource != nil)
+	defer c.monitoring.Store(false)
+
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
@@ -512,6 +516,9 @@ func (c *component) start(kmsgCh <-chan apiv1.KernelMessage, updatePeriod time.D
 		case message, ok := <-kmsgCh:
 			if !ok {
 				kmsgCh = nil
+				if c.nvsSource == nil {
+					c.monitoring.Store(false)
+				}
 				continue
 			}
 			sxidErr := Match(message.Message)
@@ -605,7 +612,7 @@ func (c *component) updateCurrentState() (retErr error) {
 	c.mu.Lock()
 	c.currState = evolveHealthyState(events)
 	c.currState.Evaluation = apiv1.Evaluated()
-	if !c.started.Load() || (c.stopKernel == nil && c.kmsgWatcher == nil && c.nvsSource == nil) {
+	if !c.monitoring.Load() {
 		c.currState.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 	}
 	if rebootErr != "" {

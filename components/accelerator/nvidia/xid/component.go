@@ -70,6 +70,7 @@ type component struct {
 	stopKernel       func()
 	kmsgWatcher      kmsg.Watcher
 	started          atomic.Bool
+	monitoring       atomic.Bool
 
 	readAllKmsg  func(context.Context) ([]kernelRecord, error)
 	extraEventCh chan pendingEvent
@@ -215,7 +216,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	state := c.currState
-	if state.Evaluated == nil {
+	if state.Evaluated == nil || (*state.Evaluated && !c.monitoring.Load()) {
 		state.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 	}
 	return apiv1.HealthStates{state}
@@ -539,6 +540,9 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 }
 
 func (c *component) start(kmsgCh <-chan kernelRecord, updatePeriod time.Duration) {
+	c.monitoring.Store(kmsgCh != nil || c.nvsSource != nil)
+	defer c.monitoring.Store(false)
+
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
@@ -586,6 +590,9 @@ func (c *component) start(kmsgCh <-chan kernelRecord, updatePeriod time.Duration
 			if !ok {
 				// Resume NVSentinel delivery if the native reader exits.
 				kmsgCh = nil
+				if c.nvsSource == nil {
+					c.monitoring.Store(false)
+				}
 				continue
 			}
 			xidErr := message.xid
@@ -740,7 +747,7 @@ func (c *component) updateCurrentState() (retErr error) {
 	c.mu.Lock()
 	c.currState = evolveHealthyStateWithThresholds(events, c.devices, rebootThreshold, thresholds)
 	c.currState.Evaluation = apiv1.Evaluated()
-	if !c.started.Load() || (c.stopKernel == nil && c.kmsgWatcher == nil && c.nvsSource == nil) {
+	if !c.monitoring.Load() {
 		c.currState.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 	}
 	if rebootErr != "" {
