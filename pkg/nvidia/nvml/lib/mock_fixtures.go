@@ -87,6 +87,12 @@ var allSuccessInterface = &nvmlmock.Interface{
 			GetMemoryInfo_v2Func: func() (nvml.Memory_v2, nvml.Return) {
 				return nvml.Memory_v2{}, nvml.SUCCESS
 			},
+			GetNvLinkRemotePciInfoFunc: func(int) (nvml.PciInfo, nvml.Return) {
+				return nvml.PciInfo{}, nvml.ERROR_NOT_SUPPORTED
+			},
+			GetNvLinkRemoteDeviceTypeFunc: func(int) (nvml.IntNvLinkDeviceType, nvml.Return) {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			},
 			GetNvLinkStateFunc: func(n int) (nvml.EnableState, nvml.Return) {
 				return 0, nvml.SUCCESS
 			},

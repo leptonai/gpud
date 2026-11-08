@@ -48,6 +48,13 @@ func TestAllSuccessInterface_DeviceGetHandleByIndex(t *testing.T) {
 	assert.Equal(t, nvml.SUCCESS, ret)
 	require.NotNil(t, device)
 
+	t.Run("optional NVLink endpoints", func(t *testing.T) {
+		_, ret := device.GetNvLinkRemotePciInfo(0)
+		require.Equal(t, nvml.ERROR_NOT_SUPPORTED, ret)
+		_, ret = device.GetNvLinkRemoteDeviceType(0)
+		require.Equal(t, nvml.ERROR_NOT_SUPPORTED, ret)
+	})
+
 	// Test device methods
 	t.Run("GetName", func(t *testing.T) {
 		name, r := device.GetName()
