@@ -335,6 +335,7 @@ func TestSXIDComponent_States(t *testing.T) {
 	component.currState = s
 	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
+	s.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 	assert.Equal(t, s, states[0])
 
 	startTime := time.Now().Add(-1 * time.Hour)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -27,6 +28,7 @@ type FabricState struct {
 	State       uint8
 	Status      nvml.Return
 	HealthMask  uint32
+	APIVersion  uint32
 
 	// HealthSummary is the health summary of the fabric.
 	// This is a uint8 value that can be converted to a string using FabricSummaryToString.
@@ -38,6 +40,8 @@ type FabricState struct {
 // This is used for rendering fabric state information in human-readable format.
 type FabricStateEntry struct {
 	GPUUUID     string `json:"gpu_uuid"`
+	Error       string `json:"error,omitempty"`
+	APIVersion  uint32 `json:"api_version,omitempty"`
 	CliqueID    uint32 `json:"clique_id"`
 	ClusterUUID string `json:"cluster_uuid,omitempty"`
 	State       string `json:"state"`
@@ -52,10 +56,11 @@ type FabricStateEntry struct {
 
 // FabricHealthSnapshot represents the health status of fabric components.
 type FabricHealthSnapshot struct {
-	Bandwidth             string `json:"bandwidth,omitempty"`
-	RouteRecoveryProgress string `json:"route_recovery_in_progress,omitempty"`
-	RouteUnhealthy        string `json:"route_unhealthy,omitempty"`
-	AccessTimeoutRecovery string `json:"access_timeout_recovery,omitempty"`
+	IncorrectConfiguration string `json:"incorrect_configuration,omitempty"`
+	Bandwidth              string `json:"bandwidth,omitempty"`
+	RouteRecoveryProgress  string `json:"route_recovery_in_progress,omitempty"`
+	RouteUnhealthy         string `json:"route_unhealthy,omitempty"`
+	AccessTimeoutRecovery  string `json:"access_timeout_recovery,omitempty"`
 }
 
 // RenderTable renders a single fabric state entry as a formatted table
@@ -97,6 +102,7 @@ func (e FabricStateEntry) RenderTable(wr io.Writer) {
 func (fs FabricState) ToEntry(gpuUUID string) FabricStateEntry {
 	entry := FabricStateEntry{
 		GPUUUID:     gpuUUID,
+		APIVersion:  fs.APIVersion,
 		CliqueID:    fs.CliqueID,
 		ClusterUUID: fs.ClusterUUID,
 		State:       FabricStateToString(fs.State),
@@ -173,6 +179,11 @@ func getHealthMaskIssues(mask uint32) []string {
 		issues = append(issues, "access timeout recovery in progress")
 	}
 
+	configuration := extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION)
+	if configuration > nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE {
+		issues = append(issues, "incorrect fabric configuration: "+fabricConfigurationStatus(configuration))
+	}
+
 	return issues
 }
 
@@ -218,7 +229,7 @@ func FabricSummaryToString(summary uint8) string {
 
 // ParseHealthMask parses a health mask into a FabricHealthSnapshot.
 func ParseHealthMask(mask uint32) FabricHealthSnapshot {
-	health := FabricHealthSnapshot{}
+	health := FabricHealthSnapshot{IncorrectConfiguration: fabricConfigurationStatus(extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION))}
 
 	// Extract bandwidth status
 	bandwidthVal := extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW)
@@ -296,6 +307,7 @@ func (d *nvDevice) GetFabricState() (FabricState, error) {
 		info, ret := handler.V3()
 		if ret == nvml.SUCCESS {
 			return FabricState{
+				APIVersion:    3,
 				CliqueID:      info.CliqueId,
 				ClusterUUID:   formatClusterUUID(info.ClusterUuid),
 				State:         info.State,
@@ -304,7 +316,16 @@ func (d *nvDevice) GetFabricState() (FabricState, error) {
 				HealthSummary: info.HealthSummary,
 			}, nil
 		}
-		// V3 failed, fall through to V1
+		// Only compatibility failures justify losing the newer health fields.
+		if nvmlerrors.IsGPULostError(ret) {
+			return FabricState{}, nvmlerrors.ErrGPULost
+		}
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return FabricState{}, nvmlerrors.ErrGPURequiresReset
+		}
+		if ret != nvml.ERROR_NOT_SUPPORTED && ret != nvml.ERROR_FUNCTION_NOT_FOUND && ret != nvml.ERROR_ARGUMENT_VERSION_MISMATCH {
+			return FabricState{}, fmt.Errorf("nvmlDeviceGetGpuFabricInfoV: %s", nvml.ErrorString(ret))
+		}
 	} else {
 		// Log warning once when skipping V3 API due to old driver
 		logV3SkipOnce.Do(func() {
@@ -334,6 +355,7 @@ func (d *nvDevice) GetFabricState() (FabricState, error) {
 
 	// V1 success
 	return FabricState{
+		APIVersion:    1,
 		CliqueID:      infoV1.CliqueId,
 		ClusterUUID:   formatClusterUUID(infoV1.ClusterUuid),
 		State:         infoV1.State,
@@ -353,4 +375,24 @@ func formatClusterUUID(raw [16]uint8) string {
 	hex.Encode(buf, raw[:])
 	s := string(buf)
 	return fmt.Sprintf("%s-%s-%s-%s-%s", s[0:8], s[8:12], s[12:16], s[16:20], s[20:])
+}
+
+func fabricConfigurationStatus(value uint32) string {
+	names := []string{"Not Supported", "None", "Incorrect SysGUID", "Incorrect Chassis Serial", "No Partition", "Insufficient NVLinks", "Incompatible GPU Firmware", "Invalid Location", "Invalid GPU State"}
+	if int(value) < len(names) {
+		return names[value]
+	}
+	return fmt.Sprintf("Unknown(%d)", value)
+}
+
+// HealthFieldsAvailable requires the core fabric flags. Unsupported fields
+// remain visible and never stand for a successful health observation.
+func (fs FabricState) HealthFieldsAvailable() bool {
+	h := ParseHealthMask(fs.HealthMask)
+	for _, value := range []string{h.Bandwidth, h.RouteRecoveryProgress, h.RouteUnhealthy, h.AccessTimeoutRecovery} {
+		if value == "Not Supported" || strings.HasPrefix(value, "Unknown(") {
+			return false
+		}
+	}
+	return fs.HealthSummary <= nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY
 }

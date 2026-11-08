@@ -249,7 +249,7 @@ func TestCheckOnce_Success(t *testing.T) {
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", lastCheckResult.reason)
+	assert.Equal(t, reasonNoThresholdConfigured, lastCheckResult.reason)
 	assert.Len(t, lastCheckResult.NVLinks, 1)
 	assert.Equal(t, nvLink, lastCheckResult.NVLinks[0])
 }
@@ -290,7 +290,7 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastCheckResult.err)
+	assert.ErrorIs(t, lastCheckResult.err, errExpected)
 	assert.Equal(t, "error getting nvlink", lastCheckResult.reason)
 }
 
@@ -311,7 +311,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no nvlink issue found", lastCheckResult.reason)
+	assert.Equal(t, reasonNoThresholdConfigured, lastCheckResult.reason)
 	assert.Empty(t, lastCheckResult.NVLinks)
 }
 
@@ -337,7 +337,7 @@ func TestStates_WithData(t *testing.T) {
 			},
 		},
 		health: apiv1.HealthStateTypeHealthy,
-		reason: "all 1 GPU(s) were checked, no nvlink issue found",
+		reason: reasonNoThresholdConfigured,
 	}
 	component.lastMu.Unlock()
 
@@ -348,7 +348,7 @@ func TestStates_WithData(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", state.Reason)
+	assert.Equal(t, reasonNoThresholdConfigured, state.Reason)
 	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
 }
 
@@ -1331,7 +1331,7 @@ func TestCheck_MultiGPUWithoutExpectedNVLinkStillSkipsByDefault(t *testing.T) {
 
 	assert.False(t, cr.SystemExpectedNVLink)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "all 2 GPU(s) were checked, no nvlink issue found", cr.reason)
+	assert.Equal(t, reasonNoThresholdConfigured, cr.reason)
 	assert.Len(t, cr.UnsupportedNVLinkUUIDs, 2)
 }
 
@@ -1429,7 +1429,7 @@ func TestCheck_SingleGPUSystemDoesNotExpectNVLinkByDefault(t *testing.T) {
 
 	assert.False(t, cr.SystemExpectedNVLink)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", cr.reason)
+	assert.Equal(t, reasonNoThresholdConfigured, cr.reason)
 	assert.Equal(t, []string{"gpu-uuid-0"}, cr.UnsupportedNVLinkUUIDs)
 }
 

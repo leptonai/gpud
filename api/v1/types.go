@@ -48,6 +48,9 @@ const (
 // so the health state here is to provide more details about the healthiness,
 // and other data for the control plane to decide how to alert and remediate the issue.
 type HealthState struct {
+	Evaluation
+	FaultScope FaultScope `json:"fault_scope,omitempty"`
+
 	// Time represents when the event happened.
 	Time metav1.Time `json:"time"`
 
@@ -183,6 +186,9 @@ const (
 type RepairActionType string
 
 const (
+	// RepairActionTypeCheckSharedFabric requests domain triage before any local repair.
+	RepairActionTypeCheckSharedFabric RepairActionType = "CHECK_SHARED_FABRIC"
+
 	// RepairActionTypeIgnoreNoActionRequired represents a suggested action to ignore the issue,
 	// meaning no action is needed until further notice.
 	RepairActionTypeIgnoreNoActionRequired RepairActionType = "IGNORE_NO_ACTION_REQUIRED"
@@ -488,6 +494,9 @@ type MachineGPUInfo struct {
 }
 
 type MachineGPUInstance struct {
+	Errors   map[string]string `json:"errors,omitempty"`
+	Platform *GPUPlatformInfo  `json:"platform,omitempty"`
+
 	// UUID is the GPU UUID from the nvml API.
 	// e.g., "GPU-46a3bbe2-3e87-3dde-b464-a03eba0c21d7"
 	UUID string `json:"uuid,omitempty"`

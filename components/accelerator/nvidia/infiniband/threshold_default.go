@@ -8,6 +8,10 @@ import (
 )
 
 var gpuPortConfigs = map[string]types.ExpectedPortStates{
+	// GB300 NVL72 InfiniBand compute tray: four ConnectX-8 ports at 800 Gb/s.
+	// Ethernet installations must explicitly disable InfiniBand validation.
+	// https://docs.nvidia.com/dsx/ncp/software-reference-guide/data-center-architecture
+	"gb300": {AtLeastPorts: 4, AtLeastRate: 800},
 	// "NVIDIA ConnectX-6 or ConnectX-7 Single Port InfiniBand (default): Up to 200Gbps"
 	// ref. https://docs.nvidia.com/dgx/dgxa100-user-guide/introduction-to-dgxa100.html
 	"a100": {AtLeastPorts: 1, AtLeastRate: 200},
@@ -51,4 +55,21 @@ func SupportsInfinibandPortRate(gpuProductName string) (types.ExpectedPortStates
 	}
 
 	return gpuPortConfigs[longestMatch], nil
+}
+
+// Defaults require explicit InfiniBand intent; zero legacy thresholds also
+// describe Ethernet installations. Never replace a partially specified profile.
+func resolveExpectedPortStates(product string, configured types.ExpectedPortStates) types.ExpectedPortStates {
+	if configured.Enabled == nil {
+		return configured
+	}
+	if !*configured.Enabled {
+		return types.ExpectedPortStates{}
+	}
+	if configured.AtLeastPorts == 0 && configured.AtLeastRate == 0 {
+		if defaults, err := SupportsInfinibandPortRate(product); err == nil {
+			return defaults
+		}
+	}
+	return configured
 }

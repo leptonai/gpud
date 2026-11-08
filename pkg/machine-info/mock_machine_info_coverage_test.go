@@ -150,7 +150,7 @@ func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 
 		mockey.Mock(nvidiamemory.GetMemory).To(
 			func(uuid string, dev nvidiadevice.Device, productName string, getVirtualMemoryFunc nvidiamemory.GetVirtualMemoryFunc) (nvidiamemory.Memory, error) {
-				return nvidiamemory.Memory{TotalBytes: 80 * 1024 * 1024 * 1024}, nil
+				return nvidiamemory.Memory{Supported: true, TotalBytes: 80 * 1024 * 1024 * 1024}, nil
 			},
 		).Build()
 
@@ -188,9 +188,10 @@ func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 			},
 		}
 
-		_, err := GetMachineGPUInfo(nvmlInstance)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "memory read failed")
+		info, err := GetMachineGPUInfo(nvmlInstance)
+		require.NoError(t, err)
+		require.Len(t, info.GPUs, 1)
+		assert.Contains(t, info.GPUs[0].Errors["memory"], "memory read failed")
 	})
 
 	mockey.PatchConvey("GetMachineGPUInfo returns serial error", t, func() {
@@ -198,7 +199,7 @@ func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 		dev.serialRet = nvml.ERROR_UNKNOWN
 		mockey.Mock(nvidiamemory.GetMemory).To(
 			func(uuid string, dev nvidiadevice.Device, productName string, getVirtualMemoryFunc nvidiamemory.GetVirtualMemoryFunc) (nvidiamemory.Memory, error) {
-				return nvidiamemory.Memory{TotalBytes: 1}, nil
+				return nvidiamemory.Memory{Supported: true, TotalBytes: 1}, nil
 			},
 		).Build()
 
@@ -209,9 +210,10 @@ func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 			},
 		}
 
-		_, err := GetMachineGPUInfo(nvmlInstance)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get serial id")
+		info, err := GetMachineGPUInfo(nvmlInstance)
+		require.NoError(t, err)
+		require.Len(t, info.GPUs, 1)
+		assert.Contains(t, info.GPUs[0].Errors["sn"], "ERROR_UNKNOWN")
 	})
 
 	mockey.PatchConvey("GetMachineGPUInfo returns PCI bus id error", t, func() {
@@ -219,7 +221,7 @@ func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 		dev.busErr = errors.New("pci bus id failed")
 		mockey.Mock(nvidiamemory.GetMemory).To(
 			func(uuid string, dev nvidiadevice.Device, productName string, getVirtualMemoryFunc nvidiamemory.GetVirtualMemoryFunc) (nvidiamemory.Memory, error) {
-				return nvidiamemory.Memory{TotalBytes: 1}, nil
+				return nvidiamemory.Memory{Supported: true, TotalBytes: 1}, nil
 			},
 		).Build()
 
@@ -230,9 +232,10 @@ func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 			},
 		}
 
-		_, err := GetMachineGPUInfo(nvmlInstance)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "pci bus id failed")
+		info, err := GetMachineGPUInfo(nvmlInstance)
+		require.NoError(t, err)
+		require.Len(t, info.GPUs, 1)
+		assert.Contains(t, info.GPUs[0].Errors["busID"], "pci bus id failed")
 	})
 }
 
@@ -568,7 +571,7 @@ func TestGetMachineGPUInfo_MinorAndBoardErrors_WithMockey(t *testing.T) {
 		dev.minorRet = nvml.ERROR_UNKNOWN
 		mockey.Mock(nvidiamemory.GetMemory).To(
 			func(uuid string, dev nvidiadevice.Device, productName string, getVirtualMemoryFunc nvidiamemory.GetVirtualMemoryFunc) (nvidiamemory.Memory, error) {
-				return nvidiamemory.Memory{TotalBytes: 1}, nil
+				return nvidiamemory.Memory{Supported: true, TotalBytes: 1}, nil
 			},
 		).Build()
 
@@ -579,9 +582,10 @@ func TestGetMachineGPUInfo_MinorAndBoardErrors_WithMockey(t *testing.T) {
 			},
 		}
 
-		_, err := GetMachineGPUInfo(nvmlInstance)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get minor id")
+		info, err := GetMachineGPUInfo(nvmlInstance)
+		require.NoError(t, err)
+		require.Len(t, info.GPUs, 1)
+		assert.Contains(t, info.GPUs[0].Errors["minorID"], "ERROR_UNKNOWN")
 	})
 
 	mockey.PatchConvey("GetMachineGPUInfo returns board id error", t, func() {
@@ -589,7 +593,7 @@ func TestGetMachineGPUInfo_MinorAndBoardErrors_WithMockey(t *testing.T) {
 		dev.boardRet = nvml.ERROR_UNKNOWN
 		mockey.Mock(nvidiamemory.GetMemory).To(
 			func(uuid string, dev nvidiadevice.Device, productName string, getVirtualMemoryFunc nvidiamemory.GetVirtualMemoryFunc) (nvidiamemory.Memory, error) {
-				return nvidiamemory.Memory{TotalBytes: 1}, nil
+				return nvidiamemory.Memory{Supported: true, TotalBytes: 1}, nil
 			},
 		).Build()
 
@@ -600,9 +604,10 @@ func TestGetMachineGPUInfo_MinorAndBoardErrors_WithMockey(t *testing.T) {
 			},
 		}
 
-		_, err := GetMachineGPUInfo(nvmlInstance)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get board id")
+		info, err := GetMachineGPUInfo(nvmlInstance)
+		require.NoError(t, err)
+		require.Len(t, info.GPUs, 1)
+		assert.Contains(t, info.GPUs[0].Errors["boardID"], "ERROR_UNKNOWN")
 	})
 }
 

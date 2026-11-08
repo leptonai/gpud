@@ -79,6 +79,16 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 		return
 	}
 
+	if cr.ExternalFabric && (len(cr.InactiveNVLinkUUIDs) > 0 || len(cr.UnsupportedNVLinkUUIDs) > 0 || cr.PeerNVLinkProbePairCount > cr.PeerNVLinkOKPairCount) {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = appendNVLinkFailureDetails("NVLink domain connectivity is degraded", cr)
+		setNVLinkSuggestedActions(cr)
+		return
+	}
+	if cr.err != nil {
+		return
+	}
+
 	if cr.hasPeerNVLinkP2PFailure() {
 		if !cr.hasCompletePeerNVLinkProbeCoverage() {
 			// WHY: a subset of `NS` results plus a larger set of probe errors is
@@ -157,8 +167,11 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 			return
 		}
 
-		if cr.reason == "" {
-			cr.reason = reasonNoThresholdConfigured
+		if !cr.SystemExpectedNVLink {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedLinkStates)
+			if cr.reason == "" {
+				cr.reason = reasonNoThresholdConfigured
+			}
 		}
 		log.Logger.Debugw("nvlink threshold evaluation skipped", "expected_link_states", cr.ExpectedLinkStates)
 		return
@@ -167,6 +180,7 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 	if len(cr.NVLinks) == 0 {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = reasonNoNVLinkData
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		return
 	}
 
