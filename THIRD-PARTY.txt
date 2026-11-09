@@ -15,10 +15,65 @@ TABLE OF CONTENTS
 1. Go Module Dependencies
 2. Docker Image System Packages
 3. NVIDIA Base Container
+4. Copied and Adapted Source
 
 ================================================================================
 1. GO MODULE DEPENDENCIES
 ================================================================================
+
+Direct dependencies declared in go.mod (43 modules):
+
+Module | Version | License
+--- | --- | ---
+github.com/NVIDIA/go-nvlib | v0.8.1 | Apache-2.0
+github.com/NVIDIA/go-nvml | v0.13.0-1 | Apache-2.0
+github.com/PaesslerAG/jsonpath | v0.1.1 | BSD-3-Clause
+github.com/bytedance/mockey | v1.4.7 | Apache-2.0
+github.com/coreos/go-systemd/v22 | v22.5.0 | Apache-2.0
+github.com/dustin/go-humanize | v1.0.1 | MIT
+github.com/fsnotify/fsnotify | v1.9.0 | BSD-3-Clause
+github.com/gin-contrib/gzip | v1.2.3 | MIT
+github.com/gin-contrib/requestid | v1.0.5 | MIT
+github.com/gin-contrib/zap | v1.1.5 | MIT
+github.com/gin-gonic/gin | v1.10.1 | MIT
+github.com/google/uuid | v1.6.0 | BSD-3-Clause
+github.com/hdevalence/ed25519consensus | v0.2.0 | BSD-3-Clause
+github.com/mattn/go-sqlite3 | v1.14.32 | MIT
+github.com/moby/moby/api | v1.54.0 | Apache-2.0
+github.com/moby/moby/client | v0.3.0 | Apache-2.0
+github.com/olekukonko/tablewriter | v0.0.5 | MIT
+github.com/onsi/ginkgo/v2 | v2.23.4 | MIT
+github.com/onsi/gomega | v1.37.0 | MIT
+github.com/patrickmn/go-cache | v2.1.0+incompatible | MIT
+github.com/pelletier/go-toml/v2 | v2.2.3 | MIT
+github.com/prometheus/client_golang | v1.21.1 | Apache-2.0
+github.com/prometheus/client_model | v0.6.1 | Apache-2.0
+github.com/prometheus/procfs | v0.16.1 | Apache-2.0
+github.com/shirou/gopsutil/v4 | v4.25.9 | BSD-3-Clause
+github.com/stretchr/testify | v1.11.1 | MIT
+github.com/swaggo/files | v1.0.1 | MIT
+github.com/swaggo/gin-swagger | v1.6.0 | MIT
+github.com/swaggo/swag | v1.16.6 | MIT
+github.com/urfave/cli | v1.22.16 | MIT
+go.uber.org/zap | v1.27.0 | MIT
+golang.org/x/crypto | v0.56.0 | BSD-3-Clause
+golang.org/x/sys | v0.47.0 | BSD-3-Clause
+google.golang.org/genproto/googleapis/rpc | v0.0.0-20260526163538-3dc84a4a5aaa | Apache-2.0
+google.golang.org/grpc | v1.83.2 | Apache-2.0
+google.golang.org/protobuf | v1.36.11 | BSD-3-Clause
+gopkg.in/natefinch/lumberjack.v2 | v2.2.1 | MIT
+k8s.io/api | v0.32.0 | Apache-2.0
+k8s.io/apimachinery | v0.32.0 | Apache-2.0
+k8s.io/cri-api | v0.32.0 | Apache-2.0
+k8s.io/utils | v0.0.0-20241210054802-24370beab758 | Apache-2.0
+sigs.k8s.io/yaml | v1.6.0 | Apache-2.0
+tailscale.com | v1.68.2 | BSD-3-Clause
+
+This inventory includes test dependencies. Licenses refer to each module's root
+license; individual files may carry additional notices. Update the module names,
+versions, and direct/indirect classification when go.mod changes.
+The notices below also cover transitive dependencies and copied source.
+
 
 --------------------------------------------------------------------------------
 Copyright NVIDIA Corporation - Apache License 2.0
@@ -360,8 +415,12 @@ License Text: https://opensource.org/licenses/BSD-3-Clause
 // POSSIBILITY OF SUCH DAMAGE.
 
 Packages:
-- golang.org/x/crypto v0.45.0
-- golang.org/x/sys v0.38.0
+- github.com/google/go-cmp v0.7.0
+  Copyright (c) 2017 The Go Authors. All rights reserved.
+- google.golang.org/protobuf v1.36.11
+  Copyright (c) 2018 The Go Authors. All rights reserved.
+- golang.org/x/crypto v0.56.0
+- golang.org/x/sys v0.47.0
 - golang.org/x/net v0.47.0
 - golang.org/x/sync v0.18.0
 - golang.org/x/text v0.31.0
@@ -370,6 +429,44 @@ Packages:
 - golang.org/x/mod v0.29.0
 - golang.org/x/arch v0.15.0
 - golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
+
+
+--------------------------------------------------------------------------------
+Google UUID - BSD 3-Clause License
+Source: https://github.com/google/uuid/tree/v1.6.0
+License Text: https://github.com/google/uuid/blob/v1.6.0/LICENSE
+--------------------------------------------------------------------------------
+
+Copyright (c) 2009,2014 Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Packages:
+- github.com/google/uuid v1.6.0
 
 
 --------------------------------------------------------------------------------
@@ -392,14 +489,11 @@ License Text: https://www.apache.org/licenses/LICENSE-2.0
 // limitations under the License.
 
 Packages:
-- github.com/google/go-cmp v0.7.0
-- github.com/google/uuid v1.6.0
 - github.com/google/gofuzz v1.2.0
 - github.com/google/nftables v0.2.1-0.20240414091927-5e242ec57806
 - github.com/google/pprof v0.0.0-20250403155104-27863c87afa6
-- google.golang.org/grpc v1.71.1
-- google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f
-- google.golang.org/protobuf v1.36.6
+- google.golang.org/grpc v1.83.2
+- google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa
 
 
 --------------------------------------------------------------------------------
@@ -640,7 +734,7 @@ Packages:
 - github.com/swaggo/files v1.0.1
 - github.com/swaggo/gin-swagger v1.6.0
 - github.com/swaggo/swag/v2 v2.0.0-rc4
-- github.com/swaggo/swag v1.8.12
+- github.com/swaggo/swag v1.16.6
 
 
 --------------------------------------------------------------------------------
@@ -907,6 +1001,39 @@ Packages:
 
 
 --------------------------------------------------------------------------------
+Copyright Thomas Pelletier - MIT License
+Source: https://github.com/pelletier/go-toml/tree/v2.2.3
+License Text: https://github.com/pelletier/go-toml/blob/v2.2.3/LICENSE
+--------------------------------------------------------------------------------
+
+The MIT License (MIT)
+
+go-toml v2
+Copyright (c) 2021 - 2023 Thomas Pelletier
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Packages:
+- github.com/pelletier/go-toml/v2 v2.2.3
+
+
+--------------------------------------------------------------------------------
 Additional Indirect Dependencies - Various Licenses
 --------------------------------------------------------------------------------
 
@@ -960,7 +1087,6 @@ MIT License:
 - github.com/mailru/easyjson v0.7.7
 - github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 - github.com/modern-go/reflect2 v1.0.2
-- github.com/pelletier/go-toml/v2 v2.2.3
 - github.com/pkg/errors v0.9.1
 - github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 - github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
@@ -1140,6 +1266,39 @@ For complete license information about the NVIDIA base container,
 refer to /NGC-DL-CONTAINER-LICENSE inside the container or visit:
 https://developer.download.nvidia.com/licenses/NVIDIA_Deep_Learning_Container_License.pdf
 
+
+================================================================================
+4. COPIED AND ADAPTED SOURCE
+================================================================================
+
+--------------------------------------------------------------------------------
+cAdvisor OOM parser - Apache License 2.0
+Copyright 2014 Google Inc. All Rights Reserved.
+Source: https://github.com/google/cadvisor/tree/dcbeba1642afb4d533f585da0e6a98bd12d46695/utils/oomparser
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+GPUd adapts cAdvisor's OOM message parsing and tests in:
+- components/memory/kmsg_matcher.go
+- components/memory/kmsg_matcher_test.go
+
+The adapted code includes OOM message matching, extraction of process and
+container details, and test cases. GPUd modifies the parser for its event
+handling. The source files retain the Google copyright and Apache-2.0 notices.
+
+This is copied/adapted source, not a Go module dependency in go.mod.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 ================================================================================
 END OF THIRD-PARTY NOTICES
