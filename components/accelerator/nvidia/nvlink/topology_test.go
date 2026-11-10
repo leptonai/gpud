@@ -89,3 +89,63 @@ func TestCachedAndWatchdogStatesRetainDomainScope(t *testing.T) {
 	require.Equal(t, apiv1.NotEvaluatedCollection, state.NotEvaluatedReason)
 	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeCheckSharedFabric}, state.SuggestedActions.RepairActions)
 }
+
+type unavailableTopologyDevice struct {
+	device.Device
+	typ                        nvml.IntNvLinkDeviceType
+	pciErr, typeErr, fieldsErr nvml.Return
+	valueType                  nvml.ValueType
+}
+
+func (d *unavailableTopologyDevice) GetNvLinkRemotePciInfo(int) (nvml.PciInfo, nvml.Return) {
+	return nvml.PciInfo{}, d.pciErr
+}
+func (d *unavailableTopologyDevice) GetNvLinkRemoteDeviceType(int) (nvml.IntNvLinkDeviceType, nvml.Return) {
+	return d.typ, d.typeErr
+}
+func (d *unavailableTopologyDevice) GetFieldValues(values []nvml.FieldValue) nvml.Return {
+	for i := range values {
+		values[i].ValueType = uint32(d.valueType)
+		binary.NativeEndian.PutUint32(values[i].Value[:], 42)
+	}
+	return d.fieldsErr
+}
+
+func TestUnavailableAndTypedTopologyEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		typ  nvml.IntNvLinkDeviceType
+		want string
+	}{
+		{nvml.NVLINK_DEVICE_TYPE_GPU, "gpu"}, {nvml.NVLINK_DEVICE_TYPE_IBMNPU, "ibm_npu"}, {nvml.IntNvLinkDeviceType(999), "unknown"},
+	} {
+		d := &unavailableTopologyDevice{typ: tc.typ, valueType: nvml.VALUE_TYPE_UNSIGNED_INT}
+		remote := getRemoteEndpoint(d, 2)
+		require.Equal(t, tc.want, remote.DeviceType)
+		require.Equal(t, uint32(tc.typ), *remote.DeviceTypeCode)
+		for _, counter := range getLinkFieldCounters(d, 2) {
+			require.Equal(t, uint64(42), *counter.Value)
+			require.Equal(t, uint32(2), counter.ScopeID)
+		}
+	}
+	d := &unavailableTopologyDevice{pciErr: nvml.ERROR_NOT_SUPPORTED, typeErr: nvml.ERROR_NOT_SUPPORTED, fieldsErr: nvml.ERROR_NOT_SUPPORTED}
+	remote := getRemoteEndpoint(d, 2)
+	require.Empty(t, remote.PCIBusID)
+	require.Nil(t, remote.DeviceTypeCode)
+	require.NotEmpty(t, remote.Errors["pci_bus_id"])
+	require.NotEmpty(t, remote.Errors["device_type"])
+	for _, counter := range getLinkFieldCounters(d, 2) {
+		require.Nil(t, counter.Value)
+		require.NotEmpty(t, counter.Error)
+	}
+	d.fieldsErr = nvml.SUCCESS
+	d.valueType = nvml.VALUE_TYPE_DOUBLE
+	for _, counter := range getLinkFieldCounters(d, 2) {
+		require.Nil(t, counter.Value)
+		require.Contains(t, counter.Error, "unexpected NVML value type")
+	}
+	require.False(t, NVLinkStates(nil).counterAvailable("replay_errors"))
+	require.False(t, (NVLinkStates{{Errors: map[string]string{"state": "unavailable"}}}).counterAvailable("replay_errors"))
+	data, err := json.Marshal(NVLinkState{Errors: map[string]string{"state": "unavailable"}})
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "feature_enabled")
+}
