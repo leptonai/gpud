@@ -199,13 +199,15 @@ func (r *result) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{s}
 }
 
-type boundedOutput struct{ bytes.Buffer }
+type boundedOutput struct{ buffer bytes.Buffer }
+
+func (b *boundedOutput) String() string { return b.buffer.String() }
 
 func (b *boundedOutput) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > 2<<20 {
+	if b.buffer.Len()+len(p) > 2<<20 {
 		return 0, fmt.Errorf("IMEX output exceeds 2 MiB")
 	}
-	return b.Buffer.Write(p)
+	return b.buffer.Write(p)
 }
 func runCommand(ctx context.Context, args []string) (string, error) {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
