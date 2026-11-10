@@ -1137,7 +1137,7 @@ func TestLoadSpecsWithInvalidSpec(t *testing.T) {
 	specs, err := LoadSpecs(testFile)
 	assert.Error(t, err)
 	assert.Nil(t, specs)
-	assert.Equal(t, ErrMissingStatePlugin, err)
+	assert.ErrorIs(t, err, ErrMissingStatePlugin)
 }
 
 func TestValidateComprehensive(t *testing.T) {

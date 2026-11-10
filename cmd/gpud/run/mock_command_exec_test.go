@@ -60,6 +60,7 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.Int("auto-update-exit-code", 0, "")
 	set.String("version-file", "", "")
 	set.String("plugin-specs-file", "", "")
+	set.Bool("plugin-specs-file-managed", false, "")
 	set.Bool("skip-session-update-config", false, "")
 	set.String("infiniband-class-root-dir", "", "")
 	set.String("infiniband-exclude-devices", "", "")
@@ -134,6 +135,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 		},
 		boolFlags: map[string]bool{
 			"machine-id-overwrite":          true,
+			"plugin-specs-file-managed":     true,
 			"refresh-session-token":         true,
 			"pprof":                         true,
 			"enable-auto-update":            true,
@@ -188,6 +190,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 		err := Command(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, receivedCfg)
+		assert.True(t, receivedCfg.PluginSpecsFileManaged)
 		assert.True(t, receivedLoginCfg.MachineIDOverwrite)
 		assert.True(t, receivedLoginCfg.RefreshSessionToken)
 		assert.Equal(t, "eu-north-1", receivedLoginCfg.Region)

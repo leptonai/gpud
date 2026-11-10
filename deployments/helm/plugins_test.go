@@ -62,6 +62,7 @@ func TestPluginProfilePersistence(t *testing.T) {
 			require.NoError(t, err, "%s", out)
 			argv, err := os.ReadFile(capture)
 			require.NoError(t, err)
+			require.Contains(t, strings.Split(string(argv), "\n"), "--plugin-specs-file-managed")
 			pluginPath := customplugins.DefaultPluginSpecsFile
 			for _, arg := range strings.Split(string(argv), "\n") {
 				if strings.HasPrefix(arg, "--plugin-specs-file=") {

@@ -144,10 +144,8 @@ func (expanded Specs) ExpandedValidate() (Specs, error) {
 		return nil, err
 	}
 
-	for i := range expanded {
-		if err := expanded[i].Validate(); err != nil {
-			return nil, err
-		}
+	if err := expanded.Validate(); err != nil {
+		return nil, err
 	}
 
 	return expanded, nil

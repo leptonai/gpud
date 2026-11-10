@@ -12,21 +12,37 @@ Packaged charts derive the image tag from the pushed Git tag through
 ## Plugin profile persistence
 
 The default startup command sets
-`--plugin-specs-file=/var/lib/gpud/gpud.plugins.yaml`. The chart mounts
+`--plugin-specs-file=/var/lib/gpud/gpud.plugins.yaml` and
+`--plugin-specs-file-managed`. The chart mounts
 `/var/lib/gpud` from the node as writable persistent storage, so pushed
 plugin profiles survive container restarts and DaemonSet pod replacement.
 The file is optional: when it is missing or empty, GPUd starts normally
 without custom plugins. No placeholder file is required.
 GPUd restarts once after a changed profile is saved; repeated delivery of the
 same profile does not request another restart. Detaching a profile persists
-an empty list and restarts once to remove its components.
+an empty list and restarts once to remove its components when a profile is loaded.
+
+Incoming profiles are expanded and validated before saving. Invalid intervals,
+missing health plugins, and duplicate component names return an error without
+changing the saved profile or restarting GPUd. With managed-file recovery enabled,
+a file that cannot load or an init plugin that fails moves the profile to
+`gpud.plugins.yaml.invalid`; GPUd starts without that profile's plugins and keeps
+the control-plane session available. Repeated delivery of an unchanged profile
+that failed initialization returns an error instead of restarting again. Send a
+corrected profile to retry. Check the error logs and quarantined file when an
+expected component is missing.
+
+Validate existing attached profiles with `gpud cs` before upgrading, especially
+for BYOK groups. Review init plugins before enabling them: they run during
+startup, and quarantine cannot undo actions a script already performed.
 
 Older charts used the CLI default `/etc/default/gpud.plugins.yaml` without a
 persistent mount. Each profile push could therefore restart GPUd and discard
 the file, causing repeated restarts and missing components. Upgrade the
-**chart**, even if keeping the same GPUd image. The control plane re-sends the
+**chart and image** to a release containing managed-file recovery. Older images
+do not recognize `--plugin-specs-file-managed`. The control plane re-sends the
 attached profile after reconnection; the old container-local file is not
-migrated. If using `gpud.commandOverride`, include the plugin file flag above
+migrated. If using `gpud.commandOverride`, include both plugin flags above
 in the replacement command. Standalone/systemd installations retain their
 existing CLI default.
 

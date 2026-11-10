@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 )
@@ -52,8 +54,9 @@ func TestHandleSetPluginSpecsRequest(t *testing.T) {
 	// Create plugin specs
 	specs := pkgcustomplugins.Specs{
 		{
-			PluginName: "test-plugin",
-			PluginType: pkgcustomplugins.SpecTypeComponent,
+			PluginName:        "test-plugin",
+			PluginType:        pkgcustomplugins.SpecTypeComponent,
+			HealthStatePlugin: &pkgcustomplugins.Plugin{},
 		},
 	}
 
@@ -103,8 +106,9 @@ func TestHandleSetPluginSpecsRequestNilSaveFunc(t *testing.T) {
 	// Create plugin specs
 	specs := pkgcustomplugins.Specs{
 		{
-			PluginName: "test-plugin",
-			PluginType: pkgcustomplugins.SpecTypeComponent,
+			PluginName:        "test-plugin",
+			PluginType:        pkgcustomplugins.SpecTypeComponent,
+			HealthStatePlugin: &pkgcustomplugins.Plugin{},
 		},
 	}
 
@@ -146,8 +150,9 @@ func TestHandleGetPluginSpecsRequest(t *testing.T) {
 	// Create mock custom plugin component
 	comp := new(mockComponent)
 	spec := pkgcustomplugins.Spec{
-		PluginName: "test-plugin",
-		PluginType: pkgcustomplugins.SpecTypeComponent,
+		PluginName:        "test-plugin",
+		PluginType:        pkgcustomplugins.SpecTypeComponent,
+		HealthStatePlugin: &pkgcustomplugins.Plugin{},
 	}
 
 	// Mock the component to implement CustomPluginRegisteree
@@ -199,4 +204,56 @@ func TestHandleGetPluginSpecsRequest(t *testing.T) {
 	assert.Nil(t, response.CustomPluginSpecs)
 
 	registry.AssertExpectations(t)
+}
+
+func TestRejectInvalidPluginProfilesBeforeSaving(t *testing.T) {
+	valid := func(name string) pkgcustomplugins.Spec {
+		return pkgcustomplugins.Spec{PluginName: name, PluginType: pkgcustomplugins.SpecTypeComponent, RunMode: string(apiv1.RunModeTypeManual), HealthStatePlugin: &pkgcustomplugins.Plugin{}}
+	}
+	short := valid("short")
+	short.Interval.Duration = 30 * time.Second
+	expanded := valid("list")
+	expanded.PluginType = pkgcustomplugins.SpecTypeComponentList
+	expanded.ComponentList = []string{"collision", "collision"}
+	for _, tc := range []struct {
+		name      string
+		specs     pkgcustomplugins.Specs
+		errorText string
+	}{
+		{"short interval", pkgcustomplugins.Specs{short}, "interval is too short"},
+		{"missing health plugin", pkgcustomplugins.Specs{{PluginName: "missing", PluginType: pkgcustomplugins.SpecTypeComponent}}, "state plugin is required"},
+		{"duplicate names", pkgcustomplugins.Specs{valid("same"), valid("same")}, "duplicate component name"},
+		{"expanded duplicates", pkgcustomplugins.Specs{expanded}, "duplicate component name"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "plugins.yaml")
+			original := pkgcustomplugins.Specs{valid("existing")}
+			_, err := pkgcustomplugins.SaveSpecs(path, original)
+			require.NoError(t, err)
+			before, err := os.ReadFile(path)
+			require.NoError(t, err)
+			saves := 0
+			s := &Session{savePluginSpecsFunc: func(_ context.Context, specs pkgcustomplugins.Specs) (bool, error) {
+				saves++
+				return pkgcustomplugins.SaveSpecs(path, specs)
+			}}
+			resp := &Response{}
+			require.Nil(t, s.processSetPluginSpecs(context.Background(), resp, tc.specs))
+			require.Contains(t, resp.Error, tc.errorText)
+			require.Zero(t, saves)
+			after, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+			corrected := pkgcustomplugins.Specs{valid("corrected")}
+			resp = &Response{}
+			require.NotNil(t, s.processSetPluginSpecs(context.Background(), resp, corrected))
+			require.Empty(t, resp.Error)
+			loaded, err := pkgcustomplugins.LoadSpecs(path)
+			require.NoError(t, err)
+			require.Equal(t, "corrected", loaded[0].PluginName)
+			resp = &Response{}
+			require.Nil(t, s.processSetPluginSpecs(context.Background(), resp, corrected))
+			require.Empty(t, resp.Error)
+		})
+	}
 }

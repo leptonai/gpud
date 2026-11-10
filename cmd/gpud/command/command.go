@@ -312,6 +312,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "sets the plugin specs file (leave empty for default) -- if the file does not exist, gpud does not install/run any plugin, and updated configuration requires an gpud restart)",
 					Value: pkgcustomplugins.DefaultPluginSpecsFile,
 				},
+				cli.BoolFlag{
+					Name:  "plugin-specs-file-managed",
+					Usage: "quarantine invalid control-plane plugin profiles and continue startup so a corrected profile can be received",
+				},
 				cli.StringFlag{
 					Name:  "components",
 					Usage: "sets the components to enable (comma-separated, leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components, prefix component name with '-' to disable it)",
