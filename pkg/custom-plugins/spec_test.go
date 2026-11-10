@@ -2957,7 +2957,13 @@ func TestSpecsEqual(t *testing.T) {
 			name:     "nil and empty specs are equal",
 			a:        nil,
 			b:        Specs{},
-			expected: false, // JSON marshaling of nil vs empty slice produces different results
+			expected: true,
+		},
+		{
+			name:     "empty and nil specs are equal",
+			a:        Specs{},
+			b:        nil,
+			expected: true,
 		},
 		{
 			name: "identical single spec",

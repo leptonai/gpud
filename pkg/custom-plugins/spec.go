@@ -67,6 +67,10 @@ func (a Specs) Equal(b Specs) bool {
 	if len(a) != len(b) {
 		return false
 	}
+	// Both nil and an empty list mean that no plugins are configured.
+	if len(a) == 0 {
+		return true
+	}
 
 	aD, _ := json.Marshal(a)
 	bD, _ := json.Marshal(b)

@@ -9,6 +9,31 @@ is public. No image pull secret or NGC API key is required.
 Packaged charts derive the image tag from the pushed Git tag through
 `appVersion`; `values.yaml` does not pin a release tag.
 
+## Plugin profile persistence
+
+The default startup command sets
+`--plugin-specs-file=/var/lib/gpud/gpud.plugins.yaml`. The chart mounts
+`/var/lib/gpud` from the node as writable persistent storage, so pushed
+plugin profiles survive container restarts and DaemonSet pod replacement.
+GPUd restarts once after a changed profile is saved; repeated delivery of the
+same profile does not request another restart. Detaching a profile persists
+an empty list and restarts once to remove its components.
+
+Older charts used the CLI default `/etc/default/gpud.plugins.yaml` without a
+persistent mount. Each profile push could therefore restart GPUd and discard
+the file, causing repeated restarts and missing components. Upgrade the
+**chart**, even if keeping the same GPUd image. The control plane re-sends the
+attached profile after reconnection; the old container-local file is not
+migrated. If using `gpud.commandOverride`, include the plugin file flag above
+in the replacement command. Standalone/systemd installations retain their
+existing CLI default.
+
+After upgrading, attach a manual plugin, wait for GPUd to reload it, and
+trigger it successfully. Verify restart counts stay stable across several
+profile syncs, then check profile updates, detachment, and pod replacement.
+A rendered chart or a successful Helm upgrade alone does not verify those
+live behaviors.
+
 ## Prerequisites
 
 - Kubernetes 1.19+

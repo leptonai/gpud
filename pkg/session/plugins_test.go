@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,6 +13,27 @@ import (
 	"github.com/leptonai/gpud/components"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 )
+
+func TestPluginProfileDetachDoesNotRestartRepeatedly(t *testing.T) {
+	for _, empty := range []pkgcustomplugins.Specs{nil, {}} {
+		path := filepath.Join(t.TempDir(), "gpud.plugins.yaml")
+		// A previous attachment makes the first detach a real change.
+		_, err := pkgcustomplugins.SaveSpecs(path, pkgcustomplugins.Specs{{PluginName: "previous"}})
+		require.NoError(t, err)
+		s := &Session{savePluginSpecsFunc: func(_ context.Context, specs pkgcustomplugins.Specs) (bool, error) {
+			return pkgcustomplugins.SaveSpecs(path, specs)
+		}}
+		resp := &Response{}
+		require.NotNil(t, s.processSetPluginSpecs(context.Background(), resp, empty))
+		require.Empty(t, resp.Error)
+		// Session encodings can represent an empty profile as null or [].
+		for _, specs := range []pkgcustomplugins.Specs{nil, {}, nil, {}} {
+			resp = &Response{}
+			require.Nil(t, s.processSetPluginSpecs(context.Background(), resp, specs))
+			require.Empty(t, resp.Error)
+		}
+	}
+}
 
 // Test handling setPluginSpecs request
 func TestHandleSetPluginSpecsRequest(t *testing.T) {
