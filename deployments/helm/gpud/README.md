@@ -15,6 +15,8 @@ The default startup command sets
 `--plugin-specs-file=/var/lib/gpud/gpud.plugins.yaml`. The chart mounts
 `/var/lib/gpud` from the node as writable persistent storage, so pushed
 plugin profiles survive container restarts and DaemonSet pod replacement.
+The file is optional: when it is missing or empty, GPUd starts normally
+without custom plugins. No placeholder file is required.
 GPUd restarts once after a changed profile is saved; repeated delivery of the
 same profile does not request another restart. Detaching a profile persists
 an empty list and restarts once to remove its components.
