@@ -18,23 +18,25 @@ import (
 )
 
 type PackageController struct {
-	fileWatcher          chan packages.PackageInfo
-	packageStatus        map[string]*packages.PackageStatus
-	recoveryProbed       map[string]bool
-	recoveredInstalled   map[string]bool
-	syncPeriod           time.Duration
-	recoveryProbeTimeout time.Duration
+	fileWatcher             chan packages.PackageInfo
+	packageStatus           map[string]*packages.PackageStatus
+	recoveryProbed          map[string]bool
+	recoveredInstalled      map[string]bool
+	runtimeValidationFailed map[string]bool
+	syncPeriod              time.Duration
+	recoveryProbeTimeout    time.Duration
 	sync.RWMutex
 }
 
 func NewPackageController(watcher chan packages.PackageInfo) *PackageController {
 	r := &PackageController{
-		fileWatcher:          watcher,
-		packageStatus:        make(map[string]*packages.PackageStatus),
-		recoveryProbed:       make(map[string]bool),
-		recoveredInstalled:   make(map[string]bool),
-		syncPeriod:           3 * time.Second,
-		recoveryProbeTimeout: 10 * time.Second,
+		fileWatcher:             watcher,
+		packageStatus:           make(map[string]*packages.PackageStatus),
+		recoveryProbed:          make(map[string]bool),
+		recoveredInstalled:      make(map[string]bool),
+		runtimeValidationFailed: make(map[string]bool),
+		syncPeriod:              3 * time.Second,
+		recoveryProbeTimeout:    10 * time.Second,
 	}
 	return r
 }
@@ -305,6 +307,9 @@ func (c *PackageController) installPackage(ctx context.Context, pkg *packages.Pa
 		}
 	}
 	if skipInstall {
+		c.Lock()
+		delete(c.runtimeValidationFailed, pkg.Name)
+		c.Unlock()
 		return
 	}
 
@@ -318,13 +323,26 @@ func (c *PackageController) installPackage(ctx context.Context, pkg *packages.Pa
 		// installation on subsequent cycles so runtime damage can be repaired.
 		delete(c.recoveredInstalled, pkg.Name)
 		c.Unlock()
+		log.Logger.Infow("[package controller] promoted recovered installation to runtime validation", "name", pkg.Name)
 		return
 	}
 
+	probeCtx, cancel := context.WithTimeout(ctx, c.recoveryProbeTimeout)
 	var shouldSkipResult string
-	if err := runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+	skipErr := runCommand(probeCtx, scriptPath, "shouldSkip", &shouldSkipResult)
+	probeErr := probeCtx.Err()
+	cancel()
+	if probeErr != nil {
+		c.Lock()
+		delete(c.runtimeValidationFailed, pkg.Name)
+		c.Unlock()
+		log.Logger.Warnw("[package controller] skip probe interrupted", "name", pkg.Name, "error", probeErr)
+		return
+	}
+	if skipErr == nil {
 		c.Lock()
 		c.packageStatus[pkg.Name].Skipped = true
+		delete(c.runtimeValidationFailed, pkg.Name)
 		c.packageStatus[pkg.Name].Progress = 100
 		c.packageStatus[pkg.Name].IsInstalled = true
 		c.Unlock()
@@ -332,15 +350,37 @@ func (c *PackageController) installPackage(ctx context.Context, pkg *packages.Pa
 		return
 	}
 
-	err := runCommand(ctx, scriptPath, "isInstalled", nil)
+	probeCtx, cancel = context.WithTimeout(ctx, c.recoveryProbeTimeout)
+	err := runCommand(probeCtx, scriptPath, "isInstalled", nil)
+	cancel()
+	if ctx.Err() != nil {
+		return
+	}
 	if err == nil {
 		c.Lock()
+		delete(c.runtimeValidationFailed, pkg.Name)
 		c.packageStatus[pkg.Name].Progress = 100
 		c.packageStatus[pkg.Name].IsInstalled = true
 		c.Unlock()
 		log.Logger.Debugw("[package controller] already installed", "name", pkg.Name)
 		return
 	}
+
+	// Runtime health checks can fail transiently. Fresh installations keep
+	// their existing behavior; repairs require failures in two cycles.
+	if installed {
+		c.Lock()
+		failedBefore := c.runtimeValidationFailed[pkg.Name]
+		c.runtimeValidationFailed[pkg.Name] = true
+		c.Unlock()
+		if !failedBefore {
+			log.Logger.Warnw("[package controller] runtime validation failed, waiting for confirmation", "name", pkg.Name, "error", err)
+			return
+		}
+	}
+	c.Lock()
+	delete(c.runtimeValidationFailed, pkg.Name)
+	c.Unlock()
 
 	log.Logger.Warnw("[package controller] not installed, installing", "name", pkg.Name, "error", err)
 	async = true

@@ -96,9 +96,12 @@ esac
 				failInstall := filepath.Join(dir, "fail-install")
 				require.NoError(t, os.WriteFile(failInstall, nil, 0600))
 				step()
+				require.NotContains(t, calls(), "install", "a single runtime failure must not trigger repair")
+				step()
 				require.Contains(t, calls(), "install", "cached startup state must not bypass runtime validation")
 				require.NotContains(t, calls(), "start")
 				require.NoError(t, os.Remove(failInstall))
+				step()
 				step()
 				info, err := os.Stat(binaryPath)
 				require.NoError(t, err)
@@ -110,4 +113,140 @@ esac
 			})
 		}
 	}
+}
+
+func TestRecoveredPackageHonorsSkipAfterRecovery(t *testing.T) {
+	controller, pkg, step, calls, marker := runtimeValidationFixture(t)
+	step()
+	require.True(t, pkg.IsInstalled)
+	require.False(t, controller.recoveredInstalled[pkg.Name])
+	marker("broken", true)
+	marker("skip", true)
+	before := len(calls())
+	step()
+	step()
+	require.Equal(t, []string{"shouldSkip", "shouldSkip"}, calls()[before:])
+	require.True(t, pkg.Skipped)
+	require.True(t, pkg.IsInstalled)
+}
+
+func TestRuntimeValidationConfirmsFailures(t *testing.T) {
+	for _, interruption := range []string{"healthy", "skip", "dependency", "skip-timeout"} {
+		t.Run(interruption, func(t *testing.T) {
+			controller, pkg, step, calls, marker := runtimeValidationFixture(t)
+			step()
+			marker("broken", true)
+			step()
+			require.NotContains(t, calls(), "install")
+
+			switch interruption {
+			case "healthy":
+				marker("broken", false)
+				step()
+				marker("broken", true)
+			case "skip":
+				marker("skip", true)
+				step()
+				marker("skip", false)
+			case "dependency":
+				pkg.Dependency = [][]string{{"missing", "*"}}
+				step()
+				pkg.Dependency = nil
+			case "skip-timeout":
+				controller.recoveryProbeTimeout = 50 * time.Millisecond
+				marker("hang-skip", true)
+				step()
+				marker("hang-skip", false)
+				controller.recoveryProbeTimeout = 10 * time.Second
+			}
+			step()
+			require.NotContains(t, calls(), "install", "an interrupted failure sequence must restart confirmation")
+			step()
+			require.Equal(t, 1, countCommand(calls(), "install"))
+			require.Equal(t, 1, countCommand(calls(), "start"))
+			step()
+			require.False(t, controller.runtimeValidationFailed[pkg.Name])
+		})
+	}
+}
+
+func TestRuntimeValidationTimeoutAndCancellation(t *testing.T) {
+	controller, pkg, step, calls, marker := runtimeValidationFixture(t)
+	step()
+	controller.recoveryProbeTimeout = 50 * time.Millisecond
+	marker("hang-validation", true)
+	step()
+	require.NotContains(t, calls(), "install", "a single timeout must not trigger repair")
+	controller.recoveryProbeTimeout = 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	controller.installPackage(ctx, pkg)
+	require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+	require.NotContains(t, calls(), "install", "parent cancellation must not trigger repair")
+	marker("hang-validation", false)
+	step()
+	require.False(t, controller.runtimeValidationFailed[pkg.Name])
+}
+
+func runtimeValidationFixture(t *testing.T) (*PackageController, *packages.PackageStatus, func(), func() []string, func(string, bool)) {
+	t.Helper()
+	dir := t.TempDir()
+	script := filepath.Join(dir, "init.sh")
+	require.NoError(t, os.WriteFile(script, []byte(`#!/bin/bash
+set -eu
+cd "$(dirname "$0")"
+echo "$1" >> calls
+case "$1" in
+  isInstalled)
+    if [ -f hang-validation ]; then exec sleep 5; fi
+    test ! -f broken
+    ;;
+  shouldSkip)
+    if [ -f hang-skip ]; then exec sleep 5; fi
+    test -f skip
+    ;;
+  install) rm -f broken ;;
+  start) test ! -f broken ;;
+  *) exit 2 ;;
+esac
+`), 0600))
+	controller := NewPackageController(make(chan packages.PackageInfo))
+	pkg := &packages.PackageStatus{Name: t.Name(), ScriptPath: script, TotalTime: time.Second}
+	controller.packageStatus[pkg.Name] = pkg
+	step := func() {
+		t.Helper()
+		controller.installPackage(context.Background(), pkg)
+		mu := packagelock.For(pkg.Name)
+		mu.Lock()
+		defer mu.Unlock()
+		controller.RLock()
+		defer controller.RUnlock()
+		require.False(t, pkg.Installing)
+	}
+	calls := func() []string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(dir, "calls"))
+		require.NoError(t, err)
+		return strings.Fields(string(data))
+	}
+	marker := func(name string, enabled bool) {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if enabled {
+			require.NoError(t, os.WriteFile(path, nil, 0600))
+		} else {
+			require.NoError(t, os.Remove(path))
+		}
+	}
+	return controller, pkg, step, calls, marker
+}
+
+func countCommand(calls []string, command string) int {
+	count := 0
+	for _, call := range calls {
+		if call == command {
+			count++
+		}
+	}
+	return count
 }
