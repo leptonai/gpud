@@ -1,6 +1,7 @@
 name: Build gpud binary
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
