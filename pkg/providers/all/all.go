@@ -145,6 +145,8 @@ func DetectWithOverrides(ctx context.Context, regionOverride, instanceIDOverride
 		log.Logger.Infow("successfully detected private IP", "provider", detector.Name(), "privateIP", privateIP)
 	}
 
+	// Type discovery must not consume the budget for required identity fields.
+	info.InstanceType = fetchInstanceType(ctx, detector)
 	return info, nil
 }
 

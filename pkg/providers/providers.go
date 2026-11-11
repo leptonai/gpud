@@ -44,6 +44,7 @@ type Info struct {
 	Region        string `json:"region"`
 	VMEnvironment string `json:"vm_environment"`
 	InstanceID    string `json:"instance_id"`
+	InstanceType  string `json:"instance_type,omitempty"`
 	IMDSDetected  bool   `json:"-"`
 }
 
@@ -60,5 +61,6 @@ func (i *Info) RenderTable(wr io.Writer) {
 	table.Append([]string{"Region", i.Region})
 	table.Append([]string{"VM Environment", i.VMEnvironment})
 	table.Append([]string{"Instance ID", i.InstanceID})
+	table.Append([]string{"Instance Type", i.InstanceType})
 	table.Render()
 }

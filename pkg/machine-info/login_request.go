@@ -115,6 +115,7 @@ func createLoginRequest(
 
 	req.Provider = detectedProvider.Provider
 	req.ProviderInstanceID = detectedProvider.InstanceID
+	req.ProviderInstanceType = detectedProvider.InstanceType
 	providerLocation := getProviderLocation(detectedProvider)
 	if providerLocation == nil {
 		startMachineLocationLookup()
