@@ -13,7 +13,12 @@ func (s *Session) processSetPluginSpecs(ctx context.Context, resp *Response, spe
 		return
 	}
 
-	updated, err := s.savePluginSpecsFunc(ctx, specs)
+	expanded, err := specs.ExpandedValidate()
+	if err != nil {
+		resp.Error = err.Error()
+		return
+	}
+	updated, err := s.savePluginSpecsFunc(ctx, expanded)
 	if err != nil {
 		resp.Error = err.Error()
 		return

@@ -3,8 +3,8 @@ package controllers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -499,6 +499,24 @@ func (c *PackageController) statusPackage(ctx context.Context, pkg *packages.Pac
 }
 
 func runCommand(ctx context.Context, script, arg string, result *string) error {
+	if result != nil {
+		// Output waits for stdout to be drained before returning. process.Start
+		// starts a concurrent cmd.Wait, which can close StdoutPipe before
+		// process.Read consumes a short-lived command's output.
+		cmd := exec.CommandContext(ctx, "bash", script, arg)
+		// Bound the wait if a descendant inherits the output pipes and keeps
+		// them open after the script exits or the context is canceled.
+		cmd.WaitDelay = time.Second
+		output, err := cmd.Output()
+		// Preserve the line-ending normalization of process.Read without
+		// mixing stderr diagnostics into the version string.
+		*result = strings.TrimSuffix(strings.ReplaceAll(string(output), "\r\n", "\n"), "\n")
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return err
+	}
+
 	var ops []process.OpOption
 
 	// WithAllowDetachedProcess(true) allows backgrounded commands (using "&")
@@ -513,18 +531,16 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 	// - This causes delayed package installations and repeated restart loops
 	ops = append(ops, process.WithAllowDetachedProcess(true))
 
-	if result == nil {
-		f, err := os.OpenFile(filepath.Join(filepath.Dir(script), arg+".log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if cerr := f.Close(); cerr != nil && !errors.Is(cerr, os.ErrClosed) {
-				log.Logger.Warnw("failed to close log file", "error", cerr)
-			}
-		}()
-		ops = append(ops, process.WithOutputFile(f))
+	f, err := os.OpenFile(filepath.Join(filepath.Dir(script), arg+".log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
 	}
+	defer func() {
+		if cerr := f.Close(); cerr != nil && !errors.Is(cerr, os.ErrClosed) {
+			log.Logger.Warnw("failed to close log file", "error", cerr)
+		}
+	}()
+	ops = append(ops, process.WithOutputFile(f))
 
 	p, err := process.New(append(ops, process.WithCommand("bash", script, arg))...)
 	if err != nil {
@@ -539,35 +555,7 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 		}
 	}()
 
-	if result != nil {
-		// Read stdout in the current goroutine (not a separate goroutine)
-		// to avoid a race where cmd.Wait() — called by the watchCmd goroutine
-		// started in p.Start() — closes the StdoutPipe before a reader goroutine
-		// has had a chance to drain it, resulting in empty or truncated output.
-		// Reading inline ensures the scanner is blocked on the pipe read before
-		// the child process even writes anything, making the race practically
-		// impossible.
-		lines := make([]string, 0)
-		readErr := process.Read(
-			ctx,
-			p,
-			// only read stdout to check the version output
-			process.WithReadStdout(),
-			process.WithProcessLine(func(line string) {
-				lines = append(lines, line)
-			}),
-		)
-		output := strings.Join(lines, "\n")
-		if readErr == nil {
-			*result = output
-		} else {
-			*result = fmt.Sprintf("failed to run '%s %s' with error %v\n\noutput:\n%s", script, arg, readErr, output)
-		}
-	}
-
-	// Wait for the process to exit.  When result != nil the stdout pipe has
-	// already been fully drained by process.Read above, so cmd.Wait() closing
-	// it here is safe.
+	// Wait for the process to exit; output goes directly to the log file.
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

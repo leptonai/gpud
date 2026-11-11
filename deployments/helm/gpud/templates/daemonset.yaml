@@ -441,6 +441,9 @@ spec:
               set -- run
               set -- "$@" --listen-address="{{ .Values.gpud.listenAddress }}"
               set -- "$@" --log-level="{{ .Values.gpud.logLevel }}"
+              # Profile updates restart gpud. Keep the specs on the existing
+              # hostPath so both container restarts and pod replacement reload them.
+              set -- "$@" --plugin-specs-file=/var/lib/gpud/gpud.plugins.yaml --plugin-specs-file-managed
 
               # Endpoint priority: Node label > values.yaml > (none)
               ENDPOINT="{{ .Values.gpud.endpoint }}"

@@ -321,6 +321,9 @@ gpud:
   # flags you still need there, including --reboot-commands and the disk
   # --findmnt-commands/--lsblk-commands/--blockdev-usage-commands, plus
   # --nfs-host-root when NFS checks must access the node filesystem.
+  # Include --plugin-specs-file=/var/lib/gpud/gpud.plugins.yaml and
+  # --plugin-specs-file-managed to retain
+  # control-plane plugin profiles across container restarts and pod replacement.
   commandOverride: []
 
   # Extra environment variables for the gpud container (Kubernetes EnvVar

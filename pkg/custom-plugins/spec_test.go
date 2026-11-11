@@ -1137,7 +1137,7 @@ func TestLoadSpecsWithInvalidSpec(t *testing.T) {
 	specs, err := LoadSpecs(testFile)
 	assert.Error(t, err)
 	assert.Nil(t, specs)
-	assert.Equal(t, ErrMissingStatePlugin, err)
+	assert.ErrorIs(t, err, ErrMissingStatePlugin)
 }
 
 func TestValidateComprehensive(t *testing.T) {
@@ -2957,7 +2957,13 @@ func TestSpecsEqual(t *testing.T) {
 			name:     "nil and empty specs are equal",
 			a:        nil,
 			b:        Specs{},
-			expected: false, // JSON marshaling of nil vs empty slice produces different results
+			expected: true,
+		},
+		{
+			name:     "empty and nil specs are equal",
+			a:        Specs{},
+			b:        nil,
+			expected: true,
 		},
 		{
 			name: "identical single spec",

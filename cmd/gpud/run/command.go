@@ -429,6 +429,7 @@ func Command(cliContext *cli.Context) error {
 	cfg.VersionFile = versionFile
 
 	cfg.PluginSpecsFile = pluginSpecsFile
+	cfg.PluginSpecsFileManaged = cliContext.Bool("plugin-specs-file-managed")
 	cfg.SkipSessionUpdateConfig = skipSessionUpdateConfig
 	cfg.SessionProtocol = sessionProtocol
 

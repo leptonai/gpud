@@ -69,6 +69,97 @@ func (r *rebootStoreWithCloseError) GetRebootEvents(context.Context, time.Time) 
 }
 func (r *rebootStoreWithCloseError) Close() error { return errors.New("close reboot store failed") }
 
+func TestNew_WithoutPluginSpecs_WithMockey(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		content    *string
+		managed    bool
+		quarantine bool
+	}{
+		{name: "missing file"},
+		{name: "empty file", content: new("")},
+		{name: "null profile", content: new("null\n")},
+		{name: "empty profile", content: new("[]\n")},
+		{name: "managed malformed YAML", managed: true, quarantine: true, content: new("[invalid yaml")},
+		{name: "managed missing health plugin", managed: true, quarantine: true, content: new("- plugin_name: missing-health\n  plugin_type: component\n")},
+		{name: "managed short interval", managed: true, quarantine: true, content: new("- plugin_name: short-interval\n  plugin_type: component\n  interval: 30s\n  health_state_plugin: {}\n")},
+		{name: "managed duplicate names", managed: true, quarantine: true, content: new("- plugin_name: duplicate\n  plugin_type: component\n  health_state_plugin: {}\n- plugin_name: duplicate\n  plugin_type: component\n  health_state_plugin: {}\n")},
+		{name: "managed unhealthy init", managed: true, quarantine: true, content: new(`- plugin_name: partial-before-failure
+  plugin_type: component
+  run_mode: manual
+  health_state_plugin: {}
+- plugin_name: failing-init
+  plugin_type: init
+  health_state_plugin:
+    steps:
+      - name: fail
+        run_bash_script:
+          content_type: plaintext
+          script: exit 1
+`)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mockey.PatchConvey("GPUd starts without configured plugins", t, func() {
+				tmpDir := t.TempDir()
+				specsPath := filepath.Join(tmpDir, "gpud.plugins.yaml")
+				if tt.content != nil {
+					require.NoError(t, os.WriteFile(specsPath, []byte(*tt.content), 0o644))
+				}
+				t.Setenv(nvmllib.EnvMockAllSuccess, "true")
+
+				// Keep background listeners and session maintenance out of this
+				// constructor test; plugin loading uses the real filesystem/parser.
+				var startListenerCalled atomic.Bool
+				mockey.Mock((*Server).updateToken).To(func(_ *Server, _ context.Context, _ pkgmetrics.Store, _ *UserToken) {}).Build()
+				mockey.Mock((*Server).startListener).To(func(_ *Server, _ nvidianvml.Instance, _ *pkgmetricssyncer.Syncer, _ *lepconfig.Config, _ *gin.Engine, _ tls.Certificate) {
+					startListenerCalled.Store(true)
+				}).Build()
+
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				cfg := &lepconfig.Config{
+					Address:                "127.0.0.1:8443",
+					DataDir:                tmpDir,
+					DBInMemory:             true,
+					MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
+					EventsRetentionPeriod:  metav1.Duration{Duration: time.Minute},
+					Components:             []string{"none"},
+					PluginSpecsFile:        specsPath,
+					PluginSpecsFileManaged: tt.managed,
+				}
+				s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
+				require.NoError(t, err)
+				require.NotNil(t, s)
+				defer s.Stop()
+				require.Empty(t, s.componentsRegistry.All())
+				require.Empty(t, s.initRegistry.All())
+				if tt.quarantine {
+					require.NoFileExists(t, specsPath)
+					preserved, err := os.ReadFile(specsPath + ".invalid")
+					require.NoError(t, err)
+					require.Equal(t, *tt.content, string(preserved))
+					// A replacement profile remains writable after quarantine.
+					if rejected, err := pkgcustomplugins.LoadSpecs(specsPath + ".invalid"); err == nil {
+						updated, err := s.savePluginSpecs(rejected)
+						require.ErrorContains(t, err, "previously failed startup")
+						require.False(t, updated)
+						require.NoFileExists(t, specsPath)
+					}
+					updated, err := s.savePluginSpecs(pkgcustomplugins.Specs{{PluginName: "corrected", PluginType: pkgcustomplugins.SpecTypeComponent, HealthStatePlugin: &pkgcustomplugins.Plugin{}}})
+					require.NoError(t, err)
+					require.True(t, updated)
+					require.NoError(t, s.loadPluginSpecs(specsPath))
+					require.Len(t, s.componentsRegistry.All(), 1)
+				}
+				require.Eventually(t, startListenerCalled.Load, 2*time.Second, 20*time.Millisecond)
+				if tt.content == nil {
+					require.NoFileExists(t, specsPath)
+				}
+			})
+		})
+	}
+}
+
 func TestNew_SuccessPathWithPprofAndPlugins_WithMockey(t *testing.T) {
 	mockey.PatchConvey("New covers pprof, plugin specs, init checks, and goroutine startup", t, func() {
 		tmpDir, err := os.MkdirTemp("", "gpud-server-new-success-*")

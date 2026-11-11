@@ -29,7 +29,6 @@ import (
 	swaggerfiles "github.com/swaggo/files"
 	ginswagger "github.com/swaggo/gin-swagger"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/all"
 	_ "github.com/leptonai/gpud/docs/apis"
@@ -100,8 +99,9 @@ type Server struct {
 	skipSessionUpdateConfig bool
 	sessionProtocol         string
 
-	pluginSpecsFile string
-	faultInjector   pkgfaultinjector.Injector
+	pluginSpecsFile        string
+	pluginSpecsFileManaged bool
+	faultInjector          pkgfaultinjector.Injector
 }
 
 type UserToken struct {
@@ -264,7 +264,8 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		skipSessionUpdateConfig: config.SkipSessionUpdateConfig,
 		sessionProtocol:         config.SessionProtocol,
 
-		pluginSpecsFile: config.PluginSpecsFile,
+		pluginSpecsFile:        config.PluginSpecsFile,
+		pluginSpecsFileManaged: config.PluginSpecsFileManaged,
 	}
 	defer func() {
 		if retErr != nil {
@@ -381,49 +382,11 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 
 	// must be registered before starting the components
 	s.initRegistry = components.NewRegistry(s.gpudInstance)
-	if config.PluginSpecsFile != "" {
-		_, err := stdos.Stat(config.PluginSpecsFile)
-		exists := err == nil
-
-		if exists {
-			specs, err := pkgcustomplugins.LoadSpecs(config.PluginSpecsFile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load plugin specs: %w", err)
-			}
-
-			for _, spec := range specs {
-				initFunc := spec.NewInitFunc()
-				if initFunc == nil {
-					log.Logger.Errorw("failed to load plugin", "name", spec.ComponentName())
-					continue
-				}
-
-				if spec.PluginType == pkgcustomplugins.SpecTypeInit {
-					s.initRegistry.MustRegister(initFunc)
-					log.Logger.Infow("loaded init plugin", "name", spec.ComponentName())
-				} else {
-					s.componentsRegistry.MustRegister(initFunc)
-					log.Logger.Infow("loaded component plugin", "name", spec.ComponentName())
-				}
-			}
-		} else {
-			log.Logger.Warnw("plugin specs file does not exist, skipping", "path", config.PluginSpecsFile)
+	if err := s.loadPluginSpecs(config.PluginSpecsFile); err != nil {
+		if !config.PluginSpecsFileManaged {
+			return nil, err
 		}
-	}
-
-	// init plugin run only "once", and "before" regular components
-	// thus no need to start
-	for _, c := range s.initRegistry.All() {
-		rs := c.Check()
-		if rs.HealthStateType() != apiv1.HealthStateTypeHealthy {
-			return nil, fmt.Errorf("failed to start init plugin %s: %s", c.Name(), rs.Summary())
-		}
-		log.Logger.Infow("successfully executed init plugin", "name", c.Name(), "summary", rs.Summary())
-
-		debugger, ok := rs.(components.CheckResultDebugger)
-		if ok {
-			fmt.Printf("init plugin debug output %q:\n\n%s\n\n", c.Name(), debugger.Debug())
-		}
+		s.quarantinePluginSpecs(config.PluginSpecsFile, err)
 	}
 
 	// component must be started after initialization
@@ -680,7 +643,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 			session.WithMetricsStore(metricsStore),
 			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
-				return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
+				return s.savePluginSpecs(specs)
 			}),
 			session.WithFaultInjector(s.faultInjector),
 			session.WithDB(s.dbRW, s.dbRO),
@@ -754,7 +717,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 				session.WithMetricsStore(metricsStore),
 				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
-					return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
+					return s.savePluginSpecs(specs)
 				}),
 				session.WithFaultInjector(s.faultInjector),
 				session.WithDB(s.dbRW, s.dbRO),
