@@ -343,3 +343,16 @@ func TestSupportFabricStateByGPUProduct(t *testing.T) {
 		})
 	}
 }
+
+func TestNonPCIFabricCandidates(t *testing.T) {
+	for _, name := range []string{"NVIDIA B100", "NVIDIA B200", "NVIDIA B300 SXM6 AC", "NVIDIA GB200", "NVIDIA-GB300"} {
+		if !MayHaveNonPCIFabricByGPUProduct(name) {
+			t.Errorf("expected non-PCI fabric candidate: %s", name)
+		}
+	}
+	for _, name := range []string{"NVIDIA H100 NVL", "NVIDIA H200", "NVIDIA B300 PCIe", "NVIDIA GB200 NVL4", "unknown"} {
+		if MayHaveNonPCIFabricByGPUProduct(name) {
+			t.Errorf("unexpected non-PCI fabric candidate: %s", name)
+		}
+	}
+}

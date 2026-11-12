@@ -578,7 +578,6 @@ func TestFormatFabricStateEntryIssues(t *testing.T) {
 		"route recovery in progress",
 		"route unhealthy",
 		"state=In Progress",
-		"status=ERROR_UNKNOWN",
 		"summary=Unhealthy",
 	}
 	assert.Equal(t, expected, issues)

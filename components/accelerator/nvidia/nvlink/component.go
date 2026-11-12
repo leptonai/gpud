@@ -19,6 +19,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/fabric"
+	fabricmanager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -41,6 +43,8 @@ const (
 var _ components.Component = &component{}
 
 type component struct {
+	checkMu sync.Mutex
+
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -51,9 +55,11 @@ type component struct {
 	getNVLinkFunc            func(uuid string, dev device.Device) (NVLink, error)
 	getPeerNVLinkP2PStatusFn func(dev device.Device, peer device.Device) (string, error)
 	getThresholdsFunc        func() ExpectedLinkStates
+	checkNVSwitchExistsFunc  func() bool
 	eventBucket              eventstore.Bucket
 	kmsgSyncer               *kmsg.Syncer
 	readAllKmsg              func(context.Context) ([]kmsg.Message, error)
+	fabricRegistration       fabric.Registration
 
 	lastMu               sync.RWMutex
 	lastCheckResult      *checkResult
@@ -72,13 +78,20 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 		getTimeNowFunc: func() time.Time {
-			return time.Now().UTC()
+			return time.Now()
 		},
 		getBootTimeFunc:          pkghost.BootTime,
 		nvmlInstance:             gpudInstance.NVMLInstance,
 		getNVLinkFunc:            GetNVLink,
 		getPeerNVLinkP2PStatusFn: getPeerNVLinkP2PStatus,
 		getThresholdsFunc:        GetDefaultExpectedLinkStates,
+		checkNVSwitchExistsFunc: func() bool {
+			ctx, cancel := context.WithTimeout(cctx, 5*time.Second)
+			defer cancel()
+			switches, err := fabricmanager.ListPCINVSwitches(ctx)
+			// Failed detection cannot prove the absence of a switch.
+			return err != nil || len(switches) > 0
+		},
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -114,6 +127,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 	if gpudInstance.EventStore == nil && runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		c.readAllKmsg = kmsg.ReadAll
+	}
+	if err := c.fabricRegistration.Open(c.ctx, gpudInstance.DBRW, Name, pkghost.BootID()); err != nil {
+		_ = c.Close()
+		return nil, err
 	}
 	return c, nil
 }
@@ -224,6 +241,10 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
+	// Keep collection timestamps, registration deadlines, and result publication ordered.
+	c.checkMu.Lock()
+	defer c.checkMu.Unlock()
+
 	log.Logger.Infow("checking nvidia gpu nvlink")
 
 	startedAt := c.getTimeNowFunc()
@@ -308,6 +329,18 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
+	var fabricReport *fabric.Report
+	if len(devs) > 1 && c.nvmlInstance.FabricStateSupported() {
+		report := fabric.Collect(devs)
+		switchDetected := false
+		if report.AllUnsupported && c.checkNVSwitchExistsFunc != nil {
+			switchDetected = c.checkNVSwitchExistsFunc()
+		}
+		if !report.UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), switchDetected) {
+			fabricReport = &report
+		}
+		cr.FabricStates = report.Entries
+	}
 	// Only expect NVLink by default on multi-GPU hosts that advertise NVIDIA
 	// fabric support. This keeps 1-GPU machines safe: for a single GPU,
 	// `nvidia-smi topo -p2p n` legitimately shows only the self entry:
@@ -451,6 +484,22 @@ func (c *component) Check() components.CheckResult {
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no nvlink issue found", len(devs))
+	if fabricReport != nil {
+		health, reason, err := c.fabricRegistration.Evaluate(c.ctx, cr.ts, fabricReport.Pending, fabricReport.Failed)
+		if health != apiv1.HealthStateTypeHealthy {
+			cr.health = health
+			cr.reason = appendNVLinkFailureDetails(reason+": "+fabricReport.Reason, cr)
+			cr.err = errors.Join(fabricReport.Err, err)
+			// Preserve port/P2P recovery guidance outside the registration window.
+			if health == apiv1.HealthStateTypeUnhealthy {
+				setNVLinkSuggestedActions(cr)
+			}
+			if cr.suggestedActions == nil {
+				cr.suggestedActions = fabric.SuggestedActions(errors.Join(fabricReport.Err, err), health)
+			}
+			return cr
+		}
+	}
 
 	evaluateHealthStateWithThresholds(cr)
 
@@ -464,7 +513,8 @@ type checkResult struct {
 	MatchedKmsgs []kmsg.Message `json:"-"`
 
 	// NVLinks contains detailed NVLink information for all GPUs checked
-	NVLinks []NVLink `json:"nvlinks,omitempty"`
+	NVLinks      []NVLink                  `json:"nvlinks,omitempty"`
+	FabricStates []device.FabricStateEntry `json:"fabric_states,omitempty"`
 
 	// ActiveNVLinkUUIDs lists GPUs where NVLink is supported AND all links have FeatureEnabled=true
 	// (i.e., len(States) > 0 && States.AllFeatureEnabled() == true)
