@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
@@ -111,5 +112,43 @@ func TestFindMnt_SuccessWithMockey(t *testing.T) {
 		require.Len(t, out.Filesystems, 1)
 		assert.Equal(t, "/", out.Filesystems[0].MountedPoint)
 		assert.Equal(t, "ext4", out.Filesystems[0].Fstype)
+	})
+}
+
+type exitedBeforeReadProcess struct {
+	process.Process
+}
+
+func (p *exitedBeforeReadProcess) Start(ctx context.Context) error {
+	if err := p.Process.Start(ctx); err != nil {
+		return err
+	}
+	select {
+	case err := <-p.Wait():
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestFindMntWithCommandAfterProcessExit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	p, err := process.New(process.WithBashScriptContentsToRun(`printf '%s\n' '{"filesystems":[{"source":"example:/export","target":"/mnt/nfs-share","fstype":"nfs4","size":"100G","used":"1G","avail":"99G","use%":"1%"}]}'`), process.WithRunBashInline())
+	require.NoError(t, err)
+	defer func() { _ = p.Close(ctx) }()
+	mockey.PatchConvey("findmnt retains JSON when the command exits before reading", t, func() {
+		// Force the adverse scheduling order while retaining real process pipes,
+		// process.Read, and the findmnt JSON parser. Before the pipe-ownership fix,
+		// this valid JSON produced "unexpected end of JSON input" after exit.
+		mockey.Mock(process.New).To(func(...process.OpOption) (process.Process, error) {
+			return &exitedBeforeReadProcess{Process: p}, nil
+		}).Build()
+		out, err := FindMntWithCommand(ctx, "/mnt/nfs-share", "findmnt")
+		require.NoError(t, err)
+		require.Len(t, out.Filesystems, 1)
+		require.Equal(t, "/mnt/nfs-share", out.Filesystems[0].MountedPoint)
+		require.Equal(t, []string{"example:/export"}, out.Filesystems[0].Sources)
+		require.Equal(t, "nfs4", out.Filesystems[0].Fstype)
 	})
 }

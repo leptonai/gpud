@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -434,9 +433,9 @@ func TestRead_FileAlreadyClosedError(t *testing.T) {
 			started:      true,
 		}
 
-		// The "file already closed" error should be ignored by Read
+		// A closed pipe can mean lost output and must not report success.
 		err := Read(context.Background(), p, WithReadStdout())
-		require.NoError(t, err)
+		require.ErrorContains(t, err, "file already closed")
 	})
 }
 
@@ -814,8 +813,8 @@ func TestProcess_StderrReaderAvailable(t *testing.T) {
 
 func TestProcess_Start_StdoutPipeErrorWithMockey(t *testing.T) {
 	mockey.PatchConvey("Start returns error when StdoutPipe fails", t, func() {
-		mockey.Mock((*exec.Cmd).StdoutPipe).To(func(cmd *exec.Cmd) (io.ReadCloser, error) {
-			return nil, errors.New("stdout pipe failed")
+		mockey.Mock(os.Pipe).To(func() (*os.File, *os.File, error) {
+			return nil, nil, errors.New("stdout pipe failed")
 		}).Build()
 
 		p, err := New(WithCommand("echo", "hello"))
