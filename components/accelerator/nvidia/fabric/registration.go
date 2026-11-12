@@ -70,6 +70,13 @@ func (r *Registration) Evaluate(ctx context.Context, now time.Time, pending, fai
 		// Re-anchor the persisted wall timestamp to this process monotonic clock.
 		// A backward correction across a restart cannot start the window in the future.
 		if !r.since.IsZero() {
+			// Persist a backward-clock correction before granting grace, so
+			// another same-boot restart cannot move the deadline again.
+			if now.Before(r.since) {
+				if err := r.save(ctx, now); err != nil {
+					return apiv1.HealthStateTypeUnhealthy, "cannot persist normalized fabric registration deadline", err
+				}
+			}
 			elapsed := max(now.Sub(r.since), 0)
 			r.since = now.Add(-elapsed)
 		}
