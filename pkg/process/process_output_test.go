@@ -2,9 +2,12 @@ package process
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -152,20 +155,57 @@ func TestOutputStartFailureClosesDescriptors(t *testing.T) {
 	})
 }
 
-func TestOutputCancellationUnblocksReader(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	p, err := New(WithCommand("sleep", "30"))
-	require.NoError(t, err)
-	require.NoError(t, p.Start(ctx))
-	defer func() { _ = p.Close(context.Background()) }()
-	done := make(chan error, 1)
-	go func() { _, err := io.Copy(io.Discard, p.StdoutReader()); done <- err }()
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("reader remained blocked after cancellation")
+func TestOutputCleanupWithDetachedWriter(t *testing.T) {
+	for _, closeProcess := range []bool{false, true} {
+		t.Run(fmt.Sprint("close=", closeProcess), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			pidFile := filepath.Join(t.TempDir(), "pid")
+			p, err := New(WithBashScriptContentsToRun(`sleep 30 &
+printf '%s' "$!" > "$PID_FILE"`), WithRunBashInline(), WithAllowDetachedProcess(true), WithEnvs("PID_FILE="+pidFile))
+			require.NoError(t, err)
+			require.NoError(t, p.Start(ctx))
+			defer func() { _ = p.Close(context.Background()) }()
+			// Wait for the shell to exit, leaving its descendant holding both pipes.
+			select {
+			case err := <-p.Wait():
+				require.NoError(t, err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("shell did not exit")
+			}
+			data, err := os.ReadFile(pidFile)
+			require.NoError(t, err)
+			pid, err := strconv.Atoi(string(data))
+			require.NoError(t, err)
+			defer func() { _ = syscall.Kill(pid, syscall.SIGKILL) }()
+			stdout := p.StdoutReader().(*os.File)
+			stderr := p.StderrReader().(*os.File)
+			done := make(chan error, 1)
+			go func() { done <- Read(ctx, p, WithReadStdout(), WithReadStderr()) }()
+			select {
+			case err := <-done:
+				t.Fatalf("Read returned while descendant holds pipes: %v", err)
+			case <-time.After(50 * time.Millisecond):
+			}
+			if closeProcess {
+				require.NoError(t, p.Close(context.Background()))
+			} else {
+				cancel()
+			}
+			select {
+			case err := <-done:
+				require.Error(t, err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("reader remained blocked after cleanup")
+			}
+			// Cleanup must release both descriptors without relying on descendant exit.
+			require.NoError(t, syscall.Kill(pid, 0))
+			require.Eventually(t, func() bool {
+				_, outErr := stdout.Stat()
+				_, errErr := stderr.Stat()
+				return errors.Is(outErr, os.ErrClosed) && errors.Is(errErr, os.ErrClosed)
+			}, time.Second, time.Millisecond)
+		})
 	}
 }
 

@@ -224,11 +224,15 @@ func WithRestartConfig(config RestartConfig) OpOption {
 //	Without allowDetachedProcess=true, the backgrounded command would be killed
 //	when Close() is called.
 //
-// Example:
+// Use WithOutputFile for detached jobs: pipe-mode Read waits for all
+// descendants holding stdout/stderr to exit, even after the direct child exits.
+//
+// Example (outputFile is an open log file):
 //
 //	p, err := New(
 //	    WithBashScriptContentsToRun(deployScript),
 //	    WithAllowDetachedProcess(true),
+//	    WithOutputFile(outputFile),
 //	)
 func WithAllowDetachedProcess(allow bool) OpOption {
 	return func(op *Op) {

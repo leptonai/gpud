@@ -61,7 +61,9 @@ type Process interface {
 	ExitCode() int32
 
 	// Returns the stdout reader. Output remains readable after process exit
-	// until Close or cancellation of the context passed to Start.
+	// until Close or cancellation of the context passed to Start. Callers must
+	// do one of these to release the pipe descriptors, even after Wait returns.
+	// EOF requires every descendant holding the write end to exit or close it.
 	// If retry configuration is specified, specify the output file to read all the output.
 	//
 	// The returned reader is set to nil upon the abort call on the process,
@@ -69,7 +71,9 @@ type Process interface {
 	StdoutReader() io.Reader
 
 	// Returns the stderr reader. Output remains readable after process exit
-	// until Close or cancellation of the context passed to Start.
+	// until Close or cancellation of the context passed to Start. Callers must
+	// do one of these to release the pipe descriptors, even after Wait returns.
+	// EOF requires every descendant holding the write end to exit or close it.
 	// If retry configuration is specified, specify the output file to read all the output.
 	//
 	// The returned reader is set to nil upon the abort call on the process,
