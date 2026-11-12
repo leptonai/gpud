@@ -18,7 +18,8 @@ func TestOutputSurvivesProcessExit(t *testing.T) {
 	require.NoError(t, p.Start(ctx))
 	defer func() { _ = p.Close(ctx) }()
 
-	// Force the ordering that used to let Wait discard unread pipe data.
+	// Force the ordering that used to let Wait discard unread pipe data:
+	// the child exited successfully, but Read returned no lines and no error.
 	select {
 	case err := <-p.Wait():
 		require.NoError(t, err)

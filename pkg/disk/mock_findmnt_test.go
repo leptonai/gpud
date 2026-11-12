@@ -139,7 +139,8 @@ func TestFindMntWithCommandAfterProcessExit(t *testing.T) {
 	defer func() { _ = p.Close(ctx) }()
 	mockey.PatchConvey("findmnt retains JSON when the command exits before reading", t, func() {
 		// Force the adverse scheduling order while retaining real process pipes,
-		// process.Read, and the findmnt JSON parser.
+		// process.Read, and the findmnt JSON parser. Before the pipe-ownership fix,
+		// this valid JSON produced "unexpected end of JSON input" after exit.
 		mockey.Mock(process.New).To(func(...process.OpOption) (process.Process, error) {
 			return &exitedBeforeReadProcess{Process: p}, nil
 		}).Build()
