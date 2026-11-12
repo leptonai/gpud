@@ -92,5 +92,5 @@ func TestUnsupportedFabricApplicability(t *testing.T) {
 			require.False(t, report.UnsupportedWithoutFabric("NVIDIA H100", true))
 		})
 	}
-	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, SuggestedActions(nil, apiv1.HealthStateTypeUnhealthy).RepairActions)
+	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}, SuggestedActions(nil, apiv1.HealthStateTypeUnhealthy).RepairActions)
 }

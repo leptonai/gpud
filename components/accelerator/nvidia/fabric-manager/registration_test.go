@@ -29,6 +29,7 @@ func TestCheckFabricRegistrationWhileManagerStarts(t *testing.T) {
 	}
 	require.Equal(t, apiv1.HealthStateTypeDegraded, c.Check().HealthStateType())
 	require.Equal(t, apiv1.HealthStateTypeDegraded, c.LastHealthStates()[0].Health)
+	require.Contains(t, c.lastCheckResult.reason, "fabric manager found but not active")
 	now = start.Add(77 * time.Second)
 	active = true
 	report = fabricStateReport{Healthy: true}
@@ -41,7 +42,7 @@ func TestCheckFabricRegistrationWhileManagerStarts(t *testing.T) {
 	now = now.Add(fabric.RegistrationTimeout)
 	timedOut := c.Check().(*checkResult)
 	require.Equal(t, apiv1.HealthStateTypeUnhealthy, timedOut.health)
-	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, timedOut.suggestedActions.RepairActions)
+	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}, timedOut.suggestedActions.RepairActions)
 
 	report.Failed = true
 	report.Reason = "GPU GPU-1: summary=Unhealthy"

@@ -437,7 +437,7 @@ func (c *component) Check() components.CheckResult {
 			cr.reason = reason + ": " + report.Reason
 			cr.err = errors.Join(report.Err, err)
 			cr.suggestedActions = fabric.SuggestedActions(errors.Join(report.Err, err), health)
-			return cr
+			return c.checkLocalFabricManager(cr, nonPCIFabric)
 		}
 
 		// GB200 NVL72 Fabric Management Architecture
@@ -483,11 +483,17 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	return c.checkLocalFabricManager(cr, nonPCIFabric)
+}
+
+// Check the applicable local service even while registration is pending, retaining
+// fabric health so a live daemon cannot hide an unavailable fabric.
+func (c *component) checkLocalFabricManager(cr *checkResult, nonPCIFabric bool) *checkResult {
 	if !c.nvmlInstance.FabricManagerSupported() {
 		cr.FabricManagerActive = false
 
-		// Preserve unhealthy state from fabric state check, only set healthy if not already unhealthy
-		if cr.health != apiv1.HealthStateTypeUnhealthy {
+		// Preserve the independently observed fabric health.
+		if cr.health == "" {
 			cr.health = apiv1.HealthStateTypeHealthy
 		}
 		cr.reason = appendReason(cr.reason, c.nvmlInstance.ProductName()+" does not support fabric manager")
@@ -499,8 +505,8 @@ func (c *component) Check() components.CheckResult {
 	if !nonPCIFabric && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
 		cr.FabricManagerActive = false
 
-		// Preserve unhealthy state from fabric state check, only set healthy if not already unhealthy
-		if cr.health != apiv1.HealthStateTypeUnhealthy {
+		// Preserve the independently observed fabric health.
+		if cr.health == "" {
 			cr.health = apiv1.HealthStateTypeHealthy
 		}
 		cr.reason = appendReason(cr.reason, "NVSwitch not detected, skipping fabric manager check")
@@ -512,10 +518,11 @@ func (c *component) Check() components.CheckResult {
 	if !c.checkFMExistsFunc() {
 		cr.FabricManagerActive = false
 
-		if cr.health == "" || cr.health == apiv1.HealthStateTypeHealthy {
-			cr.health = apiv1.HealthStateTypeUnhealthy
-		}
+		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = appendReason(cr.reason, "fabric manager supported but nv-fabricmanager executable not found")
+		if cr.suggestedActions == nil {
+			cr.suggestedActions = fabric.SuggestedActions(nil, cr.health)
+		}
 
 		// no reason to proceed the fabric-manager activeness checks
 		return cr
@@ -535,7 +542,7 @@ func (c *component) Check() components.CheckResult {
 		// Ref: https://github.com/NVIDIA/gpu-operator/issues/610
 		if c.hasNothingToDoEvent() {
 			log.Logger.Infow("fabric manager reported nothing to do, treating as healthy")
-			if cr.health != apiv1.HealthStateTypeUnhealthy {
+			if cr.health == "" {
 				cr.health = apiv1.HealthStateTypeHealthy
 			}
 			cr.reason = appendReason(cr.reason, "fabric manager has nothing to do (no NVSwitch devices)")
@@ -546,13 +553,17 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 		}
 		cr.reason = appendReason(cr.reason, "fabric manager found but not active")
+		if cr.suggestedActions == nil {
+			cr.suggestedActions = fabric.SuggestedActions(nil, cr.health)
+		}
 
 		return cr
 	}
 
 	cr.FabricManagerActive = true
 
-	if cr.health == apiv1.HealthStateTypeUnhealthy {
+	if cr.health != "" && cr.health != apiv1.HealthStateTypeHealthy {
+		cr.reason = appendReason(cr.reason, "fabric manager found and active")
 		return cr
 	}
 
