@@ -1,14 +1,10 @@
 package fabricmanager
 
 import (
-	"errors"
 	"fmt"
-
 	"io"
-	"sort"
-	"strings"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/fabric"
 
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
@@ -18,6 +14,8 @@ type fabricStateReport struct {
 	Entries        []device.FabricStateEntry
 	AllUnsupported bool
 	Healthy        bool
+	Pending        bool
+	Failed         bool
 	Reason         string
 	Err            error
 }
@@ -78,50 +76,8 @@ func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
 		return report
 	}
 
-	devices := nvmlInstance.Devices()
-	if len(devices) == 0 {
-		return report
-	}
-
-	report.AllUnsupported = true
-	uuids := make([]string, 0, len(devices))
-	for uuid := range devices {
-		uuids = append(uuids, uuid)
-	}
-	sort.Strings(uuids)
-
-	reasons := make([]string, 0)
-
-	for _, uuid := range uuids {
-		dev := devices[uuid]
-		info, err := getFabricInfoFn(dev)
-		if err != nil {
-			report.Err = fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
-			report.Healthy = false
-			if errors.Is(err, nvml.ERROR_NOT_SUPPORTED) {
-				continue
-			}
-			report.AllUnsupported = false
-			return report
-		}
-
-		entry := info.ToEntry(uuid)
-		issues := info.GetIssues()
-		unsupported := info.State == nvml.GPU_FABRIC_STATE_NOT_SUPPORTED &&
-			(info.Status == nvml.SUCCESS || info.Status == nvml.ERROR_NOT_SUPPORTED || info.Status == nvml.ERROR_UNKNOWN) &&
-			info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED && info.HealthMask == 0
-		report.AllUnsupported = report.AllUnsupported && unsupported
-		report.Entries = append(report.Entries, entry)
-		if len(issues) > 0 {
-			report.Healthy = false
-			reasons = append(reasons, fmt.Sprintf("GPU %s: %s", uuid, strings.Join(issues, ", ")))
-		}
-	}
-
-	if len(reasons) > 0 {
-		sort.Strings(reasons)
-		report.Reason = strings.Join(reasons, "; ")
-	}
-
-	return report
+	r := fabric.CollectWith(nvmlInstance.Devices(), func(dev device.Device) (device.FabricState, error) {
+		return getFabricInfoFn(dev)
+	})
+	return fabricStateReport(r)
 }

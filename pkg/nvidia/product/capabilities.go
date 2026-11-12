@@ -7,6 +7,7 @@ type capabilities struct {
 	fabricManager           bool
 	fabricState             bool
 	externalFabricCandidate bool
+	switchBehindBridge      bool
 }
 
 // Keep memory recovery, fabric telemetry, and management topology in one
@@ -25,9 +26,9 @@ var (
 		"h200": {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
 		// Preserve memory support without treating standalone Grace Hopper as HGX H200.
 		"gh200": {memoryManagement: memMgmtCapAllSupported},
-		"b100":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
-		"b200":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
-		"b300":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
+		"b100":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true, switchBehindBridge: true},
+		"b200":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true, switchBehindBridge: true},
+		"b300":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true, switchBehindBridge: true},
 		// GB families can use external NVL72 fabrics, but GB200 also has NVL4.
 		"gb200": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabricCandidate: true},
 		"gb300": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabricCandidate: true},
@@ -46,7 +47,7 @@ func capabilitiesByGPUProduct(gpuProductName string) capabilities {
 	// PCIe and NVL4 variants retain memory recovery without NVSwitch fabrics.
 	// https://docs.nvidia.com/multi-node-nvlink-systems/nvfupd-guide/examples/gb200NVL.html
 	if strings.Contains(p, "pcie") || strings.Contains(p, "nvl4") {
-		caps.fabricManager, caps.fabricState, caps.externalFabricCandidate = false, false, false
+		caps.fabricManager, caps.fabricState, caps.externalFabricCandidate, caps.switchBehindBridge = false, false, false, false
 	}
 	return caps
 }
@@ -117,4 +118,12 @@ type MemoryErrorManagementCapabilities struct {
 
 	// Message contains the message to the user about the memory error management capabilities.
 	Message string `json:"message,omitempty"`
+}
+
+// MayHaveNonPCIFabricByGPUProduct allows NVML probing when switches are external
+// or accessed through CX7 bridges rather than enumerated as host PCIe devices.
+// https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html#nvidia-hgx-b200-b300-gpu-baseboard
+func MayHaveNonPCIFabricByGPUProduct(name string) bool {
+	caps := capabilitiesByGPUProduct(name)
+	return caps.externalFabricCandidate || caps.switchBehindBridge
 }

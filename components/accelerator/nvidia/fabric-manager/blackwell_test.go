@@ -35,7 +35,8 @@ func TestCheckBlackwellFabric(t *testing.T) {
 						}
 						return 8, nil
 					},
-					checkNVSwitchExistsFunc: func() bool { return !rack },
+					// Fourth-generation switches sit behind CX7, not on the host PCIe tree.
+					checkNVSwitchExistsFunc: func() bool { return false },
 					collectFabricStateFunc: func() fabricStateReport {
 						collected = true
 						if healthy {
@@ -102,6 +103,37 @@ func TestCheckGraceBlackwellTopology(t *testing.T) {
 			assert.Equal(t, tc.want, cr.health)
 			assert.Equal(t, tc.supported, cr.FabricStateSupported)
 			assert.Equal(t, tc.collected, collected)
+		})
+	}
+}
+
+func TestBlackwellFabricWithoutPCISwitchUsesNVML(t *testing.T) {
+	for _, name := range []string{"NVIDIA B100", "NVIDIA B200", "NVIDIA B300 SXM6 AC"} {
+		t.Run(name, func(t *testing.T) {
+			pending := &mockFabricStateDevice{state: device.FabricState{State: nvml.GPU_FABRIC_STATE_IN_PROGRESS, Status: nvml.ERROR_UNKNOWN}}
+			devs := map[string]device.Device{"0": pending, "1": pending}
+			inst := &fakeNVMLInstanceDevices{mockNVMLInstance: mockNVMLInstance{exists: true, productName: name, supportsFM: product.SupportedFMByGPUProduct(name), supportsFabricState: product.SupportFabricStateByGPUProduct(name)}, devs: devs}
+			active := true
+			c := &component{ctx: context.Background(), nvmlInstance: inst,
+				getCountLspci:           func(context.Context) (int, error) { return 2, nil },
+				checkNVSwitchExistsFunc: func() bool { return false },
+				collectFabricStateFunc:  func() fabricStateReport { return collectFabricState(inst) },
+				checkFMExistsFunc:       func() bool { return true }, checkFMActiveFunc: func() bool { return active },
+			}
+			require.Equal(t, apiv1.HealthStateTypeDegraded, c.Check().HealthStateType())
+			pending.state = device.FabricState{State: nvml.GPU_FABRIC_STATE_COMPLETED}
+			require.Equal(t, apiv1.HealthStateTypeHealthy, c.Check().HealthStateType())
+			active = false
+			require.Equal(t, apiv1.HealthStateTypeUnhealthy, c.Check().HealthStateType(), "local FM must still be monitored without PCIe switches")
+			active = true
+			pending.state.HealthSummary = nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY
+			require.Equal(t, apiv1.HealthStateTypeUnhealthy, c.Check().HealthStateType())
+			pending.state = device.FabricState{State: nvml.GPU_FABRIC_STATE_NOT_SUPPORTED, Status: nvml.ERROR_UNKNOWN}
+			cr := c.Check().(*checkResult)
+			require.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+			require.False(t, cr.FabricStateSupported)
+			devs["1"] = &mockFabricStateDevice{state: device.FabricState{State: nvml.GPU_FABRIC_STATE_COMPLETED}}
+			require.Equal(t, apiv1.HealthStateTypeUnhealthy, c.Check().HealthStateType())
 		})
 	}
 }

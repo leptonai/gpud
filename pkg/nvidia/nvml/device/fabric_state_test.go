@@ -28,7 +28,7 @@ func TestFabricState_GetIssues(t *testing.T) {
 			expected: []string{},
 		},
 		{
-			name: "state and status issues",
+			name: "status is undefined before registration completes",
 			state: FabricState{
 				CliqueID:      101,
 				ClusterUUID:   "cluster",
@@ -37,7 +37,7 @@ func TestFabricState_GetIssues(t *testing.T) {
 				HealthMask:    0,
 				HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY,
 			},
-			expected: []string{"state=In Progress", "status=ERROR_UNKNOWN"},
+			expected: []string{"state=In Progress"},
 		},
 		{
 			name: "unhealthy with multiple issues",
@@ -56,7 +56,6 @@ func TestFabricState_GetIssues(t *testing.T) {
 				"route recovery in progress",
 				"route unhealthy",
 				"state=In Progress",
-				"status=ERROR_UNKNOWN",
 				"summary=Unhealthy",
 			},
 		},
