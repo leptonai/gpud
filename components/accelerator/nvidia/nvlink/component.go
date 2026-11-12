@@ -42,6 +42,8 @@ const (
 var _ components.Component = &component{}
 
 type component struct {
+	checkMu sync.Mutex
+
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -230,6 +232,10 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
+	// Keep collection timestamps, registration deadlines, and result publication ordered.
+	c.checkMu.Lock()
+	defer c.checkMu.Unlock()
+
 	log.Logger.Infow("checking nvidia gpu nvlink")
 
 	startedAt := c.getTimeNowFunc()
