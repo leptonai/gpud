@@ -33,8 +33,12 @@ jobs:
           image=nvcr.io/nvstaging/lepton/gpud
           version="${GITHUB_REF_NAME#v}"
 
+          tags=(--tag "$image:$version")
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tags+=(--tag "$image:latest")
+          fi
+
           ./scripts/build-docker.sh \
             --version "$version" \
-            --tag "$image:$version" \
-            --tag "$image:latest" \
+            "${tags[@]}" \
             --push
