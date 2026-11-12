@@ -2,6 +2,7 @@ package all
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -29,6 +30,25 @@ func TestInstanceTypeDetection(t *testing.T) {
 		assert.Empty(t, detectInstanceType(t.Context(), []providers.Detector{unsupported, detector}))
 		assert.Equal(t, 2, calls, "do not misattribute an unsupported provider to AWS")
 	})
+}
+
+func TestInstanceTypeDetectionSkipsUnavailableProviders(t *testing.T) {
+	original := All
+	defer func() { All = original }()
+	calls := 0
+	All = []providers.Detector{
+		&mockDetector{name: "unavailable", provErr: errors.New("unavailable")},
+		&mockDetector{name: "not-matched"},
+		providers.NewIMDSWithRegion("gcp", func(context.Context) (string, error) { return "gcp", nil }, nil, nil, nil, nil, nil,
+			providers.WithInstanceType(func(context.Context) (string, error) { calls++; return "a3-highgpu-8g", nil })),
+	}
+	assert.Equal(t, "a3-highgpu-8g", DetectInstanceType(t.Context()))
+	assert.Equal(t, 1, calls)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	assert.Empty(t, DetectInstanceType(ctx))
+	assert.Equal(t, 1, calls, "cancellation must prevent additional IMDS requests")
+	assert.Empty(t, detectInstanceType(t.Context(), All[:2]))
 }
 
 func TestInstanceTypeTimeoutIsOptional(t *testing.T) {
