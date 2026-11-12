@@ -28,6 +28,7 @@ import (
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	"github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // Name is the name of the NVIDIA NVLink component.
@@ -419,6 +420,13 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting nvlink"
+			if fabricReport != nil || product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName()) {
+				var fabricErr error
+				if fabricReport != nil {
+					fabricErr = fabricReport.Err
+				}
+				cr.suggestedActions = fabric.SuggestedActions(errors.Join(err, fabricErr), cr.health)
+			}
 
 			if errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
 				cr.reason = nvmlerrors.ErrGPURequiresReset.Error()
@@ -490,18 +498,18 @@ func (c *component) Check() components.CheckResult {
 			cr.health = health
 			cr.reason = appendNVLinkFailureDetails(reason+": "+fabricReport.Reason, cr)
 			cr.err = errors.Join(fabricReport.Err, err)
-			// Preserve port/P2P recovery guidance outside the registration window.
-			if health == apiv1.HealthStateTypeUnhealthy {
-				setNVLinkSuggestedActions(cr)
-			}
-			if cr.suggestedActions == nil {
-				cr.suggestedActions = fabric.SuggestedActions(errors.Join(fabricReport.Err, err), health)
-			}
+			// Inactive links and failed P2P can be consequences of unavailable fabric.
+			// Only independent device-loss/reset evidence justifies host recovery.
+			cr.suggestedActions = fabric.SuggestedActions(cr.err, health)
 			return cr
 		}
 	}
 
 	evaluateHealthStateWithThresholds(cr)
+	if cr.health == apiv1.HealthStateTypeUnhealthy && product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName()) {
+		// A bare GB200/GB300 name cannot establish that failed links are host-local.
+		cr.suggestedActions = fabric.SuggestedActions(nil, cr.health)
+	}
 
 	return cr
 }

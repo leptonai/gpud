@@ -11,8 +11,9 @@ and that the [registration status code is valid only after completion](https://d
   `Degraded` with a registration deadline. This applies even when Fabric Manager
   is still starting or every peer returns `NS`.
 - Registration remaining incomplete for five minutes from the first observation
-  reports `Unhealthy` with `REBOOT_SYSTEM`. The interval is a GPUd policy budget, not an NVIDIA hardware
-  guarantee. It measures observed registration time rather than host boot time.
+  reports `Unhealthy` with `IGNORE_NO_ACTION_REQUIRED`. The interval is a GPUd
+  policy budget, not an NVIDIA hardware guarantee. It measures observed
+  registration time rather than host boot time.
 - The first observation is checkpointed per component and boot ID in GPUd's
   existing SQLite database. Daemon restarts, alternating pending states, query
   errors, and diagnostic event retention do not restart the interval. Full healthy
@@ -25,10 +26,32 @@ and that the [registration status code is valid only after completion](https://d
 - Once registration completes, peer and port checks apply normally, including
   all-pairs-`NS` failures and configured port thresholds.
 
-Pending registration within the window carries `IGNORE_NO_ACTION_REQUIRED`.
-An expired deadline or explicit fabric fault requests `REBOOT_SYSTEM`; NVLink
-retains peer/port diagnostics and their existing recovery guidance. Unavailable
-telemetry alone does not diagnose a hardware defect. Consumers should use readiness to control workload
+Pending registration, an expired deadline, or an explicit fabric fault carries
+`IGNORE_NO_ACTION_REQUIRED` unless an independent GPU lost/reset error requires
+recovery. This action suppresses automatic host repair, not the health failure.
+The unhealthy result directs operators to inspect fabric management, switch
+connectivity, and driver compatibility. Inactive ports and failed P2P probes
+remain in the diagnostics, but cannot override this policy while the fabric is
+unavailable. On GB200/GB300 external-fabric candidates, link/P2P failures alone
+also do not request host reboots after registration completes. The product name
+does not establish that those failures are host-local.
+
+When local Fabric Manager is applicable, GPUd checks its executable and activeness
+even during pending registration. A missing executable is unhealthy immediately;
+an inactive daemon is reported alongside the registration state and deadline.
+An active daemon cannot make incomplete registration healthy. These checks do
+not identify a specific version mismatch; inspect service startup errors and
+driver/FM versions when the daemon cannot start. Rack-managed fabrics do not
+require a local Fabric Manager daemon.
+
+GPUd does not issue a speculative first reboot or count recovery attempts from
+boot-ID changes. A consumer that adds automatic recovery must track actual
+attempts per fault episode and stop or escalate when recovery fails; a cooldown
+alone is not an attempt budget. An unavailable fabric does not establish a
+defective compute tray, so escalation must permit fabric/software investigation.
+
+Unavailable telemetry alone does not diagnose a hardware defect. Consumers
+should use readiness to control workload
 admission and health/action signals to decide repairs; `Degraded` is not proof that
 CUDA or peer access is ready. This also avoids consumers treating `Initializing`
 as an instruction to retain a previous unhealthy condition.
