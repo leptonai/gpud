@@ -373,6 +373,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
+	instanceType := pkgmachineinfo.NewInstanceTypeCollector(cctx)
 	s := &Session{
 		ctx:    cctx,
 		cancel: ccancel,
@@ -396,7 +397,11 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		dbRO:    op.dbRO,
 
 		createGossipRequestFunc: func(machineID string, instance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
-			return pkgmachineinfo.CreateGossipRequestWithContainerd(machineID, instance, op.containerd)
+			req, err := pkgmachineinfo.CreateGossipRequestWithContainerd(machineID, instance, op.containerd)
+			if err == nil {
+				req.ProviderInstanceType = instanceType.Latest()
+			}
+			return req, err
 		},
 
 		setDefaultIbExpectedPortStatesFunc:       componentsnvidiainfiniband.SetDefaultExpectedPortStates,

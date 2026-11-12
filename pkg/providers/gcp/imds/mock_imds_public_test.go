@@ -72,3 +72,15 @@ func TestFetchInstanceID_Public_WithMockey(t *testing.T) {
 		require.Equal(t, "1234567890", got)
 	})
 }
+
+func TestFetchInstanceType_Public_WithMockey(t *testing.T) {
+	mockey.PatchConvey("public instance type reader uses provider endpoints", t, func() {
+		mockey.Mock(fetchMetadataByPath).To(func(ctx context.Context, metadataURL string) (string, error) {
+			require.Equal(t, imdsMetadataURL+"/instance/machine-type", metadataURL)
+			return "projects/123/machineTypes/a3-highgpu-8g", nil
+		}).Build()
+		got, err := FetchInstanceType(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "a3-highgpu-8g", got)
+	})
+}

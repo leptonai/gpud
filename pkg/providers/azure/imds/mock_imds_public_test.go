@@ -109,3 +109,15 @@ func TestFetchInstanceID_Error_WithMockey(t *testing.T) {
 		require.Empty(t, got)
 	})
 }
+
+func TestFetchInstanceType_Public_WithMockey(t *testing.T) {
+	mockey.PatchConvey("public instance type reader uses provider endpoints", t, func() {
+		mockey.Mock(fetchComputeResponse).To(func(ctx context.Context, metadataURL string) (*computeResponse, error) {
+			require.Equal(t, imdsMetadataURL, metadataURL)
+			return &computeResponse{VMSize: "Standard_ND96isr_H100_v5"}, nil
+		}).Build()
+		got, err := FetchInstanceType(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "Standard_ND96isr_H100_v5", got)
+	})
+}
