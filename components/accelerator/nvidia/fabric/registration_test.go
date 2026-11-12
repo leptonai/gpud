@@ -72,8 +72,9 @@ func TestRegistrationStaleCheckCannotResetDeadline(t *testing.T) {
 	now := time.Now()
 	_, _, err := r.Evaluate(context.Background(), now, true, false)
 	require.NoError(t, err)
-	_, _, err = r.Evaluate(context.Background(), now.Add(-time.Second), false, false)
+	stale, _, err := r.Evaluate(context.Background(), now.Add(-time.Second), false, false)
 	require.NoError(t, err)
+	require.Equal(t, apiv1.HealthStateTypeDegraded, stale)
 	got, _, err := r.Evaluate(context.Background(), now.Add(RegistrationTimeout), true, false)
 	require.NoError(t, err)
 	require.Equal(t, apiv1.HealthStateTypeUnhealthy, got)
@@ -115,4 +116,32 @@ func TestRegistrationConcurrentChecks(t *testing.T) {
 	got, _, err := r.Evaluate(context.Background(), now.Add(RegistrationTimeout), true, false)
 	require.NoError(t, err)
 	require.Equal(t, apiv1.HealthStateTypeUnhealthy, got)
+}
+
+func TestRegistrationRestoresMonotonicDeadline(t *testing.T) {
+	for _, offset := range []time.Duration{-time.Hour, time.Hour} {
+		t.Run(offset.String(), func(t *testing.T) {
+			db, _, cleanup := sqlite.OpenTestDB(t)
+			defer cleanup()
+			now := time.Now()
+			var old Registration
+			require.NoError(t, old.Open(context.Background(), db, "test", "boot"))
+			_, _, err := old.Evaluate(context.Background(), now.Add(offset), true, false)
+			require.NoError(t, err)
+			var restored Registration
+			require.NoError(t, restored.Open(context.Background(), db, "test", "boot"))
+			health, _, err := restored.Evaluate(context.Background(), now, true, false)
+			require.NoError(t, err)
+			require.NotEqual(t, restored.since, restored.since.Round(0), "restored deadline must retain a monotonic reading")
+			if offset < 0 {
+				require.Equal(t, apiv1.HealthStateTypeUnhealthy, health)
+			} else {
+				require.Equal(t, apiv1.HealthStateTypeDegraded, health)
+				require.True(t, restored.since.Equal(now))
+			}
+			health, _, err = restored.Evaluate(context.Background(), now.Add(time.Second), false, false)
+			require.NoError(t, err)
+			require.Equal(t, apiv1.HealthStateTypeHealthy, health)
+		})
+	}
 }

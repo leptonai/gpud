@@ -20,6 +20,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/fabric"
+	fabricmanager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -54,6 +55,7 @@ type component struct {
 	getNVLinkFunc            func(uuid string, dev device.Device) (NVLink, error)
 	getPeerNVLinkP2PStatusFn func(dev device.Device, peer device.Device) (string, error)
 	getThresholdsFunc        func() ExpectedLinkStates
+	checkNVSwitchExistsFunc  func() bool
 	eventBucket              eventstore.Bucket
 	kmsgSyncer               *kmsg.Syncer
 	readAllKmsg              func(context.Context) ([]kmsg.Message, error)
@@ -76,13 +78,20 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 		getTimeNowFunc: func() time.Time {
-			return time.Now().UTC()
+			return time.Now()
 		},
 		getBootTimeFunc:          pkghost.BootTime,
 		nvmlInstance:             gpudInstance.NVMLInstance,
 		getNVLinkFunc:            GetNVLink,
 		getPeerNVLinkP2PStatusFn: getPeerNVLinkP2PStatus,
 		getThresholdsFunc:        GetDefaultExpectedLinkStates,
+		checkNVSwitchExistsFunc: func() bool {
+			ctx, cancel := context.WithTimeout(cctx, 5*time.Second)
+			defer cancel()
+			switches, err := fabricmanager.ListPCINVSwitches(ctx)
+			// Failed detection cannot prove the absence of a switch.
+			return err != nil || len(switches) > 0
+		},
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -323,7 +332,13 @@ func (c *component) Check() components.CheckResult {
 	var fabricReport *fabric.Report
 	if len(devs) > 1 && c.nvmlInstance.FabricStateSupported() {
 		report := fabric.Collect(devs)
-		fabricReport = &report
+		switchDetected := false
+		if report.AllUnsupported && c.checkNVSwitchExistsFunc != nil {
+			switchDetected = c.checkNVSwitchExistsFunc()
+		}
+		if !report.UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), switchDetected) {
+			fabricReport = &report
+		}
 		cr.FabricStates = report.Entries
 	}
 	// Only expect NVLink by default on multi-GPU hosts that advertise NVIDIA
@@ -473,11 +488,15 @@ func (c *component) Check() components.CheckResult {
 		health, reason, err := c.fabricRegistration.Evaluate(c.ctx, cr.ts, fabricReport.Pending, fabricReport.Failed)
 		if health != apiv1.HealthStateTypeHealthy {
 			cr.health = health
-			cr.reason = reason + ": " + fabricReport.Reason
+			cr.reason = appendNVLinkFailureDetails(reason+": "+fabricReport.Reason, cr)
 			cr.err = errors.Join(fabricReport.Err, err)
-			// An incomplete or failed registration does not diagnose a hardware
-			// defect. Keep consumers from inventing a hardware-inspection action.
-			cr.suggestedActions = fabric.SuggestedActions(fabricReport.Err)
+			// Preserve port/P2P recovery guidance outside the registration window.
+			if health == apiv1.HealthStateTypeUnhealthy {
+				setNVLinkSuggestedActions(cr)
+			}
+			if cr.suggestedActions == nil {
+				cr.suggestedActions = fabric.SuggestedActions(errors.Join(fabricReport.Err, err), health)
+			}
 			return cr
 		}
 	}

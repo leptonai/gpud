@@ -24,6 +24,8 @@ type Registration struct {
 	component, bootID   string
 	loaded              bool
 	since, lastObserved time.Time
+	lastHealth          apiv1.HealthStateType
+	lastReason          string
 }
 
 // Open uses the daemon's existing database. One checkpoint per component is
@@ -40,12 +42,15 @@ func (r *Registration) Open(ctx context.Context, db *sql.DB, component, bootID s
 	return err
 }
 
+// Evaluate requires timestamps retaining their monotonic reading (time.Now, not UTC).
+// In-process wall-clock corrections therefore do not alter the observation window.
 // Evaluate never grants grace for a query error or an explicit fault. Degraded
 // describes observed unavailability without retaining an older Unhealthy state
 // in consumers that interpret Initializing as "no new observation".
-func (r *Registration) Evaluate(ctx context.Context, now time.Time, pending, failed bool) (apiv1.HealthStateType, string, error) {
+func (r *Registration) Evaluate(ctx context.Context, now time.Time, pending, failed bool) (health apiv1.HealthStateType, reason string, retErr error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	defer func() { r.lastHealth, r.lastReason = health, reason }()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if !r.loaded {
@@ -62,12 +67,18 @@ func (r *Registration) Evaluate(ctx context.Context, now time.Time, pending, fai
 				}
 			}
 		}
+		// Re-anchor the persisted wall timestamp to this process monotonic clock.
+		// A backward correction across a restart cannot start the window in the future.
+		if !r.since.IsZero() {
+			elapsed := max(now.Sub(r.since), 0)
+			r.since = now.Add(-elapsed)
+		}
 		r.loaded = true
 	}
 	// Concurrent checks may finish out of order. An older healthy sample must
 	// not clear the deadline established by a newer incomplete observation.
-	if now.Before(r.lastObserved) || (!r.since.IsZero() && now.Before(r.since)) {
-		return apiv1.HealthStateTypeUnhealthy, "out-of-order fabric registration observation", nil
+	if now.Before(r.lastObserved) {
+		return r.lastHealth, r.lastReason, nil
 	}
 	r.lastObserved = now
 	if pending && r.since.IsZero() {

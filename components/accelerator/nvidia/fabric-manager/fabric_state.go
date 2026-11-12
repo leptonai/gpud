@@ -11,12 +11,13 @@ import (
 )
 
 type fabricStateReport struct {
-	Entries []device.FabricStateEntry
-	Healthy bool
-	Pending bool
-	Failed  bool
-	Reason  string
-	Err     error
+	Entries        []device.FabricStateEntry
+	AllUnsupported bool
+	Healthy        bool
+	Pending        bool
+	Failed         bool
+	Reason         string
+	Err            error
 }
 
 // RenderTable renders the fabric state report as a formatted table

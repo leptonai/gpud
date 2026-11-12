@@ -301,7 +301,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia fabric manager")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: time.Now(),
 	}
 	if c.getTimeNowFunc != nil {
 		cr.ts = c.getTimeNowFunc()
@@ -413,7 +413,7 @@ func (c *component) Check() components.CheckResult {
 		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
 		if report.Err != nil {
-			cr.suggestedActions = fabric.SuggestedActions(report.Err)
+			cr.suggestedActions = fabric.SuggestedActions(report.Err, apiv1.HealthStateTypeUnhealthy)
 		}
 		if report.Reason != "" {
 			cr.FabricStateReason = report.Reason
@@ -423,7 +423,7 @@ func (c *component) Check() components.CheckResult {
 			cr.health = health
 			cr.reason = reason + ": " + report.Reason
 			cr.err = errors.Join(report.Err, err)
-			cr.suggestedActions = fabric.SuggestedActions(report.Err)
+			cr.suggestedActions = fabric.SuggestedActions(errors.Join(report.Err, err), health)
 			return cr
 		}
 
@@ -459,6 +459,7 @@ func (c *component) Check() components.CheckResult {
 		// the traditional fabric-manager daemon.
 
 		if !report.Healthy {
+			cr.suggestedActions = fabric.SuggestedActions(report.Err, apiv1.HealthStateTypeUnhealthy)
 			log.Logger.Warnw("fabric state is not healthy", "reason", report.Reason, "error", report.Err)
 
 			cr.health = apiv1.HealthStateTypeUnhealthy

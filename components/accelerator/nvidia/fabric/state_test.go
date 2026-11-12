@@ -14,10 +14,10 @@ import (
 
 func TestSuggestedActionsPreserveDeviceFaults(t *testing.T) {
 	for _, err := range []error{nvmlerrors.ErrGPULost, nvmlerrors.ErrGPURequiresReset, errors.Join(errors.New("other GPU query failed"), nvmlerrors.ErrGPULost)} {
-		require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, SuggestedActions(err).RepairActions)
+		require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, SuggestedActions(err, apiv1.HealthStateTypeDegraded).RepairActions)
 	}
 	for _, err := range []error{nil, errors.New("unavailable telemetry")} {
-		require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}, SuggestedActions(err).RepairActions)
+		require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}, SuggestedActions(err, apiv1.HealthStateTypeDegraded).RepairActions)
 	}
 }
 
@@ -65,4 +65,32 @@ func TestCollectMixedFaultOverridesPending(t *testing.T) {
 		require.Contains(t, r.Reason, "query failed")
 	}
 	require.True(t, Collect(nil).Failed)
+}
+
+func TestUnsupportedFabricApplicability(t *testing.T) {
+	unsupported := device.FabricState{State: nvml.GPU_FABRIC_STATE_NOT_SUPPORTED, Status: nvml.ERROR_UNKNOWN}
+	for _, tc := range []struct {
+		name   string
+		states []device.FabricState
+		errs   []error
+		skip   bool
+	}{
+		{"unsupported states", []device.FabricState{unsupported, unsupported}, []error{nil, nil}, true},
+		{"unsupported APIs", []device.FabricState{{}, {}}, []error{nvml.ERROR_NOT_SUPPORTED, nvml.ERROR_NOT_SUPPORTED}, true},
+		{"mixed support", []device.FabricState{unsupported, {State: nvml.GPU_FABRIC_STATE_COMPLETED}}, []error{nil, nil}, false},
+		{"query failure", []device.FabricState{unsupported, {}}, []error{nil, nvmlerrors.ErrGPULost}, false},
+		{"health fault", []device.FabricState{unsupported, {HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY}}, []error{nil, nil}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			i := 0
+			report := CollectWith(map[string]device.Device{"0": nil, "1": nil}, func(device.Device) (device.FabricState, error) {
+				defer func() { i++ }()
+				return tc.states[i], tc.errs[i]
+			})
+			require.Equal(t, tc.skip, report.UnsupportedWithoutFabric("NVIDIA-GB200", false))
+			require.False(t, report.UnsupportedWithoutFabric("NVIDIA-GB200 NVL72", false))
+			require.False(t, report.UnsupportedWithoutFabric("NVIDIA H100", true))
+		})
+	}
+	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, SuggestedActions(nil, apiv1.HealthStateTypeUnhealthy).RepairActions)
 }

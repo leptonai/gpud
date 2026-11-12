@@ -11,21 +11,24 @@ and that the [registration status code is valid only after completion](https://d
   `Degraded` with a registration deadline. This applies even when Fabric Manager
   is still starting or every peer returns `NS`.
 - Registration remaining incomplete for five minutes from the first observation
-  reports `Unhealthy`. The interval is a GPUd policy budget, not an NVIDIA hardware
+  reports `Unhealthy` with `REBOOT_SYSTEM`. The interval is a GPUd policy budget, not an NVIDIA hardware
   guarantee. It measures observed registration time rather than host boot time.
 - The first observation is checkpointed per component and boot ID in GPUd's
   existing SQLite database. Daemon restarts, alternating pending states, query
   errors, and diagnostic event retention do not restart the interval. Full healthy
-  registration or a new boot allows a new interval.
+  registration or a new boot allows a new interval. In-process elapsed time uses
+  the monotonic clock. After restart, the persisted wall-clock age seeds the new
+  monotonic deadline; a future checkpoint is clamped to the current time.
 - Failed completed registration, unhealthy fabric telemetry, unknown states,
   missing GPU data, and query errors remain `Unhealthy` immediately. GPU lost/reset
   errors and NVLink kernel faults retain their existing checks and actions.
 - Once registration completes, peer and port checks apply normally, including
   all-pairs-`NS` failures and configured port thresholds.
 
-Registration reports carry `IGNORE_NO_ACTION_REQUIRED` to mean **no automatic
-hardware repair is prescribed**. An expired deadline still requires diagnosis of
-Fabric Manager and the fabric. Consumers should use readiness to control workload
+Pending registration within the window carries `IGNORE_NO_ACTION_REQUIRED`.
+An expired deadline or explicit fabric fault requests `REBOOT_SYSTEM`; NVLink
+retains peer/port diagnostics and their existing recovery guidance. Unavailable
+telemetry alone does not diagnose a hardware defect. Consumers should use readiness to control workload
 admission and health/action signals to decide repairs; `Degraded` is not proof that
 CUDA or peer access is ready. This also avoids consumers treating `Initializing`
 as an instruction to retain a previous unhealthy condition.
@@ -34,6 +37,9 @@ One-shot scans without a database can identify incomplete registration but canno
 establish how long it has persisted. Restart persistence also requires the daemon's
 database to survive restarts; `--db-in-memory` cannot provide it. Systems without
 fabric-state support keep their existing NVLink and Fabric Manager behavior.
+NVLink also falls through to its peer/port checks when all GPUs explicitly report
+unsupported fabric telemetry and no switch is detected. Mixed support, real
+faults, explicit NVL72 topology, and detected switches remain checked.
 
 ## Available components
 

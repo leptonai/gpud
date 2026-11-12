@@ -2,6 +2,7 @@ package nvlink
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,11 +20,18 @@ import (
 type fabricTestDevice struct {
 	device.Device
 	state device.FabricState
+	err   error
 }
 
-func (d *fabricTestDevice) GetFabricState() (device.FabricState, error) { return d.state, nil }
+func (d *fabricTestDevice) GetFabricState() (device.FabricState, error) { return d.state, d.err }
 
 type fabricTestInstance struct{ mockNVMLInstance }
+type namedFabricTestInstance struct {
+	fabricTestInstance
+	name string
+}
+
+func (n *namedFabricTestInstance) ProductName() string { return n.name }
 
 func (*fabricTestInstance) FabricStateSupported() bool { return true }
 
@@ -71,6 +79,7 @@ func TestCheckFabricRegistrationBeforePeerFailure(t *testing.T) {
 	cr = c.Check().(*checkResult)
 	require.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	require.Contains(t, cr.reason, "did not complete")
+	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions)
 
 	// An explicit fabric fault is immediate, including on the first observation.
 	now = now.Add(time.Second)
@@ -153,4 +162,68 @@ func TestCheckSerializesFabricObservations(t *testing.T) {
 	require.True(t, seen[start.Add(time.Second)])
 	require.Equal(t, start.Add(time.Second), c.lastCheckResult.ts)
 	require.Equal(t, apiv1.HealthStateTypeDegraded, c.LastHealthStates()[0].Health)
+}
+
+func TestCheckUnsupportedFabricKeepsPeerAndPortChecks(t *testing.T) {
+	for _, product := range []string{"NVIDIA H100 NVL", "NVIDIA H200 NVL", "NVIDIA H100 80GB HBM3", "NVIDIA-GB200"} {
+		for _, count := range []int{2, 4, 8} {
+			for _, apiError := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%d/apiError=%v", product, count, apiError), func(t *testing.T) {
+					dev := &fabricTestDevice{state: device.FabricState{State: nvml.GPU_FABRIC_STATE_NOT_SUPPORTED, Status: nvml.ERROR_UNKNOWN}}
+					if apiError {
+						dev.err = nvml.ERROR_NOT_SUPPORTED
+					}
+					devs := map[string]device.Device{}
+					for i := 0; i < count; i++ {
+						devs[fmt.Sprint("GPU-", i)] = dev
+					}
+					active := true
+					c := MockNVLinkComponent(context.Background(), func() map[string]device.Device { return devs }, func(uuid string, _ device.Device) (NVLink, error) {
+						return NVLink{UUID: uuid, Supported: true, States: []NVLinkState{{FeatureEnabled: active}}}, nil
+					}).(*component)
+					defer func() { require.NoError(t, c.Close()) }()
+					c.nvmlInstance = &namedFabricTestInstance{fabricTestInstance: fabricTestInstance{mockNVMLInstance{devicesFunc: func() map[string]device.Device { return devs }}}, name: product}
+					c.checkNVSwitchExistsFunc = func() bool { return false }
+					c.getThresholdsFunc = func() ExpectedLinkStates { return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: count} }
+					peer := p2pStatusOK
+					c.getPeerNVLinkP2PStatusFn = func(device.Device, device.Device) (string, error) { return peer, nil }
+					require.Equal(t, apiv1.HealthStateTypeHealthy, c.Check().HealthStateType())
+					peer = p2pStatusNotSupported
+					require.Equal(t, apiv1.HealthStateTypeUnhealthy, c.Check().HealthStateType(), "unsupported fabric must not suppress P2P failures")
+					peer = p2pStatusOK
+					active = false
+					cr := c.Check().(*checkResult)
+					require.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+					require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions)
+					active = true
+					devs["GPU-0"] = &fabricTestDevice{state: device.FabricState{State: nvml.GPU_FABRIC_STATE_COMPLETED}}
+					require.Equal(t, apiv1.HealthStateTypeUnhealthy, c.Check().HealthStateType(), "mixed support must remain checked")
+					devs["GPU-0"] = dev
+					c.checkNVSwitchExistsFunc = func() bool { return true }
+					require.Equal(t, apiv1.HealthStateTypeUnhealthy, c.Check().HealthStateType(), "detected switches require telemetry")
+				})
+			}
+		}
+	}
+}
+
+func TestCheckFabricFaultRetainsRebootAndPortDetails(t *testing.T) {
+	for _, state := range []device.FabricState{
+		{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: nvml.ERROR_UNKNOWN},
+		{State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY},
+	} {
+		dev := &fabricTestDevice{state: state}
+		devs := map[string]device.Device{"GPU-0": dev, "GPU-1": dev}
+		c := MockNVLinkComponent(context.Background(), func() map[string]device.Device { return devs }, func(uuid string, _ device.Device) (NVLink, error) {
+			return NVLink{UUID: uuid, Supported: true, States: []NVLinkState{{FeatureEnabled: false}}}, nil
+		}).(*component)
+		defer func() { require.NoError(t, c.Close()) }()
+		c.nvmlInstance = &fabricTestInstance{mockNVMLInstance{devicesFunc: func() map[string]device.Device { return devs }}}
+		c.getPeerNVLinkP2PStatusFn = func(device.Device, device.Device) (string, error) { return p2pStatusNotSupported, nil }
+		cr := c.Check().(*checkResult)
+		require.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		require.Contains(t, cr.reason, "inactive nvlinks=GPU-0,GPU-1")
+		require.Contains(t, cr.reason, "peer nvlink p2p statuses=NS")
+		require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions)
+	}
 }
