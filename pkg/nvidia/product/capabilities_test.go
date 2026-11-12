@@ -343,3 +343,12 @@ func TestSupportFabricStateByGPUProduct(t *testing.T) {
 		})
 	}
 }
+
+func TestGB300FabricAndMemoryCapabilities(t *testing.T) {
+	if !SupportFabricStateByGPUProduct("NVIDIA GB300") {
+		t.Fatal("GB300 fabric must be evaluated")
+	}
+	if !UsesExternalNVLinkFabric("NVIDIA GB300") {
+		t.Fatal("GB300 has an external NVLink fabric")
+	}
+}

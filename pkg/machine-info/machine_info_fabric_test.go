@@ -300,3 +300,7 @@ func TestGetMachineInfo_GPUFabricIdentifiers(t *testing.T) {
 		assert.Empty(t, info.GPUInfo.ChassisSerial)
 	})
 }
+
+func (d *fabricMachineInfoDevice) GetModuleId() (int, nvml.Return) {
+	return 0, nvml.ERROR_NOT_SUPPORTED
+}

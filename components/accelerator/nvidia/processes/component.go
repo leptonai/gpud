@@ -122,9 +122,16 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu processes")
 
 	cr := &checkResult{
-		ts: c.getTimeNowFunc(),
+		Evaluation: apiv1.Evaluated(),
+		ts:         c.getTimeNowFunc(),
 	}
 	defer func() {
+		if cr.err != nil && cr.Evaluated != nil && *cr.Evaluated {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
+		}
+		if cr.Evaluated != nil && *cr.Evaluated && c.nvmlInstance != nil && len(c.nvmlInstance.Devices()) == 0 {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
+		}
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
 		c.lastMu.Unlock()
@@ -134,18 +141,21 @@ func (c *component) Check() components.CheckResult {
 		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
 		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	// Check for NVML initialization errors first.
 	// This handles cases like "error getting device handle for index 'N': Unknown Error"
 	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
 	if err := c.nvmlInstance.InitError(); err != nil {
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
@@ -160,6 +170,7 @@ func (c *component) Check() components.CheckResult {
 		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		return cr
 	}
 
@@ -179,6 +190,7 @@ func (c *component) Check() components.CheckResult {
 			if errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
 				c.recordGetProcessesError(false)
 				cr.err = err
+				cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = nvmlerrors.ErrGPURequiresReset.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
@@ -194,6 +206,7 @@ func (c *component) Check() components.CheckResult {
 			if errors.Is(err, nvmlerrors.ErrGPULost) {
 				c.recordGetProcessesError(false)
 				cr.err = err
+				cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = nvmlerrors.ErrGPULost.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
@@ -224,6 +237,7 @@ func (c *component) Check() components.CheckResult {
 
 	if genericErr != nil {
 		cr.err = genericErr
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 		// Count one generic process-query failure per complete component check,
 		// regardless of how many GPUs returned that generic error.
 		consecutive := c.recordGetProcessesError(true)
@@ -269,6 +283,8 @@ func (c *component) recordGetProcessesError(failed bool) int {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	apiv1.Evaluation
+
 	Processes []Processes `json:"processes,omitempty"`
 
 	// timestamp of the last check
@@ -336,22 +352,24 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: Name,
-				Name:      Name,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:       metav1.NewTime(time.Now().UTC()),
+				Component:  Name,
+				Name:       Name,
+				Health:     apiv1.HealthStateTypeHealthy,
+				Reason:     "no data yet",
+				Evaluation: apiv1.NotEvaluated(apiv1.NotEvaluatedNoData),
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Evaluation: cr.Evaluation,
+		Time:       metav1.NewTime(cr.ts),
+		Component:  Name,
+		Name:       Name,
+		Reason:     cr.reason,
+		Error:      cr.getError(),
+		Health:     cr.health,
 	}
 
 	// propagate suggested actions to health state if present

@@ -1417,6 +1417,7 @@ func TestLastHealthStates_WithMockey(t *testing.T) {
 
 		states := comp.LastHealthStates()
 		require.Len(t, states, 1)
+		expectedState.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		assert.Equal(t, expectedState, states[0])
 	})
 }

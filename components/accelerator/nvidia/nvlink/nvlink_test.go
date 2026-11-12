@@ -212,7 +212,9 @@ func TestGetNVLink(t *testing.T) {
 			expectedStatesCount: 0,
 		},
 		{
-			name: "NVLink state error but continue",
+			name:                  "NVLink state error but continue",
+			expectError:           true,
+			expectedErrorContains: "link 0 state:",
 			mockDev: &mockDevice{
 				nvLinkState:       nvml.FEATURE_ENABLED,
 				nvLinkStateErr:    nvml.ERROR_UNKNOWN,
@@ -281,3 +283,11 @@ func TestGetNVLink(t *testing.T) {
 		})
 	}
 }
+
+func (m *mockDevice) GetNvLinkRemotePciInfo(int) (nvml.PciInfo, nvml.Return) {
+	return nvml.PciInfo{}, nvml.ERROR_NOT_SUPPORTED
+}
+func (m *mockDevice) GetNvLinkRemoteDeviceType(int) (nvml.IntNvLinkDeviceType, nvml.Return) {
+	return nvml.NVLINK_DEVICE_TYPE_UNKNOWN, nvml.ERROR_NOT_SUPPORTED
+}
+func (m *mockDevice) GetFieldValues([]nvml.FieldValue) nvml.Return { return nvml.ERROR_NOT_SUPPORTED }

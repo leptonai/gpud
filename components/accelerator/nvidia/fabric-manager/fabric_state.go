@@ -1,16 +1,23 @@
 package fabricmanager
 
 import (
+	"errors"
 	"fmt"
+
 	"io"
 	"sort"
 	"strings"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
 
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 type fabricStateReport struct {
+	apiv1.Evaluation
+	AffectedGPUUUIDs []string
+
 	Entries []device.FabricStateEntry
 	Healthy bool
 	Reason  string
@@ -65,16 +72,19 @@ var getFabricInfoFn = getFabricInfo
 // collectFabricState collects fabric state information from all GPU devices.
 // It queries each GPU for fabric state via NVML APIs and returns a comprehensive report.
 func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
-	report := fabricStateReport{Healthy: true}
+	report := fabricStateReport{Healthy: true, Evaluation: apiv1.Evaluated()}
 
 	if nvmlInstance == nil {
 		report.Err = fmt.Errorf("nvml instance is nil")
+		report.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		report.Healthy = false
 		return report
 	}
 
 	devices := nvmlInstance.Devices()
 	if len(devices) == 0 {
+		report.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
+		report.Reason = "no GPUs available for fabric evaluation"
 		return report
 	}
 
@@ -90,15 +100,24 @@ func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
 		dev := devices[uuid]
 		info, err := getFabricInfoFn(dev)
 		if err != nil {
-			report.Err = fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
+			queryErr := fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
+			report.Err = errors.Join(report.Err, queryErr)
+			report.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedPartial)
 			report.Healthy = false
-			return report
+			report.AffectedGPUUUIDs = append(report.AffectedGPUUUIDs, uuid)
+			report.Entries = append(report.Entries, device.FabricStateEntry{GPUUUID: uuid, Error: err.Error()})
+			reasons = append(reasons, queryErr.Error())
+			continue
 		}
 
 		entry := info.ToEntry(uuid)
+		if !info.HealthFieldsAvailable() {
+			report.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedPartial)
+		}
 		issues := info.GetIssues()
 		report.Entries = append(report.Entries, entry)
 		if len(issues) > 0 {
+			report.AffectedGPUUUIDs = append(report.AffectedGPUUUIDs, uuid)
 			report.Healthy = false
 			reasons = append(reasons, fmt.Sprintf("GPU %s: %s", uuid, strings.Join(issues, ", ")))
 		}

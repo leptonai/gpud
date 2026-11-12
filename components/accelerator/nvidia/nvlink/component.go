@@ -26,6 +26,7 @@ import (
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // Name is the name of the NVIDIA NVLink component.
@@ -180,21 +181,35 @@ func (c *component) Start() error {
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
+	c.lastMu.RLock()
+	last := c.lastCheckResult.HealthStates()[0]
+	c.lastMu.RUnlock()
 	c.mu.RLock()
 	currState := c.currState
 	c.mu.RUnlock()
 	if currState.Health != "" {
-		return apiv1.HealthStates{currState}
+		currState.Evaluation = last.Evaluation
+		currState.ExtraInfo = last.ExtraInfo
+		return apiv1.HealthStates{c.scopeHealthState(currState)}
 	}
 
 	if state := c.watchdogHealthState(); state != nil {
-		return apiv1.HealthStates{*state}
+		state.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
+		state.ExtraInfo = last.ExtraInfo
+		return apiv1.HealthStates{c.scopeHealthState(*state)}
 	}
 
-	c.lastMu.RLock()
-	lastCheckResult := c.lastCheckResult
-	c.lastMu.RUnlock()
-	return lastCheckResult.HealthStates()
+	return apiv1.HealthStates{c.scopeHealthState(last)}
+}
+
+func (c *component) scopeHealthState(state apiv1.HealthState) apiv1.HealthState {
+	if c.nvmlInstance != nil && nvidiaproduct.UsesExternalNVLinkFabric(c.nvmlInstance.ProductName()) {
+		state.FaultScope = apiv1.FaultScopeNVLinkDomain
+		if state.Health != apiv1.HealthStateTypeHealthy {
+			state.SuggestedActions = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeCheckSharedFabric}}
+		}
+	}
+	return state
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -227,7 +242,8 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu nvlink")
 
 	startedAt := c.getTimeNowFunc()
-	cr := &checkResult{ts: startedAt}
+	cr := &checkResult{
+		Evaluation: apiv1.Evaluated(), ts: startedAt}
 	c.beginCheck(cr)
 	if c.getThresholdsFunc != nil {
 		thresholds := c.getThresholdsFunc()
@@ -238,17 +254,20 @@ func (c *component) Check() components.CheckResult {
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	// Check for NVML initialization errors first.
 	// This handles cases like "error getting device handle for index 'N': Unknown Error"
 	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
 	if err := c.nvmlInstance.InitError(); err != nil {
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
 		cr.suggestedActions = &apiv1.SuggestedActions{
@@ -261,8 +280,10 @@ func (c *component) Check() components.CheckResult {
 	if c.nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		return cr
 	}
+	cr.ExternalFabric = nvidiaproduct.UsesExternalNVLinkFabric(c.nvmlInstance.ProductName())
 	// gpud scan calls Check directly without Start or an event store. New only
 	// installs this reader in that mode, leaving daemon checks on the syncer path.
 	if c.readAllKmsg != nil {
@@ -271,6 +292,7 @@ func (c *component) Check() components.CheckResult {
 		ccancel()
 		if err != nil {
 			cr.err = err
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 			cr.reason = "failed to read kmsg"
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			log.Logger.Warnw(cr.reason, "error", cr.err)
@@ -327,7 +349,7 @@ func (c *component) Check() components.CheckResult {
 	// the obvious "zero GPUs have active NVLink" case. If some GPUs are active
 	// and some are not, operators must still configure ExpectedLinkStates to make
 	// partial degradation fail health checks.
-	cr.SystemExpectedNVLink = len(devs) > 1 && (c.nvmlInstance.FabricManagerSupported() || c.nvmlInstance.FabricStateSupported())
+	cr.SystemExpectedNVLink = cr.ExternalFabric || (len(devs) > 1 && (c.nvmlInstance.FabricManagerSupported() || c.nvmlInstance.FabricStateSupported()))
 	sortedUUIDs := make([]string, 0, len(devs))
 	for uuid := range devs {
 		sortedUUIDs = append(sortedUUIDs, uuid)
@@ -352,6 +374,9 @@ func (c *component) Check() components.CheckResult {
 
 				statusCode, err := c.getPeerNVLinkP2PStatusFn(devs[uuid], devs[peerUUID])
 				if err != nil {
+					if cr.SystemExpectedNVLink {
+						cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedPartial)
+					}
 					log.Logger.Debugw(
 						"failed to get nvlink peer-to-peer status",
 						"uuid", uuid,
@@ -361,6 +386,9 @@ func (c *component) Check() components.CheckResult {
 					continue
 				}
 
+				if statusCode != p2pStatusOK && cr.ExternalFabric {
+					cr.affectedGPUUUIDs = append(cr.affectedGPUUUIDs, uuid, peerUUID)
+				}
 				cr.PeerNVLinkProbePairCount++
 				peerNVLinkObservedStatusCodes[statusCode] = struct{}{}
 				if statusCode == p2pStatusOK {
@@ -383,7 +411,10 @@ func (c *component) Check() components.CheckResult {
 		dev := devs[uuid]
 		nvLink, err := c.getNVLinkFunc(uuid, dev)
 		if err != nil {
-			cr.err = err
+			cr.err = errors.Join(cr.err, fmt.Errorf("%s: %w", uuid, err))
+			cr.affectedGPUUUIDs = append(cr.affectedGPUUUIDs, uuid)
+			cr.NVLinks = append(cr.NVLinks, nvLink)
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedPartial)
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting nvlink"
 
@@ -408,7 +439,7 @@ func (c *component) Check() components.CheckResult {
 			}
 
 			log.Logger.Warnw(cr.reason, "error", cr.err)
-			return cr
+			continue
 		}
 
 		cr.NVLinks = append(cr.NVLinks, nvLink)
@@ -419,14 +450,19 @@ func (c *component) Check() components.CheckResult {
 		} else {
 			metricSupported.With(labels).Set(0.0)
 			metricFeatureEnabled.With(labels).Set(0.0)
-			metricReplayErrors.With(labels).Set(0.0)
-			metricRecoveryErrors.With(labels).Set(0.0)
-			metricCRCErrors.With(labels).Set(0.0)
+			metricReplayErrors.DeleteLabelValues(uuid)
+			metricRecoveryErrors.DeleteLabelValues(uuid)
+			metricCRCErrors.DeleteLabelValues(uuid)
 			cr.UnsupportedNVLinkUUIDs = append(cr.UnsupportedNVLinkUUIDs, uuid)
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 			continue
 		}
 
 		featureEnabled := len(nvLink.States) > 0 && nvLink.States.AllFeatureEnabled()
+		if cr.ExternalFabric && len(nvLink.States) != 18 {
+			featureEnabled = false
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedPartial)
+		}
 		if featureEnabled {
 			metricFeatureEnabled.With(labels).Set(1.0)
 			cr.ActiveNVLinkUUIDs = append(cr.ActiveNVLinkUUIDs, uuid)
@@ -434,9 +470,21 @@ func (c *component) Check() components.CheckResult {
 			metricFeatureEnabled.With(labels).Set(0.0)
 			cr.InactiveNVLinkUUIDs = append(cr.InactiveNVLinkUUIDs, uuid)
 		}
-		metricReplayErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalReplayErrors()))
-		metricRecoveryErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
-		metricCRCErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
+		if nvLink.States.counterAvailable("replay_errors") {
+			metricReplayErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalReplayErrors()))
+		} else {
+			metricReplayErrors.DeleteLabelValues(uuid)
+		}
+		if nvLink.States.counterAvailable("recovery_errors") {
+			metricRecoveryErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
+		} else {
+			metricRecoveryErrors.DeleteLabelValues(uuid)
+		}
+		if nvLink.States.counterAvailable("crc_errors") {
+			metricCRCErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
+		} else {
+			metricCRCErrors.DeleteLabelValues(uuid)
+		}
 	}
 
 	if len(cr.ActiveNVLinkUUIDs) > 0 {
@@ -449,9 +497,14 @@ func (c *component) Check() components.CheckResult {
 		sort.Strings(cr.UnsupportedNVLinkUUIDs)
 	}
 
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no nvlink issue found", len(devs))
+	if cr.err == nil {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no nvlink issue found", len(devs))
+	}
 
+	if !cr.SystemExpectedNVLink && (cr.ExpectedLinkStates == nil || cr.ExpectedLinkStates.IsZero()) && cr.err == nil {
+		cr.reason = reasonNoThresholdConfigured
+	}
 	evaluateHealthStateWithThresholds(cr)
 
 	return cr
@@ -460,6 +513,11 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	affectedGPUUUIDs []string
+	ExternalFabric   bool `json:"external_fabric,omitempty"`
+
+	apiv1.Evaluation
+
 	KmsgScanned  bool           `json:"-"`
 	MatchedKmsgs []kmsg.Message `json:"-"`
 
@@ -653,16 +711,18 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: Name,
-				Name:      Name,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:       metav1.NewTime(time.Now().UTC()),
+				Component:  Name,
+				Name:       Name,
+				Health:     apiv1.HealthStateTypeHealthy,
+				Reason:     "no data yet",
+				Evaluation: apiv1.NotEvaluated(apiv1.NotEvaluatedNoData),
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
+		Evaluation:       cr.Evaluation,
 		Time:             metav1.NewTime(cr.ts),
 		Component:        Name,
 		Name:             Name,
@@ -680,6 +740,19 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if len(cr.NVLinks) > 0 {
 		b, _ := json.Marshal(cr)
 		state.ExtraInfo = map[string]string{"data": string(b)}
+	}
+	if cr.ExternalFabric {
+		state.FaultScope = apiv1.FaultScopeNVLinkDomain
+		if state.Health == apiv1.HealthStateTypeUnhealthy {
+			state.SuggestedActions = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeCheckSharedFabric}}
+		}
+	}
+	state.SetAffectedGPUs(cr.affectedGPUUUIDs...)
+	if state.Health == apiv1.HealthStateTypeUnhealthy {
+		ids := append([]string{}, cr.affectedGPUUUIDs...)
+		ids = append(ids, cr.InactiveNVLinkUUIDs...)
+		ids = append(ids, cr.UnsupportedNVLinkUUIDs...)
+		state.SetAffectedGPUs(ids...)
 	}
 	return apiv1.HealthStates{state}
 }

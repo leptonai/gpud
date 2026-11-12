@@ -3,6 +3,7 @@ package all
 
 import (
 	"github.com/leptonai/gpud/components"
+	componentsacceleratornvidiaimex "github.com/leptonai/gpud/components/accelerator/nvidia/imex"
 
 	componentsacceleratornvidiaclockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	componentsacceleratornvidiaecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
@@ -53,6 +54,7 @@ var componentInits = []Component{
 	{Name: componentsacceleratornvidiaclockspeed.Name, InitFunc: componentsacceleratornvidiaclockspeed.New},
 	{Name: componentsacceleratornvidiaecc.Name, InitFunc: componentsacceleratornvidiaecc.New},
 	{Name: componentsacceleratornvidiafabricmanager.Name, InitFunc: componentsacceleratornvidiafabricmanager.New},
+	{Name: componentsacceleratornvidiaimex.Name, InitFunc: componentsacceleratornvidiaimex.New},
 	{Name: componentsacceleratornvidiagpm.Name, InitFunc: componentsacceleratornvidiagpm.New},
 	{Name: componentsacceleratornvidiagpucounts.Name, InitFunc: componentsacceleratornvidiagpucounts.New},
 	{Name: componentsacceleratornvidiahwslowdown.Name, InitFunc: componentsacceleratornvidiahwslowdown.New},

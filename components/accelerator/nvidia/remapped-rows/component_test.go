@@ -1390,8 +1390,8 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
 	// Check for both GPU2 and GPU3 issues in the reason (now uses PCI bus ID)
-	assert.Contains(t, data.reason, "0000:02:00.0 needs reset")
-	assert.Contains(t, data.reason, "0000:03:00.0 qualifies for RMA")
+	assert.Contains(t, data.reason, "GPU2 needs reset")
+	assert.Contains(t, data.reason, "GPU3 qualifies for RMA")
 
 	// Check health states API
 	states := c.LastHealthStates()
@@ -1438,10 +1438,8 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 				// Simulate error for remapped rows
 				return RemappedRows{}, errors.New("NVML error getting remapped rows")
 			},
-			// The component sets the overall health to Healthy when there are no issues detected
-			// Even with errors for individual GPUs, the component only becomes unhealthy if there are
-			// actual remapping issues detected
-			expectedHealth: apiv1.HealthStateTypeHealthy,
+			// Failed queries must never be overwritten by a successful final state.
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 

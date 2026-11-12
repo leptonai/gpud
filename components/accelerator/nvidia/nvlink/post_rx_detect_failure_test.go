@@ -261,7 +261,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 				return []kmsg.Message{{Message: "unrelated kernel message"}}, nil
 			},
 			wantHealth: apiv1.HealthStateTypeHealthy,
-			wantReason: "all 0 GPU(s) were checked, no nvlink issue found",
+			wantReason: reasonNoThresholdConfigured,
 			wantString: "matched 0 kmsg(s)",
 		},
 	}
