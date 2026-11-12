@@ -540,7 +540,12 @@ func (p *process) watchCmd() {
 		case <-time.After(p.restartConfig.Interval):
 		}
 
-		if err := p.startCommand(); err != nil {
+		// Restart replaces the command and readers, which Close and the reader
+		// accessors also access under cmdMu.
+		p.cmdMu.Lock()
+		err := p.startCommand()
+		p.cmdMu.Unlock()
+		if err != nil {
 			log.Logger.Warnw("failed to restart command", "error", err)
 			return
 		}
