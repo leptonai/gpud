@@ -747,7 +747,8 @@ func TestCollectFabricState_Errors(t *testing.T) {
 	t.Run("no devices", func(t *testing.T) {
 		mockInst := &mockNVMLInstance{deviceCount: 0}
 		report := collectFabricState(mockInst)
-		assert.True(t, report.Healthy)
+		assert.False(t, report.Healthy)
+		assert.True(t, report.Failed)
 		assert.Empty(t, report.Entries)
 	})
 

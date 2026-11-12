@@ -3,18 +3,21 @@ package fabricmanager
 import (
 	"fmt"
 	"io"
-	"sort"
-	"strings"
+
+	"github.com/leptonai/gpud/components/accelerator/nvidia/fabric"
 
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 type fabricStateReport struct {
-	Entries []device.FabricStateEntry
-	Healthy bool
-	Reason  string
-	Err     error
+	Entries        []device.FabricStateEntry
+	AllUnsupported bool
+	Healthy        bool
+	Pending        bool
+	Failed         bool
+	Reason         string
+	Err            error
 }
 
 // RenderTable renders the fabric state report as a formatted table
@@ -73,41 +76,8 @@ func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
 		return report
 	}
 
-	devices := nvmlInstance.Devices()
-	if len(devices) == 0 {
-		return report
-	}
-
-	uuids := make([]string, 0, len(devices))
-	for uuid := range devices {
-		uuids = append(uuids, uuid)
-	}
-	sort.Strings(uuids)
-
-	reasons := make([]string, 0)
-
-	for _, uuid := range uuids {
-		dev := devices[uuid]
-		info, err := getFabricInfoFn(dev)
-		if err != nil {
-			report.Err = fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
-			report.Healthy = false
-			return report
-		}
-
-		entry := info.ToEntry(uuid)
-		issues := info.GetIssues()
-		report.Entries = append(report.Entries, entry)
-		if len(issues) > 0 {
-			report.Healthy = false
-			reasons = append(reasons, fmt.Sprintf("GPU %s: %s", uuid, strings.Join(issues, ", ")))
-		}
-	}
-
-	if len(reasons) > 0 {
-		sort.Strings(reasons)
-		report.Reason = strings.Join(reasons, "; ")
-	}
-
-	return report
+	r := fabric.CollectWith(nvmlInstance.Devices(), func(dev device.Device) (device.FabricState, error) {
+		return getFabricInfoFn(dev)
+	})
+	return fabricStateReport(r)
 }

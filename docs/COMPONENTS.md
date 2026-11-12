@@ -1,17 +1,60 @@
 # Components
 
+## Fabric registration
+
+On multi-GPU systems advertising NVML fabric-state support, the NVLink and
+fabric-manager checks distinguish registration from connectivity. NVIDIA documents
+that [NVLink peer access requires fabric registration](https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/)
+and that the [registration status code is valid only after completion](https://docs.nvidia.com/deploy/nvml-api/620/api/structnvmlGpuFabricInfo__v3__t.html).
+
+- `Not Started` or `In Progress`, without an explicit fabric fault, reports
+  `Degraded` with a registration deadline. This applies even when Fabric Manager
+  is still starting or every peer returns `NS`.
+- Registration remaining incomplete for five minutes from the first observation
+  reports `Unhealthy` with `REBOOT_SYSTEM`. The interval is a GPUd policy budget, not an NVIDIA hardware
+  guarantee. It measures observed registration time rather than host boot time.
+- The first observation is checkpointed per component and boot ID in GPUd's
+  existing SQLite database. Daemon restarts, alternating pending states, query
+  errors, and diagnostic event retention do not restart the interval. Full healthy
+  registration or a new boot allows a new interval. In-process elapsed time uses
+  the monotonic clock. After restart, the persisted wall-clock age seeds the new
+  monotonic deadline; a future checkpoint is clamped to the current time.
+- Failed completed registration, unhealthy fabric telemetry, unknown states,
+  missing GPU data, and query errors remain `Unhealthy` immediately. GPU lost/reset
+  errors and NVLink kernel faults retain their existing checks and actions.
+- Once registration completes, peer and port checks apply normally, including
+  all-pairs-`NS` failures and configured port thresholds.
+
+Pending registration within the window carries `IGNORE_NO_ACTION_REQUIRED`.
+An expired deadline or explicit fabric fault requests `REBOOT_SYSTEM`; NVLink
+retains peer/port diagnostics and their existing recovery guidance. Unavailable
+telemetry alone does not diagnose a hardware defect. Consumers should use readiness to control workload
+admission and health/action signals to decide repairs; `Degraded` is not proof that
+CUDA or peer access is ready. This also avoids consumers treating `Initializing`
+as an instruction to retain a previous unhealthy condition.
+
+One-shot scans without a database can identify incomplete registration but cannot
+establish how long it has persisted. Restart persistence also requires the daemon's
+database to survive restarts; `--db-in-memory` cannot provide it. Systems without
+fabric-state support keep their existing NVLink and Fabric Manager behavior.
+NVLink also falls through to its peer/port checks when all GPUs explicitly report
+unsupported fabric telemetry and no switch is detected. Mixed support, real
+faults, explicit NVL72 topology, and detected switches remain checked.
+
+## Available components
+
 - [**`accelerator-nvidia-bad-envs`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs): Tracks any bad environment variables that are globally set for the NVIDIA GPUs.
 - [**`accelerator-nvidia-clock-speed`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed): Tracks the per-GPU clock speed.
 - [**`accelerator-nvidia-ecc`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/ecc): Tracks the NVIDIA per-GPU ECC errors and other ECC related information.
 - [**`accelerator-nvidia-error-sxid`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/sxid): Tracks the NVIDIA GPU SXid errors scanning the kmsg -- see [fabric manager documentation](https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf).
 - [**`accelerator-nvidia-error-xid`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/xid): Tracks the NVIDIA GPU Xid errors scanning the kmsg and using the NVIDIA Management Library (NVML) -- see [Xid messages](https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages).
-- [**`accelerator-nvidia-fabric-manager`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager): Tracks the fabric manager version and its activeness.
+- [**`accelerator-nvidia-fabric-manager`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager): Tracks fabric registration, health, and fabric manager activeness. See [fabric registration](#fabric-registration).
 - [**`accelerator-nvidia-gpm`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/gpm): Monitors the NVIDIA per-GPU GPM metrics.
 - [**`accelerator-nvidia-hw-slowdown`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown): Monitors NVIDIA GPU hardware slowdown clock events of all GPUs.
 - [**`accelerator-nvidia-infiniband`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/infiniband): Monitors the infiniband status of the system and Mellanox kernel events. Optional, enabled if the host has NVIDIA GPUs.
 - [**`accelerator-nvidia-memory`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/memory): Monitors the NVIDIA per-GPU memory usage.
 - [**`accelerator-nvidia-nccl`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/nccl): Monitors the NCCL (NVIDIA Collective Communications Library) status. Optional, enabled if the host has NVIDIA GPUs.
-- [**`accelerator-nvidia-nvlink`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/nvlink): Monitors the NVIDIA per-GPU nvlink devices.
+- [**`accelerator-nvidia-nvlink`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/nvlink): Monitors NVIDIA NVLink ports and peer connectivity after [fabric registration](#fabric-registration).
 - [**`accelerator-nvidia-peermem`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/peermem): Monitors the peermem module status. Optional, enabled if the host has NVIDIA GPUs.
 - [**`accelerator-nvidia-persistence-mode`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode): Tracks the NVIDIA persistence mode.
 - [**`accelerator-nvidia-power`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/power): Tracks the NVIDIA per-GPU power usage.
