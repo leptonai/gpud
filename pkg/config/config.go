@@ -102,6 +102,10 @@ type Config struct {
 	// PluginSpecsFile is the file that contains the plugin specs.
 	PluginSpecsFile string `json:"plugin_specs_file"`
 
+	// PluginSpecsFileManaged keeps the control-plane session reachable when a
+	// persisted profile cannot load or an init plugin fails.
+	PluginSpecsFileManaged bool `json:"plugin_specs_file_managed,omitempty"`
+
 	// NVSentinel configures the optional NVSentinel integration.
 	// When enabled, GPUd serves the NVSentinel PlatformConnector gRPC API on
 	// a local unix socket. The node's NVSentinel platform-connector forwards

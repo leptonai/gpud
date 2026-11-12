@@ -10,7 +10,7 @@ import (
 const Name = "azure"
 
 func New() providers.Detector {
-	return providers.NewIMDSWithRegion(Name, detectProvider, imds.FetchPublicIPv4, nil, imds.FetchRegion, imds.FetchAZEnvironment, imds.FetchInstanceID)
+	return providers.NewIMDSWithRegion(Name, detectProvider, imds.FetchPublicIPv4, nil, imds.FetchRegion, imds.FetchAZEnvironment, imds.FetchInstanceID, providers.WithInstanceType(imds.FetchInstanceType))
 }
 
 func detectProvider(ctx context.Context) (string, error) {

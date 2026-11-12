@@ -357,7 +357,7 @@ func TestMockeyProcessSetPluginSpecs_SaveError(t *testing.T) {
 		}
 		resp := &Response{}
 		specs := pkgcustomplugins.Specs{
-			{PluginName: "test-plugin"},
+			{PluginName: "test-plugin", PluginType: pkgcustomplugins.SpecTypeComponent, HealthStatePlugin: &pkgcustomplugins.Plugin{}},
 		}
 		exitCode := s.processSetPluginSpecs(context.Background(), resp, specs)
 		assert.Nil(t, exitCode)
@@ -374,7 +374,7 @@ func TestMockeyProcessSetPluginSpecs_NoUpdate(t *testing.T) {
 		}
 		resp := &Response{}
 		specs := pkgcustomplugins.Specs{
-			{PluginName: "test-plugin"},
+			{PluginName: "test-plugin", PluginType: pkgcustomplugins.SpecTypeComponent, HealthStatePlugin: &pkgcustomplugins.Plugin{}},
 		}
 		exitCode := s.processSetPluginSpecs(context.Background(), resp, specs)
 		assert.Nil(t, exitCode)
@@ -391,7 +391,7 @@ func TestMockeyProcessSetPluginSpecs_Updated(t *testing.T) {
 		}
 		resp := &Response{}
 		specs := pkgcustomplugins.Specs{
-			{PluginName: "test-plugin"},
+			{PluginName: "test-plugin", PluginType: pkgcustomplugins.SpecTypeComponent, HealthStatePlugin: &pkgcustomplugins.Plugin{}},
 		}
 		exitCode := s.processSetPluginSpecs(context.Background(), resp, specs)
 		require.NotNil(t, exitCode)
@@ -1674,7 +1674,7 @@ func TestMockeyProcessRequest_SetPluginSpecs(t *testing.T) {
 		restartExitCode := -1
 
 		specs := pkgcustomplugins.Specs{
-			{PluginName: "test-plugin"},
+			{PluginName: "test-plugin", PluginType: pkgcustomplugins.SpecTypeComponent, HealthStatePlugin: &pkgcustomplugins.Plugin{}},
 		}
 		handledAsync := s.processRequest(context.Background(), "req-set-plugins",
 			Request{Method: "setPluginSpecs", CustomPluginSpecs: specs}, resp, &restartExitCode)

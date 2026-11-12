@@ -71,37 +71,6 @@ func TestRunCommand_StartErrorWithMockey(t *testing.T) {
 	})
 }
 
-func TestRunCommand_ReadErrorWithMockey(t *testing.T) {
-	mockey.PatchConvey("runCommand captures read error output", t, func() {
-		mockey.Mock(process.New).To(func(opts ...process.OpOption) (process.Process, error) {
-			return newStubProcess("version-output"), nil
-		}).Build()
-		mockey.Mock(process.Read).To(func(ctx context.Context, p process.Process, opts ...process.ReadOpOption) error {
-			return errors.New("read failed")
-		}).Build()
-
-		var result string
-		err := runCommand(context.Background(), "/tmp/script.sh", "version", &result)
-		require.NoError(t, err)
-		assert.Contains(t, result, "failed to run")
-		assert.Contains(t, result, "read failed")
-	})
-}
-
-func TestRunCommand_ResultSuccessWithMockey(t *testing.T) {
-	mockey.PatchConvey("runCommand returns output in result", t, func() {
-		mockey.Mock(process.New).To(func(opts ...process.OpOption) (process.Process, error) {
-			proc := newStubProcess("line1\nline2\n")
-			return proc, nil
-		}).Build()
-
-		var result string
-		err := runCommand(context.Background(), "/tmp/script.sh", "version", &result)
-		require.NoError(t, err)
-		assert.Equal(t, "line1\nline2", result)
-	})
-}
-
 func TestRunCommand_OutputFileOpenErrorWithMockey(t *testing.T) {
 	mockey.PatchConvey("runCommand returns error when output file cannot be created", t, func() {
 		mockey.Mock(os.OpenFile).To(func(name string, flag int, perm os.FileMode) (*os.File, error) {

@@ -25,6 +25,7 @@ type detector struct {
 	fetchPrivateIPv4Func   func(ctx context.Context) (string, error)
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error)
 	fetchInstanceIDFunc    func(ctx context.Context) (string, error)
+	fetchInstanceTypeFunc  func(ctx context.Context) (string, error)
 	imds                   bool
 	retryPrivateIPv4       bool
 }

@@ -707,6 +707,7 @@ func (c *component) updateCurrentState() error {
 	}
 	localEvents = trimEventsAfterSetHealthy(localEvents)
 	events := mergeEvents(rebootEvents, localEvents)
+	events = c.eventsForHealth(events)
 
 	c.mu.Lock()
 	c.currState = evolveHealthyStateWithThresholds(events, c.devices, rebootThreshold, thresholds)
@@ -716,6 +717,32 @@ func (c *component) updateCurrentState() error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+// eventsForHealth applies the same ownership as live kmsg ingestion to persisted
+// and NVSentinel events. An upgrade must not keep escalating old Xid 63/64 events
+// after remapped-rows has become responsible for that GPU's recovery policy.
+// Stored events remain available for diagnostics.
+func (c *component) eventsForHealth(events eventstore.Events) eventstore.Events {
+	if c.nvmlInstance == nil || !c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping {
+		return events
+	}
+	filtered := make(eventstore.Events, 0, len(events))
+	for _, event := range events {
+		if event.Name == EventNameErrorXid {
+			raw := event.ExtraInfo[EventKeyErrorXidData]
+			var detail xidErrorEventDetail
+			if err := json.Unmarshal([]byte(raw), &detail); err != nil {
+				// Older stores encode only the numeric Xid.
+				detail.Xid, _ = strconv.ParseUint(raw, 10, 64)
+			}
+			if detail.Xid == 63 || detail.Xid == 64 {
+				continue
+			}
+		}
+		filtered = append(filtered, event)
+	}
+	return filtered
 }
 
 // mergeEvents merges two event slices and returns a time descending sorted new slice

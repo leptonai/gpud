@@ -154,6 +154,7 @@ type computeResponse struct {
 	Location      string `json:"location"`
 	PhysicalZone  string `json:"physicalZone"`
 	ResourceID    string `json:"resourceId"`
+	VMSize        string `json:"vmSize"`
 }
 
 // FetchAvailabilityZone fetches Azure instance environment using IMDS.

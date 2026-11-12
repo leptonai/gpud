@@ -324,7 +324,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 				}, nil
 			},
 			getProviderFunc: func(ip string) *providers.Info {
-				return &providers.Info{Provider: "aws", PublicIP: ip}
+				return &providers.Info{Provider: "aws", PublicIP: ip, InstanceType: "p5.48xlarge"}
 			},
 			getSystemResourceRootVolumeTotalFunc: func() (string, error) {
 				return "100Gi", nil
@@ -341,6 +341,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 				assert.Equal(t, "1.2.3.4", req.Network.PublicIP)
 				// We don't validate PrivateIP as it depends on the result of Is4()
 				assert.Equal(t, "aws", req.Provider)
+				assert.Equal(t, "p5.48xlarge", req.ProviderInstanceType)
 				assert.Equal(t, "4", req.Resources[string(corev1.ResourceCPU)])
 				// Memory is calculated from bytes, so we need to check the actual value
 				memQty, err := resource.ParseQuantity(req.Resources[string(corev1.ResourceMemory)])

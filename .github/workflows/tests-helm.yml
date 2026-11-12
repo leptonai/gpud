@@ -1,0 +1,33 @@
+name: tests-helm
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+    paths:
+      - "deployments/helm/**"
+      - "pkg/custom-plugins/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/tests-helm.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  tests-helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.16.1
+      - name: Validate chart and plugin persistence
+        run: |
+          helm version --short
+          helm lint deployments/helm/gpud --strict
+          go test -race ./deployments/helm

@@ -110,6 +110,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
+	"github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 const (
@@ -199,7 +200,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkFMActiveFunc: checkFMActive,
 
 		// Enable testing mode when failure injection is configured (e.g., --gpu-product-name override).
-		// This allows testing fabric state injection on single-GPU systems.
+		// External rack fabrics also do not depend on the number of local GPUs.
 		testingMode: gpudInstance.FailureInjector != nil && gpudInstance.FailureInjector.GPUProductNameOverride != "",
 	}
 
@@ -354,8 +355,8 @@ func (c *component) Check() components.CheckResult {
 	//      - FabricStateSupported() returns false because PCIe cards don't have NVSwitch fabric
 	//      - WORKAROUND: Use --gpu-product-name="NVIDIA H100 80GB HBM3" to simulate SXM variant
 	//
-	//   2. Non-Hopper/GB200 GPUs (A100, V100, etc.):
-	//      - FabricStateSupported() returns false; only H100-SXM, H200-SXM, GB200 are supported
+	//   2. Products without NVML fabric telemetry (A100, V100, etc.):
+	//      - FabricStateSupported() returns false; supported Hopper/Blackwell variants use NVML
 	//      - WORKAROUND: Use --gpu-product-name="NVIDIA H100 80GB HBM3" to simulate H100-SXM
 	//
 	//   3. Single-GPU systems (count < 2):
@@ -375,12 +376,14 @@ func (c *component) Check() components.CheckResult {
 	//   4. collectFabricState() detects the unhealthy state via GetIssues() (fabric_state.go)
 	//   5. This Check() method sets health=Unhealthy based on the report
 	//
+	nonPCIFabric := product.MayHaveNonPCIFabricByGPUProduct(c.nvmlInstance.ProductName())
+	externalFabric := product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName())
 	if c.nvmlInstance.FabricStateSupported() {
 		cr.FabricStateSupported = true
 
 		// Skip the GPU count check in testing mode (when --gpu-product-name is used).
-		// This allows testing fabric state injection on single-GPU systems.
-		if !c.testingMode && c.getCountLspci != nil {
+		// External rack fabrics also do not depend on the number of local GPUs.
+		if !c.testingMode && !externalFabric && c.getCountLspci != nil {
 			count, err := c.getCountLspci(c.ctx)
 			if err != nil {
 				log.Logger.Warnw("failed to count GPUs via lspci for fabric check", "error", err)
@@ -399,10 +402,11 @@ func (c *component) Check() components.CheckResult {
 		// Some GPU configurations (e.g., GH200 standalone, PCIe cards) support the fabric state
 		// API at the product level but don't have NVSwitch hardware. In these cases, the NVML
 		// fabric state API returns "Not Supported" which should not be treated as unhealthy.
-		// This check must happen BEFORE collectFabricState() to avoid false unhealthy reports.
+		// Blackwell switches behind CX7 and external rack switches are not PCIe devices
+		// on the host; those products must probe NVML before deciding applicability.
 		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
 		// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
-		if !c.testingMode && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+		if !c.testingMode && !nonPCIFabric && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
 			log.Logger.Infow("skipping fabric state check because NVSwitch not detected")
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = c.nvmlInstance.ProductName() + ": NVSwitch not detected, skipping fabric state check"
@@ -412,6 +416,15 @@ func (c *component) Check() components.CheckResult {
 
 		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
+		// A product family permits probing; only telemetry/topology establishes applicability.
+		if report.AllUnsupported && !c.testingMode && c.checkNVSwitchExistsFunc != nil &&
+			fabric.Report(report).UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), c.checkNVSwitchExistsFunc()) {
+			cr.FabricStateSupported = false
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = c.nvmlInstance.ProductName() + ": fabric telemetry unsupported and no NVSwitch detected; skipping fabric state check"
+			cr.FabricStateReason = cr.reason
+			return cr
+		}
 		if report.Err != nil {
 			cr.suggestedActions = fabric.SuggestedActions(report.Err, apiv1.HealthStateTypeUnhealthy)
 		}
@@ -483,7 +496,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	if c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+	if !nonPCIFabric && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
 		cr.FabricManagerActive = false
 
 		// Preserve unhealthy state from fabric state check, only set healthy if not already unhealthy

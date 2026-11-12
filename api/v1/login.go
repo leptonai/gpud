@@ -4,16 +4,17 @@ import "encoding/json"
 
 // LoginRequest is the request for the login request.
 type LoginRequest struct {
-	Token              string            `json:"token"`
-	MachineID          string            `json:"machineID"`
-	NodeGroup          string            `json:"nodeGroup,omitempty"`
-	NodeLabels         map[string]string `json:"nodeLabels,omitempty"`
-	Network            *MachineNetwork   `json:"network,omitempty"`
-	Location           *MachineLocation  `json:"location,omitempty"`
-	Provider           string            `json:"provider"`
-	ProviderInstanceID string            `json:"providerInstanceID"`
-	MachineInfo        *MachineInfo      `json:"machineInfo,omitempty"`
-	Resources          map[string]string `json:"resources,omitempty"`
+	Token                string            `json:"token"`
+	MachineID            string            `json:"machineID"`
+	NodeGroup            string            `json:"nodeGroup,omitempty"`
+	NodeLabels           map[string]string `json:"nodeLabels,omitempty"`
+	Network              *MachineNetwork   `json:"network,omitempty"`
+	Location             *MachineLocation  `json:"location,omitempty"`
+	Provider             string            `json:"provider"`
+	ProviderInstanceID   string            `json:"providerInstanceID"`
+	ProviderInstanceType string            `json:"providerInstanceType,omitempty"`
+	MachineInfo          *MachineInfo      `json:"machineInfo,omitempty"`
+	Resources            map[string]string `json:"resources,omitempty"`
 }
 
 // MarshalJSON preserves explicit empty node labels as {} while still omitting nil node labels.
@@ -23,6 +24,9 @@ func (r LoginRequest) MarshalJSON() ([]byte, error) {
 	payload["machineID"] = r.MachineID
 	payload["provider"] = r.Provider
 	payload["providerInstanceID"] = r.ProviderInstanceID
+	if r.ProviderInstanceType != "" {
+		payload["providerInstanceType"] = r.ProviderInstanceType
+	}
 
 	if r.NodeGroup != "" {
 		payload["nodeGroup"] = r.NodeGroup

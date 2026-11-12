@@ -2,6 +2,12 @@
 name: tests-unit
 
 on:
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Pull request number for coverage reporting
+        required: true
+        type: string
   push:
     branches: ["main"]
   pull_request:
@@ -34,3 +40,4 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          override_pr: ${{ github.event.pull_request.number || inputs.pull_request }}
