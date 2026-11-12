@@ -14,13 +14,17 @@ import (
 )
 
 // SuggestedActions preserves device-loss/reset guidance while avoiding an
-// unsupported hardware diagnosis from registration progress or missing telemetry.
+// unsupported host recovery or hardware diagnosis from fabric unavailability.
 func SuggestedActions(err error, health apiv1.HealthStateType) *apiv1.SuggestedActions {
 	action := apiv1.RepairActionTypeIgnoreNoActionRequired
-	if (health == apiv1.HealthStateTypeUnhealthy && err == nil) || errors.Is(err, nvmlerrors.ErrGPULost) || errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
+	if errors.Is(err, nvmlerrors.ErrGPULost) || errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
 		action = apiv1.RepairActionTypeRebootSystem
 	}
-	return &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{action}}
+	actions := &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{action}}
+	if health == apiv1.HealthStateTypeUnhealthy && action == apiv1.RepairActionTypeIgnoreNoActionRequired {
+		actions.Description = "Inspect fabric management, switch connectivity, and driver compatibility; fabric unavailability alone does not establish a host reboot or hardware repair requirement"
+	}
+	return actions
 }
 
 // Report preserves readiness, faults, and unavailable telemetry separately.

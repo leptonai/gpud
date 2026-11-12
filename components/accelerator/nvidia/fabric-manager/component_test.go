@@ -1432,12 +1432,12 @@ func TestCheck_FabricStateUnhealthy_PreservedWhenFabricManagerActive(t *testing.
 	assert.True(t, cr.FabricStateSupported)
 	assert.Equal(t, reason, cr.FabricStateReason)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "NVIDIA H100 80GB HBM3 with unhealthy fabric state: "+reason, cr.reason)
+	assert.Equal(t, "NVIDIA H100 80GB HBM3 with unhealthy fabric state: "+reason+"; fabric manager found and active", cr.reason)
 
 	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
-	assert.Equal(t, "NVIDIA H100 80GB HBM3 with unhealthy fabric state: "+reason, states[0].Reason)
+	assert.Equal(t, "NVIDIA H100 80GB HBM3 with unhealthy fabric state: "+reason+"; fabric manager found and active", states[0].Reason)
 }
 
 func TestCheck_FabricStateSupported_SkipsLegacyFMForGB200(t *testing.T) {
