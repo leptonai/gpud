@@ -326,7 +326,7 @@ func (d *nvDevice) GetFabricState() (FabricState, error) {
 		return FabricState{}, nvmlerrors.ErrGPURequiresReset
 	}
 	if nvmlerrors.IsNotSupportError(ret) {
-		return FabricState{}, fmt.Errorf("fabric state telemetry not supported")
+		return FabricState{}, fmt.Errorf("fabric state telemetry not supported: %w", nvml.ERROR_NOT_SUPPORTED)
 	}
 	if ret != nvml.SUCCESS {
 		return FabricState{}, fmt.Errorf("nvmlDeviceGetGpuFabricInfo failed: %s", nvml.ErrorString(ret))

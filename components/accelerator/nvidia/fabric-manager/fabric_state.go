@@ -1,20 +1,25 @@
 package fabricmanager
 
 import (
+	"errors"
 	"fmt"
+
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 type fabricStateReport struct {
-	Entries []device.FabricStateEntry
-	Healthy bool
-	Reason  string
-	Err     error
+	Entries        []device.FabricStateEntry
+	AllUnsupported bool
+	Healthy        bool
+	Reason         string
+	Err            error
 }
 
 // RenderTable renders the fabric state report as a formatted table
@@ -78,6 +83,7 @@ func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
 		return report
 	}
 
+	report.AllUnsupported = true
 	uuids := make([]string, 0, len(devices))
 	for uuid := range devices {
 		uuids = append(uuids, uuid)
@@ -92,11 +98,19 @@ func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
 		if err != nil {
 			report.Err = fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
 			report.Healthy = false
+			if errors.Is(err, nvml.ERROR_NOT_SUPPORTED) {
+				continue
+			}
+			report.AllUnsupported = false
 			return report
 		}
 
 		entry := info.ToEntry(uuid)
 		issues := info.GetIssues()
+		unsupported := info.State == nvml.GPU_FABRIC_STATE_NOT_SUPPORTED &&
+			(info.Status == nvml.SUCCESS || info.Status == nvml.ERROR_NOT_SUPPORTED || info.Status == nvml.ERROR_UNKNOWN) &&
+			info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED && info.HealthMask == 0
+		report.AllUnsupported = report.AllUnsupported && unsupported
 		report.Entries = append(report.Entries, entry)
 		if len(issues) > 0 {
 			report.Healthy = false

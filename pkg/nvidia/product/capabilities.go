@@ -3,10 +3,10 @@ package product
 import "strings"
 
 type capabilities struct {
-	memoryManagement MemoryErrorManagementCapabilities
-	fabricManager    bool
-	fabricState      bool
-	externalFabric   bool
+	memoryManagement        MemoryErrorManagementCapabilities
+	fabricManager           bool
+	fabricState             bool
+	externalFabricCandidate bool
 }
 
 // Keep memory recovery, fabric telemetry, and management topology in one
@@ -28,9 +28,9 @@ var (
 		"b100":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
 		"b200":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
 		"b300":  {memoryManagement: memMgmtCapAllSupported, fabricManager: true, fabricState: true},
-		// NVL72 fabric services run on switch trays, not on compute nodes.
-		"gb200": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabric: true},
-		"gb300": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabric: true},
+		// GB families can use external NVL72 fabrics, but GB200 also has NVL4.
+		"gb200": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabricCandidate: true},
+		"gb300": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabricCandidate: true},
 	}
 )
 
@@ -43,9 +43,10 @@ func capabilitiesByGPUProduct(gpuProductName string) capabilities {
 			longestName, caps = name, candidate
 		}
 	}
-	// PCIe variants retain memory recovery but do not use NVSwitch fabrics.
-	if strings.Contains(p, "pcie") {
-		caps.fabricManager, caps.fabricState, caps.externalFabric = false, false, false
+	// PCIe and NVL4 variants retain memory recovery without NVSwitch fabrics.
+	// https://docs.nvidia.com/multi-node-nvlink-systems/nvfupd-guide/examples/gb200NVL.html
+	if strings.Contains(p, "pcie") || strings.Contains(p, "nvl4") {
+		caps.fabricManager, caps.fabricState, caps.externalFabricCandidate = false, false, false
 	}
 	return caps
 }
@@ -61,11 +62,16 @@ func SupportFabricStateByGPUProduct(gpuProductName string) bool {
 	return capabilitiesByGPUProduct(gpuProductName).fabricState
 }
 
-// HasExternalFabricByGPUProduct reports whether fabric switches and management
-// reside outside the compute node, so local PCI enumeration is not a prerequisite
-// for querying NVML fabric telemetry.
+// HasExternalFabricByGPUProduct requires an explicit NVL72 topology in the name.
+// A bare GB200 name cannot distinguish NVL4 from an NVL72 compute tray.
 func HasExternalFabricByGPUProduct(gpuProductName string) bool {
-	return capabilitiesByGPUProduct(gpuProductName).externalFabric
+	return MayHaveExternalFabricByGPUProduct(gpuProductName) && strings.Contains(strings.ToLower(gpuProductName), "nvl72")
+}
+
+// MayHaveExternalFabricByGPUProduct permits probing rack telemetry without a
+// local NVSwitch. It does not establish that the system has an external fabric.
+func MayHaveExternalFabricByGPUProduct(gpuProductName string) bool {
+	return capabilitiesByGPUProduct(gpuProductName).externalFabricCandidate
 }
 
 // SupportedMemoryMgmtCapsByGPUProduct returns memory error management capabilities.

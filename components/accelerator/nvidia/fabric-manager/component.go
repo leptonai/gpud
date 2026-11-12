@@ -363,7 +363,7 @@ func (c *component) Check() components.CheckResult {
 
 		// Skip the GPU count check in testing mode (when --gpu-product-name is used).
 		// External rack fabrics also do not depend on the number of local GPUs.
-		externalFabric := product.HasExternalFabricByGPUProduct(c.nvmlInstance.ProductName())
+		externalFabric := product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName())
 		if !c.testingMode && !externalFabric && c.getCountLspci != nil {
 			count, err := c.getCountLspci(c.ctx)
 			if err != nil {
@@ -398,6 +398,16 @@ func (c *component) Check() components.CheckResult {
 
 		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
+		// Bare GB names also occur on systems without a switch tray. Only an
+		// entirely unsupported report can take this path; partial failures remain unhealthy.
+		if externalFabric && !c.testingMode && !product.HasExternalFabricByGPUProduct(c.nvmlInstance.ProductName()) &&
+			report.AllUnsupported && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+			cr.FabricStateSupported = false
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = c.nvmlInstance.ProductName() + ": fabric telemetry unsupported and no NVSwitch detected; skipping fabric state check"
+			cr.FabricStateReason = cr.reason
+			return cr
+		}
 		if report.Reason != "" {
 			cr.FabricStateReason = report.Reason
 		}
