@@ -537,6 +537,10 @@ func TestLastHealthStates(t *testing.T) {
 	assert.Equal(t, Name, healthStates[0].Component)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
 	assert.Equal(t, "no issue", healthStates[0].Reason)
+	require.NotNil(t, healthStates[0].Evaluated)
+	assert.False(t, *healthStates[0].Evaluated)
+	c.stopKernel = func() {}
+	assert.True(t, *c.LastHealthStates()[0].Evaluated)
 }
 
 func TestCheckResult_HealthStates(t *testing.T) {

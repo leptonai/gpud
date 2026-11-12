@@ -107,6 +107,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 const (
@@ -286,9 +287,16 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia fabric manager")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		Evaluation: apiv1.Evaluated(),
+		ts:         time.Now().UTC(),
 	}
 	defer func() {
+		if cr.err != nil && cr.Evaluated != nil && *cr.Evaluated {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
+		}
+		if cr.Evaluated != nil && *cr.Evaluated && c.nvmlInstance != nil && len(c.nvmlInstance.Devices()) == 0 {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
+		}
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
 		c.lastMu.Unlock()
@@ -297,17 +305,20 @@ func (c *component) Check() components.CheckResult {
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	// Check for NVML initialization errors first.
 	// This handles cases like "error getting device handle for index 'N': Unknown Error"
 	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
 	if err := c.nvmlInstance.InitError(); err != nil {
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
 		cr.suggestedActions = &apiv1.SuggestedActions{
@@ -320,6 +331,7 @@ func (c *component) Check() components.CheckResult {
 	if c.nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		return cr
 	}
 
@@ -362,7 +374,7 @@ func (c *component) Check() components.CheckResult {
 
 		// Skip the GPU count check in testing mode (when --gpu-product-name is used).
 		// This allows testing fabric state injection on single-GPU systems.
-		if !c.testingMode && c.getCountLspci != nil {
+		if !nvidiaproduct.UsesExternalNVLinkFabric(c.nvmlInstance.ProductName()) && !c.testingMode && c.getCountLspci != nil {
 			count, err := c.getCountLspci(c.ctx)
 			if err != nil {
 				log.Logger.Warnw("failed to count GPUs via lspci for fabric check", "error", err)
@@ -373,6 +385,7 @@ func (c *component) Check() components.CheckResult {
 				cr.health = apiv1.HealthStateTypeHealthy
 				cr.reason = fmt.Sprintf("detected %d NVIDIA GPU device(s); skipping fabric state check", count)
 				cr.FabricStateReason = cr.reason
+				cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 				return cr
 			}
 		}
@@ -384,16 +397,23 @@ func (c *component) Check() components.CheckResult {
 		// This check must happen BEFORE collectFabricState() to avoid false unhealthy reports.
 		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
 		// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
-		if !c.testingMode && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+		if !nvidiaproduct.UsesExternalNVLinkFabric(c.nvmlInstance.ProductName()) && !c.testingMode && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
 			log.Logger.Infow("skipping fabric state check because NVSwitch not detected")
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = c.nvmlInstance.ProductName() + ": NVSwitch not detected, skipping fabric state check"
 			cr.FabricStateReason = cr.reason
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 			return cr
 		}
 
 		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
+		cr.Evaluation = report.Evaluation
+		cr.err = report.Err
+		cr.affectedGPUUUIDs = report.AffectedGPUUUIDs
+		if nvidiaproduct.UsesExternalNVLinkFabric(c.nvmlInstance.ProductName()) {
+			cr.faultScope = apiv1.FaultScopeNVLinkDomain
+		}
 		if report.Reason != "" {
 			cr.FabricStateReason = report.Reason
 		}
@@ -441,6 +461,9 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if !c.nvmlInstance.FabricManagerSupported() {
+		if !cr.FabricStateSupported {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
+		}
 		cr.FabricManagerActive = false
 
 		// Preserve unhealthy state from fabric state check, only set healthy if not already unhealthy
@@ -461,6 +484,9 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeHealthy
 		}
 		cr.reason = appendReason(cr.reason, "NVSwitch not detected, skipping fabric manager check")
+		if !cr.FabricStateSupported {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
+		}
 
 		// no reason to proceed the fabric-manager activeness checks
 		return cr
@@ -655,6 +681,11 @@ func fabricManagerProcessRunning(procRoot string) bool {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	affectedGPUUUIDs []string
+	faultScope       apiv1.FaultScope
+
+	apiv1.Evaluation
+
 	// FabricManagerActive is true if the fabric manager is active.
 	// By default, it checks the "nv-fabricmanager" default listening port 6666.
 	FabricManagerActive bool `json:"fabric_manager_active"`
@@ -735,25 +766,37 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: Name,
-				Name:      Name,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:       metav1.NewTime(time.Now().UTC()),
+				Component:  Name,
+				Name:       Name,
+				Health:     apiv1.HealthStateTypeHealthy,
+				Reason:     "no data yet",
+				Evaluation: apiv1.NotEvaluated(apiv1.NotEvaluatedNoData),
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Evaluation: cr.Evaluation,
+		Time:       metav1.NewTime(cr.ts),
+		Component:  Name,
+		Name:       Name,
+		Reason:     cr.reason,
+		Error:      cr.getError(),
+		Health:     cr.health,
 	}
 
 	b, _ := json.Marshal(cr)
 	state.ExtraInfo = map[string]string{"data": string(b)}
+	if cr.FabricStateSupported {
+		entries, _ := json.Marshal(cr.FabricStates)
+		state.ExtraInfo["fabric_states"] = string(entries)
+	}
+	state.FaultScope = cr.faultScope
+	state.SuggestedActions = cr.suggestedActions
+	if cr.faultScope == apiv1.FaultScopeNVLinkDomain && state.Health == apiv1.HealthStateTypeUnhealthy {
+		state.SuggestedActions = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeCheckSharedFabric}}
+	}
+	state.SetAffectedGPUs(cr.affectedGPUUUIDs...)
 	return apiv1.HealthStates{state}
 }

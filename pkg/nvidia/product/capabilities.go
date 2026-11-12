@@ -17,6 +17,8 @@ var (
 		"b100":  memMgmtCapAllSupported,
 		"b200":  memMgmtCapAllSupported,
 		"gb200": memMgmtCapAllSupported,
+		"gb300": memMgmtCapAllSupported,
+		"b300":  memMgmtCapAllSupported,
 		"h100":  memMgmtCapAllSupported,
 		"h200":  memMgmtCapAllSupported,
 		"a10":   memMgmtCapOnlyRowRemappingSupported,
@@ -35,6 +37,7 @@ var (
 		// SupportedFMByGPUProduct tracks support for the on-node nv-fabricmanager
 		// service only, we explicitly report GB200 as unsupported here.
 		"gb200": false,
+		"gb300": false,
 		// GH200 (Grace Hopper Superchip) uses NVLink-C2C for internal CPU-GPU connection.
 		// NVSwitch is only used in large-scale DGX GH200 configurations (up to 256 nodes).
 		// Standalone GH200 systems do not have NVSwitch and do not need fabric manager.
@@ -110,7 +113,7 @@ func SupportFabricStateByGPUProduct(gpuProductName string) bool {
 	if strings.Contains(p, "gh200") {
 		return false
 	}
-	return strings.Contains(p, "gb200") ||
+	return UsesExternalNVLinkFabric(p) ||
 		strings.Contains(p, "h100") ||
 		strings.Contains(p, "h200")
 }
@@ -169,4 +172,11 @@ type MemoryErrorManagementCapabilities struct {
 
 	// Message contains the message to the user about the memory error management capabilities.
 	Message string `json:"message,omitempty"`
+}
+
+// UsesExternalNVLinkFabric identifies compute trays whose switches live outside
+// the host. Missing local NVSwitch PCI devices cannot disable their checks.
+func UsesExternalNVLinkFabric(name string) bool {
+	p := strings.ToLower(name)
+	return strings.Contains(p, "gb200") || strings.Contains(p, "gb300")
 }

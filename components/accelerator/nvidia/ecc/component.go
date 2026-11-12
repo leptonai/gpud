@@ -116,9 +116,16 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu ecc")
 
 	cr := &checkResult{
-		ts: c.getTimeNowFunc(),
+		Evaluation: apiv1.Evaluated(),
+		ts:         c.getTimeNowFunc(),
 	}
 	defer func() {
+		if cr.err != nil && cr.Evaluated != nil && *cr.Evaluated {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
+		}
+		if cr.Evaluated != nil && *cr.Evaluated && c.nvmlInstance != nil && len(c.nvmlInstance.Devices()) == 0 {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
+		}
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
 		c.lastMu.Unlock()
@@ -127,17 +134,20 @@ func (c *component) Check() components.CheckResult {
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	// Check for NVML initialization errors first.
 	// This handles cases like "error getting device handle for index 'N': Unknown Error"
 	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
 	if err := c.nvmlInstance.InitError(); err != nil {
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
 		cr.suggestedActions = &apiv1.SuggestedActions{
@@ -150,6 +160,7 @@ func (c *component) Check() components.CheckResult {
 	if c.nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		return cr
 	}
 
@@ -158,6 +169,8 @@ func (c *component) Check() components.CheckResult {
 		eccMode, err := c.getECCModeEnabledFunc(uuid, dev)
 		if err != nil {
 			cr.err = err
+			cr.affectedGPUUUIDs = append(cr.affectedGPUUUIDs, uuid)
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting ECC mode"
 
@@ -185,10 +198,15 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 		cr.ECCModes = append(cr.ECCModes, eccMode)
+		if !eccMode.Supported {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
+		}
 
 		eccErrors, err := c.getECCErrorsFunc(uuid, dev, eccMode.EnabledCurrent)
 		if err != nil {
 			cr.err = err
+			cr.affectedGPUUUIDs = append(cr.affectedGPUUUIDs, uuid)
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting ECC errors"
 
@@ -216,6 +234,9 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 		cr.ECCErrors = append(cr.ECCErrors, eccErrors)
+		if !eccErrors.Supported {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
+		}
 
 		metricAggregateTotalCorrected.With(prometheus.Labels{"uuid": uuid}).Set(float64(eccErrors.Aggregate.Total.Corrected))
 		metricAggregateTotalUncorrected.With(prometheus.Labels{"uuid": uuid}).Set(float64(eccErrors.Aggregate.Total.Uncorrected))
@@ -232,6 +253,9 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	affectedGPUUUIDs []string
+	apiv1.Evaluation
+
 	ECCModes  []ECCMode   `json:"ecc_modes,omitempty"`
 	ECCErrors []ECCErrors `json:"ecc_errors,omitempty"`
 
@@ -318,22 +342,24 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: Name,
-				Name:      Name,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:       metav1.NewTime(time.Now().UTC()),
+				Component:  Name,
+				Name:       Name,
+				Health:     apiv1.HealthStateTypeHealthy,
+				Reason:     "no data yet",
+				Evaluation: apiv1.NotEvaluated(apiv1.NotEvaluatedNoData),
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Evaluation: cr.Evaluation,
+		Time:       metav1.NewTime(cr.ts),
+		Component:  Name,
+		Name:       Name,
+		Reason:     cr.reason,
+		Error:      cr.getError(),
+		Health:     cr.health,
 	}
 
 	// propagate suggested actions to health state if present
@@ -345,5 +371,6 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		b, _ := json.Marshal(cr)
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
+	state.SetAffectedGPUs(cr.affectedGPUUUIDs...)
 	return apiv1.HealthStates{state}
 }

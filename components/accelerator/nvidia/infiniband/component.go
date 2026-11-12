@@ -335,36 +335,50 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu infiniband")
 
 	cr := &checkResult{
-		ts: c.getTimeNowFunc(),
+		Evaluation: apiv1.Evaluated(),
+		ts:         c.getTimeNowFunc(),
 	}
 	defer func() {
+		if cr.err != nil && cr.Evaluated != nil && *cr.Evaluated {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
+		}
+		if cr.Evaluated != nil && *cr.Evaluated && c.nvmlInstance != nil && len(c.nvmlInstance.Devices()) == 0 {
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
+		}
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
-	// nothing specified for this machine, gpud MUST skip the ib check
-	thresholds := c.getThresholdsFunc()
+	product := ""
+	if c.nvmlInstance != nil {
+		product = c.nvmlInstance.ProductName()
+	}
+	thresholds := resolveExpectedPortStates(product, c.getThresholdsFunc())
 	if thresholds.IsZero() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = reasonNoThreshold
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedPortStates)
 		return cr
 	}
 
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedUnsupported)
 		return cr
 	}
 	// Check for NVML initialization errors first.
 	// This handles cases like "error getting device handle for index 'N': Unknown Error"
 	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
 	if err := c.nvmlInstance.InitError(); err != nil {
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
 		cr.suggestedActions = &apiv1.SuggestedActions{
@@ -377,6 +391,7 @@ func (c *component) Check() components.CheckResult {
 	if c.nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		return cr
 	}
 
@@ -387,6 +402,7 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error loading infiniband class devices"
 		cr.err = err
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 		return cr
 	}
 
@@ -425,6 +441,7 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error inserting ib ports into store"
 			cr.err = err
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 			return cr
 		}
 		if err := c.ibPortsStore.Scan(); err != nil {
@@ -432,6 +449,7 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error scanning ib ports from store"
 			cr.err = err
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 			return cr
 		}
 	}
@@ -440,6 +458,7 @@ func (c *component) Check() components.CheckResult {
 	if len(sysClassIBPorts) == 0 {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = reasonNoIbPortData
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
 		log.Logger.Warnw(cr.reason)
 		return cr
 	}
@@ -507,6 +526,7 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting ib flap/drop events"
 			cr.err = err
+			cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
 			return cr
 		}
 
@@ -750,6 +770,8 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	apiv1.Evaluation
+
 	ClassDevices infinibandclass.Devices `json:"class_devices"`
 
 	// current unhealthy ib ports that are problematic
@@ -833,16 +855,18 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: Name,
-				Name:      Name,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:       metav1.NewTime(time.Now().UTC()),
+				Component:  Name,
+				Name:       Name,
+				Health:     apiv1.HealthStateTypeHealthy,
+				Reason:     "no data yet",
+				Evaluation: apiv1.NotEvaluated(apiv1.NotEvaluatedNoData),
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
+		Evaluation:       cr.Evaluation,
 		Time:             metav1.NewTime(cr.ts),
 		Component:        Name,
 		Name:             Name,

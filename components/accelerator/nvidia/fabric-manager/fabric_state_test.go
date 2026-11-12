@@ -143,7 +143,7 @@ func TestCheck_FabricStateSupportedError(t *testing.T) {
 	// Unhealthy fabric state should preserve the unhealthy health state
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ; NVIDIA GB200 does not support fabric manager", cr.reason)
-	assert.Nil(t, cr.err)
+	assert.ErrorIs(t, cr.err, fabricErr)
 }
 
 func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T) {
@@ -181,7 +181,7 @@ func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 NVL72 with unhealthy fabric state: "+reason+"; NVIDIA GB200 NVL72 does not support fabric manager", cr.reason)
 	assert.Equal(t, reason, cr.FabricStateReason)
-	assert.Nil(t, cr.err)
+	assert.ErrorIs(t, cr.err, fabricErr)
 }
 
 func TestCheck_FabricStateSupportedHealthyWithMultipleGPUs(t *testing.T) {

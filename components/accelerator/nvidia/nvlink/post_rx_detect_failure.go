@@ -48,6 +48,12 @@ func (c *component) beginCheck(cr *checkResult) {
 }
 
 func (c *component) finishCheck(cr *checkResult) {
+	if cr.err != nil && cr.Evaluated != nil && *cr.Evaluated {
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedCollection)
+	}
+	if cr.Evaluated != nil && *cr.Evaluated && c.nvmlInstance != nil && len(c.nvmlInstance.Devices()) == 0 {
+		cr.Evaluation = apiv1.NotEvaluated(apiv1.NotEvaluatedNoData)
+	}
 	completedAt := c.getTimeNowFunc()
 	c.lastMu.Lock()
 	c.lastCheckResult = cr

@@ -630,6 +630,7 @@ func getGPUChassisSerial(nvmlInstance nvidianvml.Instance) string {
 	if nvmlInstance.DriverMajor() < minDriverMajorForNVMLPlatformInfo {
 		return ""
 	}
+	var chassis string
 	for uuid, dev := range nvmlInstance.Devices() {
 		platformInfo, ret := dev.GetPlatformInfo()
 		if ret != nvml.SUCCESS {
@@ -637,70 +638,62 @@ func getGPUChassisSerial(nvmlInstance nvidianvml.Instance) string {
 			continue
 		}
 		if serial := strings.TrimRight(string(platformInfo.ChassisSerialNumber[:]), "\x00"); serial != "" {
-			return serial
+			if chassis != "" && chassis != serial {
+				return ""
+			}
+			chassis = serial
 		}
 	}
-	return ""
+	return chassis
 }
 
 func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
-	info := &apiv1.MachineGPUInfo{
-		Product:      nvmlInstance.ProductName(),
-		Manufacturer: nvmlInstance.Brand(),
-		Architecture: nvmlInstance.Architecture(),
+	info := &apiv1.MachineGPUInfo{Product: nvmlInstance.ProductName(), Manufacturer: nvmlInstance.Brand(), Architecture: nvmlInstance.Architecture()}
+	devs := nvmlInstance.Devices()
+	ids := make([]string, 0, len(devs))
+	for uuid := range devs {
+		ids = append(ids, uuid)
 	}
-
-	productName := nvmlInstance.ProductName()
-	for uuid, dev := range nvmlInstance.Devices() {
+	sort.Strings(ids)
+	for _, uuid := range ids {
+		dev := devs[uuid]
+		gpu := apiv1.MachineGPUInstance{UUID: uuid, Platform: getGPUPlatformInfo(dev, nvmlInstance.DriverMajor()), Errors: make(map[string]string)}
 		if info.Memory == "" {
-			gpuMemory, err := nvidiamemory.GetMemory(uuid, dev, productName, mem.VirtualMemoryWithContext)
+			memory, err := nvidiamemory.GetMemory(uuid, dev, info.Product, mem.VirtualMemoryWithContext)
 			if err != nil {
-				return nil, err
-			}
-
-			qty := resource.NewQuantity(int64(gpuMemory.TotalBytes), resource.DecimalSI)
-			info.Memory = qty.String()
-		}
-
-		serialID, ret := dev.GetSerial()
-		if ret != nvml.SUCCESS {
-			if ret != nvml.ERROR_NOT_SUPPORTED {
-				return nil, fmt.Errorf("failed to get serial id: %v", nvml.ErrorString(ret))
+				gpu.Errors["memory"] = err.Error()
+			} else if memory.Supported {
+				qty := resource.NewQuantity(int64(memory.TotalBytes), resource.DecimalSI)
+				info.Memory = qty.String()
 			}
 		}
-
-		var minorID int
-		minorID, ret = dev.GetMinorNumber()
-		if ret != nvml.SUCCESS {
-			if ret != nvml.ERROR_NOT_SUPPORTED {
-				return nil, fmt.Errorf("failed to get minor id: %v", nvml.ErrorString(ret))
-			}
-			minorID = -1 // set to -1 when not supported
+		serial, ret := dev.GetSerial()
+		if ret == nvml.SUCCESS {
+			gpu.SN = serial
+		} else {
+			gpu.Errors["sn"] = nvml.ErrorString(ret)
 		}
-
-		var boardID uint32
-		boardID, ret = dev.GetBoardId()
-		if ret != nvml.SUCCESS {
-			if ret != nvml.ERROR_NOT_SUPPORTED {
-				return nil, fmt.Errorf("failed to get board id: %v", nvml.ErrorString(ret))
-			}
-			boardID = 0 // set to 0 when not supported
+		minor, ret := dev.GetMinorNumber()
+		if ret == nvml.SUCCESS {
+			gpu.MinorID = strconv.Itoa(minor)
+		} else {
+			gpu.MinorID = "-1"
+			gpu.Errors["minorID"] = nvml.ErrorString(ret)
 		}
-
-		busID, err := dev.GetPCIBusID()
-		if err != nil {
-			return nil, err
+		board, ret := dev.GetBoardId()
+		if ret == nvml.SUCCESS {
+			gpu.BoardID = board
+		} else {
+			gpu.Errors["boardID"] = nvml.ErrorString(ret)
 		}
-
-		info.GPUs = append(info.GPUs, apiv1.MachineGPUInstance{
-			UUID:    uuid,
-			SN:      serialID,
-			MinorID: strconv.Itoa(minorID),
-			BoardID: boardID,
-			BusID:   busID,
-		})
+		bus, err := dev.GetPCIBusID()
+		if err == nil {
+			gpu.BusID = bus
+		} else {
+			gpu.Errors["busID"] = err.Error()
+		}
+		info.GPUs = append(info.GPUs, gpu)
 	}
-
 	return info, nil
 }
 
