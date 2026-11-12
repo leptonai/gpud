@@ -60,22 +60,16 @@ type Process interface {
 	// Returns non-zero if the process exited with a non-zero exit code.
 	ExitCode() int32
 
-	// Returns the stdout reader.
-	// stderr/stdout piping sometimes doesn't work well on latest mac with io.ReadAll
-	// Use bufio.NewScanner(p.StdoutReader()) instead.
-	//
-	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+	// Returns the stdout reader. Output remains readable after process exit
+	// until Close or cancellation of the context passed to Start.
 	// If retry configuration is specified, specify the output file to read all the output.
 	//
 	// The returned reader is set to nil upon the abort call on the process,
 	// to prevent redundant closing of the reader.
 	StdoutReader() io.Reader
 
-	// Returns the stderr reader.
-	// stderr/stdout piping sometimes doesn't work well on latest mac with io.ReadAll
-	// Use bufio.NewScanner(p.StderrReader()) instead.
-	//
-	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+	// Returns the stderr reader. Output remains readable after process exit
+	// until Close or cancellation of the context passed to Start.
 	// If retry configuration is specified, specify the output file to read all the output.
 	//
 	// The returned reader is set to nil upon the abort call on the process,
@@ -118,9 +112,10 @@ type process struct {
 	envs        []string
 	runBashFile *os.File
 
-	outputFile       *os.File
-	stdoutReadCloser io.ReadCloser
-	stderrReadCloser io.ReadCloser
+	outputFile           *os.File
+	stdoutReadCloser     io.ReadCloser
+	stderrReadCloser     io.ReadCloser
+	stopPipeCancellation func() bool
 
 	restartConfig *RestartConfig
 
@@ -263,6 +258,7 @@ func (p *process) Start(ctx context.Context) error {
 	p.cancel = ccancel
 
 	if err := p.startCommand(); err != nil {
+		ccancel()
 		return err
 	}
 
@@ -341,19 +337,52 @@ func (p *process) startCommand() error {
 		p.stderrReadCloser = p.outputFile
 
 	default:
-		var err error
-		p.stdoutReadCloser, err = p.cmd.StdoutPipe()
+		if p.stopPipeCancellation != nil {
+			p.stopPipeCancellation()
+		}
+		// A restart replaces the previous attempt's readers.
+		if p.stdoutReadCloser != nil {
+			_ = p.stdoutReadCloser.Close()
+		}
+		if p.stderrReadCloser != nil {
+			_ = p.stderrReadCloser.Close()
+		}
+		// Own the read ends: exec.Cmd.Wait closes StdoutPipe/StderrPipe
+		// before a delayed caller has necessarily consumed their buffered output.
+		stdout, stdoutWriter, err := os.Pipe()
 		if err != nil {
 			return fmt.Errorf("failed to get stdout pipe: %w", err)
 		}
-		p.stderrReadCloser, err = p.cmd.StderrPipe()
+		defer func() { _ = stdoutWriter.Close() }()
+		stderr, stderrWriter, err := os.Pipe()
 		if err != nil {
+			_ = stdout.Close()
 			return fmt.Errorf("failed to get stderr pipe: %w", err)
 		}
+		defer func() { _ = stderrWriter.Close() }()
+		p.stdoutReadCloser = stdout
+		p.stderrReadCloser = stderr
+		p.cmd.Stdout = stdoutWriter
+		p.cmd.Stderr = stderrWriter
 	}
 
 	if err := p.cmd.Start(); err != nil {
+		if p.outputFile == nil {
+			_ = p.stdoutReadCloser.Close()
+			_ = p.stderrReadCloser.Close()
+			p.stdoutReadCloser = nil
+			p.stderrReadCloser = nil
+		}
 		return fmt.Errorf("failed to start command: %w", err)
+	}
+	if p.outputFile == nil {
+		stdout, stderr := p.stdoutReadCloser, p.stderrReadCloser
+		// Also unblock readers when a descendant holds a pipe open after
+		// the direct child exits and exec.CommandContext stops watching it.
+		p.stopPipeCancellation = context.AfterFunc(p.ctx, func() {
+			_ = stdout.Close()
+			_ = stderr.Close()
+		})
 	}
 	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
 

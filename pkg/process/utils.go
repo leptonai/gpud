@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"strings"
 )
 
 type ReadOpOption func(*ReadOp)
@@ -144,12 +143,11 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			return serr
-		}
+		return serr
 	}
 
 	if op.waitForCmd {
