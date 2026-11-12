@@ -2,6 +2,7 @@ package fabric
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -144,4 +145,72 @@ func TestRegistrationRestoresMonotonicDeadline(t *testing.T) {
 			require.Equal(t, apiv1.HealthStateTypeHealthy, health)
 		})
 	}
+}
+
+func TestRegistrationClampedCheckpointSurvivesRepeatedRestarts(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "registration.db")
+	now := time.Now()
+	db, err := sqlite.Open(path)
+	require.NoError(t, err)
+	var original Registration
+	require.NoError(t, original.Open(ctx, db, "test", "boot"))
+	_, _, err = original.Evaluate(ctx, now.Add(time.Hour), true, false)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	// Every observation opens a new connection and Registration, as a same-boot
+	// daemon restart does. Restart both before and after the corrected deadline.
+	for _, elapsed := range []time.Duration{0, 4 * time.Minute, 5 * time.Minute, 6 * time.Minute, 8 * time.Minute, 16 * time.Minute} {
+		db, err := sqlite.Open(path)
+		require.NoError(t, err)
+		var restored Registration
+		require.NoError(t, restored.Open(ctx, db, "test", "boot"))
+		health, _, err := restored.Evaluate(ctx, now.Add(elapsed), true, false)
+		require.NoError(t, err)
+		want := apiv1.HealthStateTypeDegraded
+		if elapsed >= RegistrationTimeout {
+			want = apiv1.HealthStateTypeUnhealthy
+		}
+		require.Equal(t, want, health, "elapsed %s", elapsed)
+		var stored string
+		require.NoError(t, db.QueryRowContext(ctx, "SELECT since FROM nv_fabric_registration WHERE component = ?", "test").Scan(&stored))
+		require.Equal(t, now.Format(time.RFC3339Nano), stored, "normalized checkpoint must survive restart")
+		require.NotEqual(t, restored.since, restored.since.Round(0), "retain the monotonic anchor")
+		require.NoError(t, db.Close())
+	}
+}
+
+func TestRegistrationClampSaveFailureCannotGrantGrace(t *testing.T) {
+	ctx := context.Background()
+	db, _, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+	now := time.Now()
+	var original Registration
+	require.NoError(t, original.Open(ctx, db, "test", "boot"))
+	future := now.Add(time.Hour)
+	_, _, err := original.Evaluate(ctx, future, true, false)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `CREATE TRIGGER reject_checkpoint BEFORE INSERT ON nv_fabric_registration BEGIN SELECT RAISE(ABORT, 'checkpoint write blocked'); END`)
+	require.NoError(t, err)
+	var restored Registration
+	require.NoError(t, restored.Open(ctx, db, "test", "boot"))
+	for range 2 {
+		health, reason, err := restored.Evaluate(ctx, now, true, false)
+		require.ErrorContains(t, err, "checkpoint write blocked")
+		require.Equal(t, apiv1.HealthStateTypeUnhealthy, health)
+		require.Contains(t, reason, "cannot persist")
+		require.False(t, restored.loaded, "failed normalization must be retried")
+	}
+	var stored string
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT since FROM nv_fabric_registration WHERE component = ?", "test").Scan(&stored))
+	require.Equal(t, future.Format(time.RFC3339Nano), stored)
+	_, err = db.ExecContext(ctx, "DROP TRIGGER reject_checkpoint")
+	require.NoError(t, err)
+	health, _, err := restored.Evaluate(ctx, now, true, false)
+	require.NoError(t, err)
+	require.Equal(t, apiv1.HealthStateTypeDegraded, health)
+	require.True(t, restored.loaded)
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT since FROM nv_fabric_registration WHERE component = ?", "test").Scan(&stored))
+	require.Equal(t, now.Format(time.RFC3339Nano), stored)
 }
