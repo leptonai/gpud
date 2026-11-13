@@ -21,6 +21,8 @@ const (
 	healthStateDegraded  = 1
 	healthStateUnhealthy = 2
 
+	xidPreemptiveCleanup = 45
+
 	// xidContainedMemoryError is XID 94, a contained memory error that GPUd
 	// ignores: the driver contained it to the affected application.
 	//
@@ -269,6 +271,15 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 	}
 
 	if detail != nil {
+		if xidCode == xidPreemptiveCleanup {
+			// XID 45 reports channel cleanup, not an independent GPU fault. Older
+			// NVSentinel events can carry Critical/Fatal with IGNORE, which reboot
+			// does not clear. Reapply the catalog policy on reads so upgrading
+			// heals that stale health without deleting diagnostic events; other
+			// XIDs still own any underlying fault or recovery request.
+			ev.Type = string(detail.EventType)
+			xidErr.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
+		}
 		if xidCode == xidContainedMemoryError {
 			// Stored XID 94 events can carry the Fatal/REBOOT_SYSTEM classification
 			// of an older GPUd or an NVSentinel verdict. Apply the current catalog
