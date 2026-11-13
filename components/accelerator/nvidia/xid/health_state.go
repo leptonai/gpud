@@ -272,8 +272,8 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 
 	if detail != nil {
 		if xidCode == xidPreemptiveCleanup {
-			// XID 45 reports channel cleanup, not an independent GPU fault. Older
-			// NVSentinel events can carry Critical/Fatal with IGNORE, which reboot
+			// XID 45 reports channel cleanup, not an independent GPU fault. Stored
+			// events can carry Critical/Fatal with IGNORE, which reboot
 			// does not clear. Reapply the catalog policy on reads so upgrading
 			// heals that stale health without deleting diagnostic events; other
 			// XIDs still own any underlying fault or recovery request.
