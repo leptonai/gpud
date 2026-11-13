@@ -84,8 +84,8 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	// The NVSentinel verdict drives severity except for XID 154, whose
-	// numeric driver recovery guidance owns both severity and actions.
+	// The NVSentinel verdict supplies the default severity. XID 45 and 154
+	// apply their own policies below.
 	// isFatal → Fatal. Unhealthy and not fatal → Critical.
 	// The GPUd catalog enriches the description and repair actions at
 	// read time regardless of severity.
@@ -113,6 +113,14 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 	}
 	if actions := ev.SuggestedRepairActions(); len(actions) > 0 {
 		payload.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: actions}
+	}
+	if xidNum == xidPreemptiveCleanup {
+		// Cleanup is evidence of application termination, not a new GPU fault.
+		// Keep native and NVSentinel classification consistent so producer
+		// delivery order cannot turn XID 45 into a health or repair request.
+		detail, _ := GetDetail(xidNum)
+		eventType = string(detail.EventType)
+		payload.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
 	}
 	if xidNum == 154 {
 		payload.RecoveryAction = parseRecoveryAction(ev.Message)
