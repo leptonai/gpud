@@ -1013,6 +1013,10 @@ func (m *mockNVMLInstanceForMockey) Devices() map[string]device.Device {
 }
 func (m *mockNVMLInstanceForMockey) FabricManagerSupported() bool { return true }
 func (m *mockNVMLInstanceForMockey) FabricStateSupported() bool   { return false }
+func (m *mockNVMLInstanceForMockey) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNVMLInstanceForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
@@ -1038,6 +1042,10 @@ type customMockNVMLInstanceForMockey struct {
 func (m *customMockNVMLInstanceForMockey) Devices() map[string]device.Device { return m.devs }
 func (m *customMockNVMLInstanceForMockey) FabricManagerSupported() bool      { return true }
 func (m *customMockNVMLInstanceForMockey) FabricStateSupported() bool        { return false }
+func (m *customMockNVMLInstanceForMockey) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *customMockNVMLInstanceForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
@@ -1060,6 +1068,10 @@ type mockNVMLInstanceWithInitErrorForMockey struct {
 func (m *mockNVMLInstanceWithInitErrorForMockey) Devices() map[string]device.Device { return m.devs }
 func (m *mockNVMLInstanceWithInitErrorForMockey) FabricManagerSupported() bool      { return true }
 func (m *mockNVMLInstanceWithInitErrorForMockey) FabricStateSupported() bool        { return false }
+func (m *mockNVMLInstanceWithInitErrorForMockey) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNVMLInstanceWithInitErrorForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

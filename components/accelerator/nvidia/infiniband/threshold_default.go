@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
+	"github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 var gpuPortConfigs = map[string]types.ExpectedPortStates{
@@ -36,6 +37,22 @@ var ErrNoExpectedPortStates = errors.New("no expected port states found (not sup
 
 // SupportsInfinibandPortRate returns the expected InfiniBand port thresholds for a GPU product.
 func SupportsInfinibandPortRate(gpuProductName string) (types.ExpectedPortStates, error) {
+	// Only an explicit NVL72 profile establishes the reference compute tray's
+	// eight 800 Gb/s ports: the DGX datasheet lists 144 single-port ConnectX-9
+	// at 800 Gb/s across 18 trays.
+	// https://resources.nvidia.com/en-us-dgx-software/dgx-vera-rubin-nvl72-datasheet
+	//
+	// Neither a Rubin GPU name nor C2C/fabric evidence identifies the NICs:
+	// NVL72 racks are also built by OEMs with their own scale-out networking,
+	// so inferring ports from GPU topology could fail healthy racks. Nodes that
+	// report a generic name (for example "NVIDIA Graphics Device" on early
+	// drivers) get no InfiniBand expectation by default; deployments that match
+	// the DGX reference must configure it explicitly:
+	//
+	//	gpud run --infiniband-expected-port-states='{"at_least_ports":8,"at_least_rate":800}'
+	if product.IsRubin(gpuProductName, "") && product.HasExternalFabricByGPUProduct(gpuProductName) {
+		return types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 800}, nil
+	}
 	p := strings.ToLower(gpuProductName)
 
 	longestMatch := ""

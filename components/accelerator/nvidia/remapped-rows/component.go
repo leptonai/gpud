@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +38,8 @@ type component struct {
 
 	nvmlInstance        nvidianvml.Instance
 	getRemappedRowsFunc func(uuid string, dev device.Device) (RemappedRows, error)
+	// getMemoryRepairStatusFunc reads bank-remapper and repair flags (Rubin only).
+	getMemoryRepairStatusFunc func(uuid string, dev device.Device) (MemoryRepairStatus, error)
 
 	gpuUUIDsWithRowRemappingPending map[string]any
 	gpuUUIDsWithRowRemappingFailed  map[string]any
@@ -57,6 +61,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 		nvmlInstance:                    gpudInstance.NVMLInstance,
 		getRemappedRowsFunc:             GetRemappedRows,
+		getMemoryRepairStatusFunc:       GetMemoryRepairStatus,
 		gpuUUIDsWithRowRemappingPending: make(map[string]any),
 		gpuUUIDsWithRowRemappingFailed:  make(map[string]any),
 	}
@@ -200,11 +205,32 @@ func (c *component) Check() components.CheckResult {
 
 	issues := make([]string, 0)
 
+	// Bank remapping, channel/TPC repair and the unrepairable-memory flag are
+	// part of Rubin qualification, where nvidia-smi documents that inactive row
+	// remappings are expected because bank remapping or channel repair restored
+	// availability. Older families keep their established row-remapping-only
+	// behavior until these states are qualified on them separately.
+	queryMemoryRepair := nvidiaproduct.IsRubin(c.nvmlInstance.ProductName(), c.nvmlInstance.Architecture())
+	rowQueryFailed, repairQueryFailed := false, false
+
 	devs := c.nvmlInstance.Devices()
-	for uuid, dev := range devs {
+	uuids := make([]string, 0, len(devs))
+	for uuid := range devs {
+		uuids = append(uuids, uuid)
+	}
+	sort.Strings(uuids)
+	for _, uuid := range uuids {
+		dev := devs[uuid]
+		// Query repair state before row remapping so a row-query failure does
+		// not hide an independent pending repair or unrepairable-memory flag.
+		if queryMemoryRepair {
+			issues = append(issues, c.checkMemoryRepair(cr, uuid, dev, &repairQueryFailed)...)
+		}
+
 		remappedRows, err := c.getRemappedRowsFunc(uuid, dev)
 		if err != nil {
-			cr.err = err
+			rowQueryFailed = true
+			cr.err = errors.Join(cr.err, err)
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting remapped rows"
 			log.Logger.Warnw(cr.reason, "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", cr.err)
@@ -240,16 +266,8 @@ func (c *component) Check() components.CheckResult {
 		cr.RemappedRows = append(cr.RemappedRows, remappedRows)
 
 		if remappedRows.RemappingPending {
-			// Only set suggested action if we don't already have a more severe one (RMA takes precedence)
-			if cr.suggestedActions == nil || cr.suggestedActions.RepairActions[0] != apiv1.RepairActionTypeHardwareInspection {
-				log.Logger.Warnw("suggesting reboot for row remapping pending", "uuid", uuid)
-				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: "row remapping pending requires GPU reset or system reboot",
-					RepairActions: []apiv1.RepairActionType{
-						apiv1.RepairActionTypeRebootSystem,
-					},
-				}
-			}
+			log.Logger.Warnw("suggesting reboot for row remapping pending", "uuid", uuid)
+			cr.suggestReboot("row remapping pending requires GPU reset or system reboot")
 
 			// no need to track these as events
 			// because NVML simply returns remapping pending
@@ -257,14 +275,8 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		if remappedRows.RemappingFailed {
-			// RMA always takes precedence over other actions
 			log.Logger.Warnw("suggesting hw inspection for row remapping failed", "uuid", uuid)
-			cr.suggestedActions = &apiv1.SuggestedActions{
-				Description: "row remapping failure requires hardware inspection",
-				RepairActions: []apiv1.RepairActionType{
-					apiv1.RepairActionTypeHardwareInspection,
-				},
-			}
+			cr.suggestHardwareInspection("row remapping failure requires hardware inspection")
 
 			// no need to track these as events
 			// because NVML simply returns remapping pending
@@ -279,6 +291,17 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	if cr.err != nil {
+		switch {
+		case rowQueryFailed && repairQueryFailed:
+			issues = append(issues, "error getting remapped rows and memory repair status")
+		case repairQueryFailed:
+			issues = append(issues, "error getting memory repair status")
+		default:
+			issues = append(issues, "error getting remapped rows")
+		}
+	}
+
 	if len(issues) > 0 {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = strings.Join(issues, ", ")
@@ -290,6 +313,65 @@ func (c *component) Check() components.CheckResult {
 	return cr
 }
 
+// checkMemoryRepair records one GPU's Rubin memory-repair state on cr and
+// returns the issues it found.
+func (c *component) checkMemoryRepair(cr *checkResult, uuid string, dev device.Device, queryFailed *bool) []string {
+	st, err := c.getMemoryRepairStatusFunc(uuid, dev)
+	if err != nil {
+		// Partial telemetry must not read as healthy: join the error so the
+		// check is Unhealthy, but still evaluate the flags that were read.
+		*queryFailed = true
+		cr.err = errors.Join(cr.err, err)
+		log.Logger.Warnw("error getting memory repair status", "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", err)
+	}
+	if err == nil || st.BankRemapperSupported || st.RepairStatusSupported || st.UnrepairableMemorySupported {
+		cr.MemoryRepairStatuses = append(cr.MemoryRepairStatuses, st)
+	}
+
+	var issues []string
+	if st.RepairPending() {
+		// nvidia-smi: "If one of the repair flags is pending, check the GPU
+		// Recovery action"; like a pending row remap, a GPU reset applies the
+		// repair. GPUd has no GPU-reset action and already suggests a reboot for
+		// pending row remaps, so use the same action here.
+		log.Logger.Warnw("suggesting reboot for pending memory repair", "uuid", uuid,
+			"bankRemappingPending", st.BankRemappingPending, "channelRepairPending", st.ChannelRepairPending, "tpcRepairPending", st.TPCRepairPending)
+		cr.suggestReboot("pending bank remapping or channel/TPC repair requires GPU reset or system reboot")
+		issues = append(issues, fmt.Sprintf("%s needs reset (detected pending bank remapping or channel/TPC repair)", dev.PCIBusID()))
+	}
+	if st.UnrepairableMemory {
+		// NVML reports memory it can no longer repair in the field; a reset
+		// cannot help, so this outranks the reboot for any pending repair.
+		log.Logger.Warnw("suggesting hw inspection for unrepairable memory", "uuid", uuid)
+		cr.suggestHardwareInspection("unrepairable memory requires hardware inspection")
+		issues = append(issues, fmt.Sprintf("%s has unrepairable memory", dev.PCIBusID()))
+	}
+	// BankRemapperNoSpareGroups > 0 is only reported: exhausted spares in some
+	// groups do not by themselves mean a repair failed; NVML signals that
+	// through the unrepairable-memory flag.
+	return issues
+}
+
+// suggestReboot sets a reboot action unless hardware inspection was already
+// suggested, since an RMA-class finding must not be downgraded.
+func (cr *checkResult) suggestReboot(description string) {
+	if cr.suggestedActions != nil && cr.suggestedActions.RepairActions[0] == apiv1.RepairActionTypeHardwareInspection {
+		return
+	}
+	cr.suggestedActions = &apiv1.SuggestedActions{
+		Description:   description,
+		RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+	}
+}
+
+// suggestHardwareInspection always wins over other actions (RMA takes precedence).
+func (cr *checkResult) suggestHardwareInspection(description string) {
+	cr.suggestedActions = &apiv1.SuggestedActions{
+		Description:   description,
+		RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+	}
+}
+
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
@@ -299,6 +381,8 @@ type checkResult struct {
 	MemoryErrorManagementCapabilities nvidiaproduct.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
 	// RemappedRows maps from GPU UUID to the remapped rows data.
 	RemappedRows []RemappedRows `json:"remapped_rows,omitempty"`
+	// MemoryRepairStatuses holds per-GPU bank-remapper and repair flags (Rubin only).
+	MemoryRepairStatuses []MemoryRepairStatus `json:"memory_repair_statuses,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -322,11 +406,38 @@ func (cr *checkResult) String() string {
 	if cr == nil {
 		return ""
 	}
-	if len(cr.RemappedRows) == 0 {
+	if len(cr.RemappedRows) == 0 && len(cr.MemoryRepairStatuses) == 0 {
 		return "no data"
 	}
 
 	buf := bytes.NewBuffer(nil)
+	if len(cr.RemappedRows) > 0 {
+		cr.renderRemappedRows(buf)
+	}
+	if len(cr.MemoryRepairStatuses) > 0 {
+		table := tablewriter.NewWriter(buf)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
+		table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Active bank remappings", "Inactive bank remappings", "Bank remapping pending", "No-spare bank groups", "Channel repair pending", "TPC repair pending", "Unrepairable memory"})
+		for _, st := range cr.MemoryRepairStatuses {
+			table.Append([]string{
+				st.UUID,
+				st.BusID,
+				fmt.Sprintf("%d", st.ActiveBankRemappings),
+				fmt.Sprintf("%d", st.InactiveBankRemappings),
+				fmt.Sprintf("%v", st.BankRemappingPending),
+				fmt.Sprintf("%d", st.BankRemapperNoSpareGroups),
+				fmt.Sprintf("%v", st.ChannelRepairPending),
+				fmt.Sprintf("%v", st.TPCRepairPending),
+				fmt.Sprintf("%v", st.UnrepairableMemory),
+			})
+		}
+		table.Render()
+	}
+
+	return buf.String()
+}
+
+func (cr *checkResult) renderRemappedRows(buf *bytes.Buffer) {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Remapped due to correctable errors", "Remapped due to uncorrectable errors", "Remapping pending", "Remapping failed"})
@@ -341,8 +452,6 @@ func (cr *checkResult) String() string {
 		})
 	}
 	table.Render()
-
-	return buf.String()
 }
 
 func (cr *checkResult) Summary() string {
@@ -389,7 +498,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		SuggestedActions: cr.suggestedActions,
 	}
 
-	if len(cr.RemappedRows) > 0 {
+	if len(cr.RemappedRows) > 0 || len(cr.MemoryRepairStatuses) > 0 {
 		b, _ := json.Marshal(cr)
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}

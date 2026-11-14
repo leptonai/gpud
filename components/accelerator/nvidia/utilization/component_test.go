@@ -70,6 +70,11 @@ func (m *mockInstance) FabricStateSupported() bool {
 	return false
 }
 
+func (m *mockInstance) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
+
 func (m *mockInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

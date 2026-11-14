@@ -46,6 +46,13 @@ func (d *MockDevice) GetArchitectureAsString() (string, error) {
 	return d.Architecture, nil
 }
 
+func (d *MockDevice) GetArchitecture() (nvml.DeviceArchitecture, nvml.Return) {
+	if d.GetArchitectureFunc == nil {
+		return nvml.DEVICE_ARCH_UNKNOWN, nvml.ERROR_NOT_SUPPORTED
+	}
+	return d.Device.GetArchitecture()
+}
+
 func (d *MockDevice) GetBrandAsString() (string, error) {
 	return d.Brand, nil
 }

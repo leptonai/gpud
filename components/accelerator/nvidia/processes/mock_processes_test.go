@@ -34,6 +34,10 @@ type customMockNVMLInstanceProcesses struct {
 func (m *customMockNVMLInstanceProcesses) Devices() map[string]device.Device { return m.devs }
 func (m *customMockNVMLInstanceProcesses) FabricManagerSupported() bool      { return true }
 func (m *customMockNVMLInstanceProcesses) FabricStateSupported() bool        { return false }
+func (m *customMockNVMLInstanceProcesses) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *customMockNVMLInstanceProcesses) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
@@ -57,6 +61,10 @@ type mockNVMLInstanceWithInitErrorProcesses struct {
 func (m *mockNVMLInstanceWithInitErrorProcesses) Devices() map[string]device.Device { return m.devs }
 func (m *mockNVMLInstanceWithInitErrorProcesses) FabricManagerSupported() bool      { return true }
 func (m *mockNVMLInstanceWithInitErrorProcesses) FabricStateSupported() bool        { return false }
+func (m *mockNVMLInstanceWithInitErrorProcesses) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNVMLInstanceWithInitErrorProcesses) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
@@ -114,6 +122,10 @@ type mockNVMLInstanceWrapper struct {
 func (m *mockNVMLInstanceWrapper) Devices() map[string]device.Device { return m.getDevicesFunc() }
 func (m *mockNVMLInstanceWrapper) FabricManagerSupported() bool      { return true }
 func (m *mockNVMLInstanceWrapper) FabricStateSupported() bool        { return false }
+func (m *mockNVMLInstanceWrapper) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNVMLInstanceWrapper) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

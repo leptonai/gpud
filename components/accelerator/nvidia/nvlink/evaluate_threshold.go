@@ -186,3 +186,47 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 	cr.reason = appendNVLinkFailureDetails(cr.reason, cr)
 	setNVLinkSuggestedActions(cr)
 }
+
+// evaluateRubinRackInactiveLinks marks a registered Rubin rack tray Unhealthy
+// when any enumerated NVLink reports FeatureEnabled=false. The caller gates it
+// on Rubin family, external rack fabric, and Completed+Success registration.
+func evaluateRubinRackInactiveLinks(cr *checkResult) {
+	// An operator threshold is an explicit statement of how much NVLink loss
+	// the fleet tolerates, so it keeps precedence over this default.
+	if cr == nil || (cr.ExpectedLinkStates != nil && !cr.ExpectedLinkStates.IsZero()) {
+		return
+	}
+	// Keep a more specific failure (e.g. confirmed all-NS peer P2P) intact.
+	if cr.health == apiv1.HealthStateTypeUnhealthy {
+		return
+	}
+
+	var details []string
+	for _, nvLink := range cr.NVLinks {
+		// Unsupported GPUs enumerate no links; there is nothing to verify.
+		if !nvLink.Supported {
+			continue
+		}
+		if len(nvLink.States) == 0 {
+			details = append(details, fmt.Sprintf("GPU %s no active links", nvLink.UUID))
+			continue
+		}
+		var links []string
+		for _, state := range nvLink.States {
+			if !state.FeatureEnabled {
+				links = append(links, fmt.Sprint(state.Link))
+			}
+		}
+		if len(links) > 0 {
+			details = append(details, fmt.Sprintf("GPU %s links %s", nvLink.UUID, strings.Join(links, ",")))
+		}
+	}
+	if len(details) == 0 {
+		return
+	}
+
+	cr.health = apiv1.HealthStateTypeUnhealthy
+	cr.reason = fmt.Sprintf("inactive nvlink on registered Rubin rack fabric (%s)", strings.Join(details, "; "))
+	// The caller assigns the external-fabric suggested actions (no reboot).
+	log.Logger.Warnw("detected inactive nvlink on registered Rubin rack fabric", "links", details)
+}

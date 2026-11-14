@@ -201,7 +201,7 @@ func TestInstance_GetMemoryErrorManagementCapabilities(t *testing.T) {
 			// Create an instance with the test product name
 			inst := &instance{
 				sanitizedProductName: nvidiaproduct.SanitizeProductName(tc.productName),
-				memMgmtCaps:          nvidiaproduct.SupportedMemoryMgmtCapsByGPUProduct(tc.productName),
+				caps:                 nvidiaproduct.Capabilities{MemoryManagement: nvidiaproduct.SupportedMemoryMgmtCapsByGPUProduct(tc.productName)},
 			}
 
 			caps := inst.GetMemoryErrorManagementCapabilities()

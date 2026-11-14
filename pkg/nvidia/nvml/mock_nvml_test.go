@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // TestGetArchFamily_WithMockedDevice tests GetArchFamily with various compute capabilities.
@@ -709,7 +710,7 @@ func TestInstance_FabricManagerSupported(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			inst := &instance{
-				fabricMgrSupported: tc.supported,
+				caps: nvidiaproduct.Capabilities{FabricManager: tc.supported},
 			}
 			assert.Equal(t, tc.supported, inst.FabricManagerSupported())
 		})
@@ -729,7 +730,7 @@ func TestInstance_FabricStateSupported(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			inst := &instance{
-				fabricStateSupported: tc.supported,
+				caps: nvidiaproduct.Capabilities{FabricState: tc.supported},
 			}
 			assert.Equal(t, tc.supported, inst.FabricStateSupported())
 		})

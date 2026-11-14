@@ -175,6 +175,27 @@ func (d *testDevice) GetRowRemapperHistogram() (nvml.RowRemapperHistogramValues,
 	return d.Device.GetRowRemapperHistogram()
 }
 
+func (d *testDevice) GetBankRemapperStatus_v1() (nvml.EccBankRemapperStatus_v1, nvml.Return) {
+	if err := d.getErrorReturn(); err != nvml.SUCCESS {
+		return nvml.EccBankRemapperStatus_v1{}, err
+	}
+	return d.Device.GetBankRemapperStatus_v1()
+}
+
+func (d *testDevice) GetRepairStatus() (nvml.RepairStatus, nvml.Return) {
+	if err := d.getErrorReturn(); err != nvml.SUCCESS {
+		return nvml.RepairStatus{}, err
+	}
+	return d.Device.GetRepairStatus()
+}
+
+func (d *testDevice) GetUnrepairableMemoryFlag_v1() (nvml.UnrepairableMemoryStatus_v1, nvml.Return) {
+	if err := d.getErrorReturn(); err != nvml.SUCCESS {
+		return nvml.UnrepairableMemoryStatus_v1{}, err
+	}
+	return d.Device.GetUnrepairableMemoryFlag_v1()
+}
+
 func (d *testDevice) GetTemperature(sensorType nvml.TemperatureSensors) (uint32, nvml.Return) {
 	if err := d.getErrorReturn(); err != nvml.SUCCESS {
 		return 0, err

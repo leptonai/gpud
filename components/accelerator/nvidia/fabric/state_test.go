@@ -87,9 +87,12 @@ func TestUnsupportedFabricApplicability(t *testing.T) {
 				defer func() { i++ }()
 				return tc.states[i], tc.errs[i]
 			})
-			require.Equal(t, tc.skip, report.UnsupportedWithoutFabric("NVIDIA-GB200", false))
-			require.False(t, report.UnsupportedWithoutFabric("NVIDIA-GB200 NVL72", false))
-			require.False(t, report.UnsupportedWithoutFabric("NVIDIA H100", true))
+			require.Equal(t, tc.skip, report.UnsupportedWithoutFabric("NVIDIA-GB200", false, false))
+			require.Equal(t, tc.skip, report.UnsupportedWithoutFabric("NVIDIA-GB300", false, false))
+			require.False(t, report.UnsupportedWithoutFabric("NVIDIA-GB200 NVL72", false, false))
+			require.False(t, report.UnsupportedWithoutFabric("NVIDIA H100", true, false))
+			require.Equal(t, tc.skip, report.UnsupportedWithoutFabric("NVIDIA-Graphics-Device", false, false))
+			require.False(t, report.UnsupportedWithoutFabric("NVIDIA-Graphics-Device", false, true))
 		})
 	}
 	require.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}, SuggestedActions(nil, apiv1.HealthStateTypeUnhealthy).RepairActions)

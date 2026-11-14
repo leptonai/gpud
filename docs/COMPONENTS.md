@@ -61,8 +61,14 @@ establish how long it has persisted. Restart persistence also requires the daemo
 database to survive restarts; `--db-in-memory` cannot provide it. Systems without
 fabric-state support keep their existing NVLink and Fabric Manager behavior.
 NVLink also falls through to its peer/port checks when all GPUs explicitly report
-unsupported fabric telemetry and no switch is detected. Mixed support, real
-faults, explicit NVL72 topology, and detected switches remain checked.
+unsupported fabric telemetry, no switch is detected, and no external fabric is known.
+Mixed support, real faults, explicit NVL72 topology, and detected switches remain checked.
+Rubin GPUs with C2C host-link evidence require fabric telemetry even when the driver
+reports `NVIDIA Graphics Device`. Unsupported telemetry is unhealthy, not evidence
+that the rack fabric is absent. This follows NVIDIA's
+[Completed/Success registration requirement](https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html#post-reboot-verification).
+If the product name identifies Rubin but architecture is unavailable, GPUd still uses
+the measured C2C or PCIe host link. GB200/GB300 applicability remains unchanged.
 
 ## Available components
 

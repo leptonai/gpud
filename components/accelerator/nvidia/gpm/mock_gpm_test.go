@@ -59,6 +59,10 @@ type customMockNVMLInstanceGPM struct {
 func (m *customMockNVMLInstanceGPM) Devices() map[string]device.Device { return m.devs }
 func (m *customMockNVMLInstanceGPM) FabricManagerSupported() bool      { return true }
 func (m *customMockNVMLInstanceGPM) FabricStateSupported() bool        { return false }
+func (m *customMockNVMLInstanceGPM) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *customMockNVMLInstanceGPM) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
@@ -150,6 +154,10 @@ type mockNVMLInstanceWithInitErrorGPM struct {
 func (m *mockNVMLInstanceWithInitErrorGPM) Devices() map[string]device.Device { return m.devs }
 func (m *mockNVMLInstanceWithInitErrorGPM) FabricManagerSupported() bool      { return true }
 func (m *mockNVMLInstanceWithInitErrorGPM) FabricStateSupported() bool        { return false }
+func (m *mockNVMLInstanceWithInitErrorGPM) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNVMLInstanceWithInitErrorGPM) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

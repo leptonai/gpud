@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -57,8 +58,8 @@ type Instance interface {
 	ProductName() string
 
 	// Architecture returns the architecture of the GPU.
-	// GB200 may return "NVIDIA-Graphics-Device" for the product name
-	// but "blackwell" for architecture.
+	// Early drivers may report "NVIDIA-Graphics-Device" as the product name;
+	// architecture identification does not depend on that name.
 	Architecture() string
 
 	// Brand returns the brand of the GPU.
@@ -82,6 +83,11 @@ type Instance interface {
 
 	// GetMemoryErrorManagementCapabilities returns the memory error management capabilities of the GPU.
 	GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities
+
+	// Capabilities returns the resolved product, architecture and host-link
+	// capabilities, including fabric topology hints that a product name alone
+	// cannot establish (for example Rubin NVL72 versus Rubin NVL8).
+	Capabilities() nvidiaproduct.Capabilities
 
 	// Shutdown shuts down the NVML library.
 	Shutdown() error
@@ -286,9 +292,20 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 		}
 	}
 
-	fmSupported := nvidiaproduct.SupportedFMByGPUProduct(productName)
-	fabricStateSupported := nvidiaproduct.SupportFabricStateByGPUProduct(productName)
-	memMgmtCaps := nvidiaproduct.SupportedMemoryMgmtCapsByGPUProduct(productName)
+	capabilityArch := archFamily
+	hostLink := nvidiaproduct.HostLinkUnknown
+	if failureInjector != nil && failureInjector.GPUProductNameOverride != "" {
+		// An override simulates another product; real architecture or host-link
+		// evidence would otherwise outrank the simulated name.
+		capabilityArch = ""
+	} else {
+		for _, dev := range devices {
+			if hostLink = detectHostLink(nvmlLib, dev); hostLink != nvidiaproduct.HostLinkUnknown {
+				break
+			}
+		}
+	}
+	caps := nvidiaproduct.CapabilitiesForGPU(productName, capabilityArch, hostLink)
 
 	return &instance{
 		nvmlLib:              nvmlLib,
@@ -301,10 +318,37 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 		sanitizedProductName: nvidiaproduct.SanitizeProductName(productName),
 		architecture:         archFamily,
 		brand:                brand,
-		fabricMgrSupported:   fmSupported,
-		fabricStateSupported: fabricStateSupported,
-		memMgmtCaps:          memMgmtCaps,
+		caps:                 caps,
 	}, nil
+}
+
+// detectHostLink reads NVLink-C2C mode, the NVML signal that separates a
+// superchip compute tray (Grace/Vera CPU over C2C) from an x86 PCIe host.
+// GPUs in one system share the same host attachment, so one device suffices.
+func detectHostLink(lib nvmllib.Library, dev nvlibdevice.Device) nvidiaproduct.HostLink {
+	// go-nvml binds this symbol directly. Older drivers lack it, and calling a
+	// missing symbol terminates the process during lazy linking.
+	if lib.NVML().Extensions().LookupSymbol("nvmlDeviceGetC2cModeInfoV") != nil {
+		return nvidiaproduct.HostLinkUnknown
+	}
+	// The go-nvml handler always calls into the C library, so mocks cannot
+	// drive it; the decision itself lives in hostLinkFromC2CMode.
+	return hostLinkFromC2CMode(dev.GetC2cModeInfoV().V1())
+}
+
+func hostLinkFromC2CMode(info nvml.C2cModeInfo_v1, ret nvml.Return) nvidiaproduct.HostLink {
+	switch {
+	case ret == nvml.SUCCESS && info.IsC2cEnabled != 0:
+		return nvidiaproduct.HostLinkC2C
+	case ret == nvml.SUCCESS,
+		// NVML returns NOT_SUPPORTED when the device has no C2C feature,
+		// which means the GPU is attached to its host over PCIe.
+		ret == nvml.ERROR_NOT_SUPPORTED:
+		return nvidiaproduct.HostLinkPCIe
+	default:
+		// Lost or failing GPUs prove nothing about topology.
+		return nvidiaproduct.HostLinkUnknown
+	}
 }
 
 var _ Instance = &instance{}
@@ -325,9 +369,7 @@ type instance struct {
 	architecture         string
 	brand                string
 
-	fabricMgrSupported   bool
-	fabricStateSupported bool
-	memMgmtCaps          nvidiaproduct.MemoryErrorManagementCapabilities
+	caps nvidiaproduct.Capabilities
 }
 
 func (inst *instance) NVMLExists() bool {
@@ -367,15 +409,19 @@ func (inst *instance) CUDAVersion() string {
 }
 
 func (inst *instance) FabricManagerSupported() bool {
-	return inst.fabricMgrSupported
+	return inst.caps.FabricManager
 }
 
 func (inst *instance) FabricStateSupported() bool {
-	return inst.fabricStateSupported
+	return inst.caps.FabricState
 }
 
 func (inst *instance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
-	return inst.memMgmtCaps
+	return inst.caps.MemoryManagement
+}
+
+func (inst *instance) Capabilities() nvidiaproduct.Capabilities {
+	return inst.caps
 }
 
 func (inst *instance) Shutdown() error {
@@ -409,6 +455,9 @@ func (inst *noOpInstance) FabricManagerSupported() bool      { return false }
 func (inst *noOpInstance) FabricStateSupported() bool        { return false }
 func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
+}
+func (inst *noOpInstance) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{}
 }
 func (inst *noOpInstance) Shutdown() error  { return nil }
 func (inst *noOpInstance) InitError() error { return nil }
@@ -445,6 +494,9 @@ func (inst *erroredInstance) FabricManagerSupported() bool      { return false }
 func (inst *erroredInstance) FabricStateSupported() bool        { return false }
 func (inst *erroredInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
+}
+func (inst *erroredInstance) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{}
 }
 func (inst *erroredInstance) Shutdown() error  { return nil }
 func (inst *erroredInstance) InitError() error { return inst.initErr }

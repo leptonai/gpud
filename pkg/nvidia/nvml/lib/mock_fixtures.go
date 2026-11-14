@@ -1,6 +1,8 @@
 package lib
 
 import (
+	"fmt"
+
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
@@ -10,6 +12,16 @@ import (
 // methods return success. Used for the GPUD_NVML_MOCK_ALL_SUCCESS environment
 // variable to enable debugging without real NVIDIA hardware.
 var allSuccessInterface = &nvmlmock.Interface{
+	ExtensionsFunc: func() nvml.ExtendedInterface {
+		return &nvmlmock.ExtendedInterface{
+			LookupSymbolFunc: func(name string) error {
+				if name == "nvmlDeviceGetArchitecture" {
+					return nil
+				}
+				return fmt.Errorf("mock NVML symbol %q is not available", name)
+			},
+		}
+	},
 	InitFunc: func() nvml.Return {
 		return nvml.SUCCESS
 	},
@@ -58,7 +70,7 @@ var allSuccessInterface = &nvmlmock.Interface{
 				return nvml.GpuFabricInfo{}, nvml.ERROR_NOT_SUPPORTED
 			},
 			GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
-				return 7, nvml.SUCCESS // NVML_DEVICE_ARCH_AMPERE (7)
+				return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
 			},
 			GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
 				return 8, 0, nvml.SUCCESS // CUDA 12.0 version

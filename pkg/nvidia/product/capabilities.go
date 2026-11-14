@@ -5,9 +5,106 @@ import "strings"
 type capabilities struct {
 	memoryManagement        MemoryErrorManagementCapabilities
 	fabricManager           bool
+	fabricManagerIfFabric   bool
 	fabricState             bool
 	externalFabricCandidate bool
 	switchBehindBridge      bool
+}
+
+// Capabilities describes GPU health features separately from fabric topology.
+type Capabilities struct {
+	MemoryManagement MemoryErrorManagementCapabilities
+	// FabricManager requires the on-node nv-fabricmanager unconditionally.
+	FabricManager bool
+	// FabricManagerIfFabric requires the on-node nv-fabricmanager only after NVML
+	// reports NVLink fabric telemetry. A product family alone cannot tell whether
+	// the NVSwitches are on the local baseboard or in external switch trays.
+	FabricManagerIfFabric   bool
+	FabricState             bool
+	ExternalFabricCandidate bool
+	NonPCIFabricCandidate   bool
+}
+
+// HostLink is NVML evidence of how a GPU attaches to its host CPU.
+// It separates superchip compute trays from x86 baseboards of the same GPU family.
+type HostLink uint8
+
+const (
+	// HostLinkUnknown means NVML could not answer (older driver, missing symbol,
+	// query failure, or a product-name override that deliberately bypasses hardware).
+	HostLinkUnknown HostLink = iota
+	// HostLinkPCIe means the GPU has no NVLink-C2C link to its CPU.
+	HostLinkPCIe
+	// HostLinkC2C means NVLink-C2C to a Grace or Vera CPU (a superchip).
+	HostLinkC2C
+)
+
+// CapabilitiesForGPU uses architecture evidence when early drivers report a
+// generic product name. A fabric candidate permits probing, not an NVL72 claim.
+func CapabilitiesForGPU(name, architecture string, link HostLink) Capabilities {
+	caps := capabilitiesByGPUProduct(name)
+	if IsRubin(name, architecture) {
+		// Either identity source establishes Rubin, but neither establishes topology.
+		// Preserve measured C2C/PCIe evidence even when architecture is unavailable:
+		// Vera Rubin uses C2C, while Rubin NVL8 uses an x86 host.
+		// https://docs.nvidia.com/dgx/dgxvr-user-guide/software.html
+		// https://resources.nvidia.com/en-us-dgx-software/dgx-rubin-nvl8-datasheet
+		caps = rubinCapabilities(name, link)
+	}
+	return Capabilities{
+		MemoryManagement:        caps.memoryManagement,
+		FabricManager:           caps.fabricManager,
+		FabricManagerIfFabric:   caps.fabricManagerIfFabric,
+		FabricState:             caps.fabricState,
+		ExternalFabricCandidate: caps.externalFabricCandidate,
+		NonPCIFabricCandidate:   caps.externalFabricCandidate || caps.switchBehindBridge,
+	}
+}
+
+// IsRubin identifies the family without inferring a rack size or product SKU.
+func IsRubin(name, architecture string) bool {
+	return strings.EqualFold(architecture, "rubin") || strings.Contains(strings.ToLower(name), "rubin")
+}
+
+// rubinCapabilities resolves Rubin fabric ownership from hardware evidence first
+// and an explicit product name second.
+//
+// Every Rubin GPU supports row remapping (NVML: Ampere and newer) and NVML
+// fabric telemetry, so those are enabled for the whole family. Fabric ownership
+// differs by system and must not be guessed:
+//   - DGX Vera Rubin NVL72 compute trays pair Rubin GPUs with Vera CPUs over
+//     NVLink-C2C. FM, NVLSM and NMX-C run on NVOS switch trays, not the host.
+//     https://docs.nvidia.com/dgx/dgxvr-user-guide/software.html
+//   - DGX Rubin NVL8 uses Intel Xeon hosts (no C2C) and on-board NVSwitches.
+//     https://resources.nvidia.com/en-us-dgx-software/dgx-rubin-nvl8-datasheet
+//     NVIDIA documents host FM and NVLSM for the previous 8-GPU NVSwitch
+//     baseboards, whose switches sit behind a CX7 bridge instead of host PCIe.
+//     https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html#nvidia-hgx-b200-b300-gpu-baseboard
+//     Rubin NVL8 FM placement is not documented yet, so the local daemon is
+//     required only after NVML shows that a fabric exists, rather than for
+//     every PCIe-attached Rubin GPU.
+//   - With no evidence, probe NVML telemetry but claim neither topology. That
+//     avoids both a false missing-FM failure on NVL72 and suppressed local-fault
+//     handling on NVL8.
+func rubinCapabilities(name string, link HostLink) capabilities {
+	p := strings.ToLower(name)
+	caps := capabilities{memoryManagement: memMgmtCapAllSupported, fabricState: true}
+	switch {
+	case link == HostLinkC2C,
+		// Overrides and older drivers lack C2C evidence. "Vera" names the
+		// superchip CPU, and NVL72 is the documented superchip rack.
+		link == HostLinkUnknown && (strings.Contains(p, "vera") || strings.Contains(p, "nvl72")):
+		caps.externalFabricCandidate = true
+	case link == HostLinkPCIe,
+		link == HostLinkUnknown && strings.Contains(p, "nvl8"):
+		caps.switchBehindBridge = true
+		caps.fabricManagerIfFabric = true
+	default:
+		// Switches are not host PCIe devices on either documented Rubin system,
+		// so NVML must be probed before fabric telemetry is ruled out.
+		caps.switchBehindBridge = true
+	}
+	return withoutNonSwitchFabric(name, caps)
 }
 
 // Keep memory recovery, fabric telemetry, and management topology in one
@@ -32,10 +129,17 @@ var (
 		// GB families can use external NVL72 fabrics, but GB200 also has NVL4.
 		"gb200": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabricCandidate: true},
 		"gb300": {memoryManagement: memMgmtCapAllSupported, fabricState: true, externalFabricCandidate: true},
+		// Rubin is resolved by rubinCapabilities: its topology depends on
+		// host-link evidence that a product-name table cannot express.
 	}
 )
 
 func capabilitiesByGPUProduct(gpuProductName string) capabilities {
+	// Name-only callers (product-name overrides and name-based helpers) have no
+	// host-link evidence; keep them on the same Rubin rules as the NVML path.
+	if IsRubin(gpuProductName, "") {
+		return rubinCapabilities(gpuProductName, HostLinkUnknown)
+	}
 	p := strings.ToLower(gpuProductName)
 	longestName := ""
 	var caps capabilities
@@ -44,10 +148,15 @@ func capabilitiesByGPUProduct(gpuProductName string) capabilities {
 			longestName, caps = name, candidate
 		}
 	}
+	return withoutNonSwitchFabric(gpuProductName, caps)
+}
+
+func withoutNonSwitchFabric(name string, caps capabilities) capabilities {
+	p := strings.ToLower(name)
 	// PCIe and NVL4 variants retain memory recovery without NVSwitch fabrics.
 	// https://docs.nvidia.com/multi-node-nvlink-systems/nvfupd-guide/examples/gb200NVL.html
 	if strings.Contains(p, "pcie") || strings.Contains(p, "nvl4") {
-		caps.fabricManager, caps.fabricState, caps.externalFabricCandidate, caps.switchBehindBridge = false, false, false, false
+		caps.fabricManager, caps.fabricManagerIfFabric, caps.fabricState, caps.externalFabricCandidate, caps.switchBehindBridge = false, false, false, false, false
 	}
 	return caps
 }
