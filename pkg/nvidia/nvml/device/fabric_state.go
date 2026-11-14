@@ -56,6 +56,14 @@ type FabricHealthSnapshot struct {
 	RouteRecoveryProgress string `json:"route_recovery_in_progress,omitempty"`
 	RouteUnhealthy        string `json:"route_unhealthy,omitempty"`
 	AccessTimeoutRecovery string `json:"access_timeout_recovery,omitempty"`
+
+	// IncorrectConfiguration, PartitionAssigned and GFMState decode the remaining
+	// nvmlGpuFabricInfo_v3 healthMask fields defined in nvml.h (shifts 8, 12, 14).
+	// They are what distinguishes a misconfigured or orphaned NVL72 tray from a
+	// genuine NVLink fault, so they are exposed rather than collapsed into Summary.
+	IncorrectConfiguration string `json:"incorrect_configuration,omitempty"`
+	PartitionAssigned      string `json:"partition_assigned,omitempty"`
+	GFMState               string `json:"gfm_state,omitempty"`
 }
 
 // RenderTable renders a single fabric state entry as a formatted table
@@ -87,6 +95,15 @@ func (e FabricStateEntry) RenderTable(wr io.Writer) {
 	}
 	if e.Health.AccessTimeoutRecovery != "" {
 		table.Append([]string{"Access Timeout Recovery", e.Health.AccessTimeoutRecovery})
+	}
+	if e.Health.IncorrectConfiguration != "" {
+		table.Append([]string{"Incorrect Configuration", e.Health.IncorrectConfiguration})
+	}
+	if e.Health.PartitionAssigned != "" {
+		table.Append([]string{"Partition Assigned", e.Health.PartitionAssigned})
+	}
+	if e.Health.GFMState != "" {
+		table.Append([]string{"Global Fabric Manager", e.Health.GFMState})
 	}
 
 	table.Render()
@@ -187,6 +204,30 @@ func getHealthMaskIssues(mask uint32) []string {
 		issues = append(issues, "access timeout recovery in progress")
 	}
 
+	// Check fabric configuration. NOT_SUPPORTED means the driver/GPU does not report
+	// the field and NONE means the configuration is correct; every other value
+	// (including codes newer than this nvml.h, decoded as Unknown(N)) is a concrete
+	// misconfiguration the fabric reported, so it is surfaced with its reason.
+	incorrectConfigVal := extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION)
+	if incorrectConfigVal != nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NOT_SUPPORTED &&
+		incorrectConfigVal != nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE {
+		issues = append(issues, fmt.Sprintf("incorrect configuration=%s", fabricIncorrectConfigurationToString(incorrectConfigVal)))
+	}
+
+	// PARTITION_ASSIGNED=FALSE alone is intentionally not an issue: a GPU without a
+	// workload partition is the normal idle state on deployments that assign NVLink
+	// partitions per job. When the missing partition is actually a fault, NVML
+	// reports it separately as INCORRECT_CONFIGURATION_NO_PARTITION (handled above).
+
+	// Check Global Fabric Manager connectivity. On NVL72 racks GFM runs in
+	// NMX-Controller on the NVOS switch trays, not on the compute host
+	// (https://docs.nvidia.com/dgx/dgxvr-user-guide/software.html), so a
+	// disconnected GFM points the operator at the switch trays rather than this node.
+	gfmStateVal := extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_GFM_STATE, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_GFM_STATE)
+	if gfmStateVal == nvml.GPU_FABRIC_HEALTH_MASK_GFM_STATE_DISCONNECTED {
+		issues = append(issues, "global fabric manager disconnected")
+	}
+
 	return issues
 }
 
@@ -259,6 +300,21 @@ func ParseHealthMask(mask uint32) FabricHealthSnapshot {
 		nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE,
 		nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_FALSE)
 
+	// Extract incorrect configuration reason
+	incorrectConfigVal := extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION)
+	health.IncorrectConfiguration = fabricIncorrectConfigurationToString(incorrectConfigVal)
+
+	// Extract partition assignment status
+	partitionAssignedVal := extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_PARTITION_ASSIGNED, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_PARTITION_ASSIGNED)
+	health.PartitionAssigned = fabricTriStateStatus(partitionAssignedVal,
+		nvml.GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_NOT_SUPPORTED,
+		nvml.GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_TRUE,
+		nvml.GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_FALSE)
+
+	// Extract Global Fabric Manager connection state
+	gfmStateVal := extractHealthValue(mask, nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_GFM_STATE, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_GFM_STATE)
+	health.GFMState = fabricGFMStateToString(gfmStateVal)
+
 	return health
 }
 
@@ -274,6 +330,48 @@ func fabricBandwidthStatus(val uint32) string {
 		return "Degraded"
 	case nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE:
 		return "Full"
+	default:
+		return fmt.Sprintf("Unknown(%d)", val)
+	}
+}
+
+// fabricIncorrectConfigurationToString maps the nvml.h
+// NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_* codes to readable reasons.
+func fabricIncorrectConfigurationToString(val uint32) string {
+	switch val {
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NOT_SUPPORTED:
+		return "Not Supported"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE:
+		return "None"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_SYSGUID:
+		return "Incorrect System GUID"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_CHASSIS_SN:
+		return "Incorrect Chassis Serial Number"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NO_PARTITION:
+		return "No Partition"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS:
+		return "Insufficient NVLinks"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCOMPATIBLE_GPU_FW:
+		return "Incompatible GPU Firmware"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION:
+		return "Invalid Location"
+	case nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_GPU_STATE_INVALID:
+		return "GPU State Invalid"
+	default:
+		return fmt.Sprintf("Unknown(%d)", val)
+	}
+}
+
+// fabricGFMStateToString maps the nvml.h NVML_GPU_FABRIC_HEALTH_MASK_GFM_STATE_*
+// codes to readable Global Fabric Manager connection states.
+func fabricGFMStateToString(val uint32) string {
+	switch val {
+	case nvml.GPU_FABRIC_HEALTH_MASK_GFM_STATE_NOT_SUPPORTED:
+		return "Not Supported"
+	case nvml.GPU_FABRIC_HEALTH_MASK_GFM_STATE_CONNECTED:
+		return "Connected"
+	case nvml.GPU_FABRIC_HEALTH_MASK_GFM_STATE_DISCONNECTED:
+		return "Disconnected"
 	default:
 		return fmt.Sprintf("Unknown(%d)", val)
 	}

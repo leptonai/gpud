@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/NVIDIA/go-nvlib v0.8.1
-	github.com/NVIDIA/go-nvml v0.13.0-1
+	github.com/NVIDIA/go-nvml v0.13.4-1
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/bytedance/mockey v1.4.7
 	github.com/coreos/go-systemd/v22 v22.5.0

@@ -145,6 +145,9 @@ type component struct {
 	checkFMExistsFunc func() bool
 	checkFMActiveFunc func() bool
 
+	// checkIMEXActiveFunc reports whether the nvidia-imex daemon is running.
+	checkIMEXActiveFunc func() bool
+
 	eventBucket      eventstore.Bucket
 	logLineProcessor *logLineProcessor
 
@@ -198,6 +201,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		checkFMExistsFunc: checkFMExists,
 		checkFMActiveFunc: checkFMActive,
+		checkIMEXActiveFunc: func() bool {
+			// IMEX runs as a host systemd service on bare metal and as a
+			// ComputeDomain daemon pod under the NVIDIA DRA driver; scanning the
+			// host /proc (hostPID DaemonSet or bare metal) observes both.
+			return processRunning("/proc", "nvidia-imex")
+		},
 
 		// Enable testing mode when failure injection is configured (e.g., --gpu-product-name override).
 		// External rack fabrics also do not depend on the number of local GPUs.
@@ -376,8 +385,10 @@ func (c *component) Check() components.CheckResult {
 	//   4. collectFabricState() detects the unhealthy state via GetIssues() (fabric_state.go)
 	//   5. This Check() method sets health=Unhealthy based on the report
 	//
-	nonPCIFabric := product.MayHaveNonPCIFabricByGPUProduct(c.nvmlInstance.ProductName())
-	externalFabric := product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName())
+	caps := c.nvmlInstance.Capabilities()
+	nonPCIFabric := caps.NonPCIFabricCandidate
+	externalFabric := caps.ExternalFabricCandidate
+	fmRequired := c.nvmlInstance.FabricManagerSupported()
 	if c.nvmlInstance.FabricStateSupported() {
 		cr.FabricStateSupported = true
 
@@ -416,9 +427,22 @@ func (c *component) Check() components.CheckResult {
 
 		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
-		// A product family permits probing; only telemetry/topology establishes applicability.
+		// PCIe-attached Rubin (for example DGX Rubin NVL8) has on-board switches
+		// that are invisible to lspci, and NVIDIA documents host FM/NVLSM for the
+		// previous NVSwitch baseboard generation. Supported fabric telemetry is
+		// the evidence that such a local fabric exists; without it, demanding the
+		// daemon would flag PCIe-only systems that have no NVLink fabric.
+		if caps.FabricManagerIfFabric && !report.AllUnsupported {
+			fmRequired = true
+		}
+		// Rubin's external-fabric capability resolves C2C or an explicit rack name;
+		// its switch trays run NVOS and need not appear on host PCIe. Generic GPU
+		// names must not suppress that evidence. GB200/GB300 candidates alone still
+		// do not distinguish standalone systems from racks, so retain their policy.
+		// https://docs.nvidia.com/dgx/dgxvr-user-guide/software.html
+		externalFabricKnown := product.IsRubin(c.nvmlInstance.ProductName(), c.nvmlInstance.Architecture()) && externalFabric
 		if report.AllUnsupported && !c.testingMode && c.checkNVSwitchExistsFunc != nil &&
-			fabric.Report(report).UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), c.checkNVSwitchExistsFunc()) {
+			fabric.Report(report).UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), c.checkNVSwitchExistsFunc(), externalFabricKnown) {
 			cr.FabricStateSupported = false
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = c.nvmlInstance.ProductName() + ": fabric telemetry unsupported and no NVSwitch detected; skipping fabric state check"
@@ -437,7 +461,7 @@ func (c *component) Check() components.CheckResult {
 			cr.reason = reason + ": " + report.Reason
 			cr.err = errors.Join(report.Err, err)
 			cr.suggestedActions = fabric.SuggestedActions(errors.Join(report.Err, err), health)
-			return c.checkLocalFabricManager(cr, nonPCIFabric)
+			return c.checkLocalFabricManager(cr, fmRequired, nonPCIFabric)
 		}
 
 		// GB200 NVL72 Fabric Management Architecture
@@ -481,15 +505,33 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = c.nvmlInstance.ProductName() + " checked fabric state"
 		}
+
+		// NVIDIA's NVL72 post-reboot verification includes "Verify that the
+		// nvidia-imex service is active and running", because cross-node GPU
+		// memory mapping over NVLink needs IMEX on every node in the domain.
+		// https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html
+		// The same documentation says IMEX starts "during system startup or
+		// during the launch of the CUDA job", so a stopped daemon on an idle node
+		// is a valid state. Record it for operators instead of changing health.
+		// https://docs.nvidia.com/dgx/dgxvr-user-guide/software.html
+		if externalFabric && !report.AllUnsupported && c.checkIMEXActiveFunc != nil {
+			if c.checkIMEXActiveFunc() {
+				cr.IMEXState = imexStateRunning
+			} else {
+				cr.IMEXState = imexStateNotRunning
+			}
+			cr.reason = appendReason(cr.reason, "nvidia-imex "+cr.IMEXState)
+		}
 	}
 
-	return c.checkLocalFabricManager(cr, nonPCIFabric)
+	return c.checkLocalFabricManager(cr, fmRequired, nonPCIFabric)
 }
 
 // Check the applicable local service even while registration is pending, retaining
 // fabric health so a live daemon cannot hide an unavailable fabric.
-func (c *component) checkLocalFabricManager(cr *checkResult, nonPCIFabric bool) *checkResult {
-	if !c.nvmlInstance.FabricManagerSupported() {
+// fmRequired combines product support with fabric evidence gathered by Check.
+func (c *component) checkLocalFabricManager(cr *checkResult, fmRequired, nonPCIFabric bool) *checkResult {
+	if !fmRequired {
 		cr.FabricManagerActive = false
 
 		// Preserve the independently observed fabric health.
@@ -674,15 +716,15 @@ func checkFMActive() bool {
 	// nvidia-fabricmanager.service inactive). gpud's DaemonSet runs with
 	// hostPID, and on bare metal /proc is the host's, so scanning /proc covers
 	// both deployment modes.
-	return fabricManagerProcessRunning("/proc")
+	return processRunning("/proc", "nv-fabricmanager")
 }
 
-// fabricManagerProcessRunning returns true if an nv-fabricmanager process is
-// found under the given proc root ("/proc" in production; a temporary
-// directory in tests). It matches on the basename of argv[0], which is more
-// precise than /proc/<pid>/comm (comm is truncated to 15 bytes and would read
+// processRunning returns true if a process named name is found under the
+// given proc root ("/proc" in production; a temporary directory in tests).
+// It matches on the basename of argv[0], which is more precise than
+// /proc/<pid>/comm (comm is truncated to 15 bytes and would read
 // "nv-fabricmanage").
-func fabricManagerProcessRunning(procRoot string) bool {
+func processRunning(procRoot, name string) bool {
 	entries, err := os.ReadDir(procRoot)
 	if err != nil {
 		return false
@@ -699,12 +741,17 @@ func fabricManagerProcessRunning(procRoot string) bool {
 			continue
 		}
 		argv0 := strings.SplitN(string(cmdline), "\x00", 2)[0]
-		if filepath.Base(argv0) == "nv-fabricmanager" {
+		if filepath.Base(argv0) == name {
 			return true
 		}
 	}
 	return false
 }
+
+const (
+	imexStateRunning    = "running"
+	imexStateNotRunning = "not running"
+)
 
 var _ components.CheckResult = &checkResult{}
 
@@ -721,6 +768,9 @@ type checkResult struct {
 	FabricStates []device.FabricStateEntry `json:"fabric_states,omitempty"`
 	// FabricStateReason captures any aggregated fabric health warnings.
 	FabricStateReason string `json:"fabric_state_reason,omitempty"`
+	// IMEXState records whether nvidia-imex is running once a multi-node
+	// NVLink fabric is in use. Empty when IMEX is not applicable.
+	IMEXState string `json:"imex_state,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

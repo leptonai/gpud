@@ -330,14 +330,21 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
+	caps := c.nvmlInstance.Capabilities()
 	var fabricReport *fabric.Report
-	if len(devs) > 1 && c.nvmlInstance.FabricStateSupported() {
+	// External fabric registration matters even when only one local GPU is visible.
+	if (len(devs) > 1 || caps.ExternalFabricCandidate) && c.nvmlInstance.FabricStateSupported() {
 		report := fabric.Collect(devs)
 		switchDetected := false
 		if report.AllUnsupported && c.checkNVSwitchExistsFunc != nil {
 			switchDetected = c.checkNVSwitchExistsFunc()
 		}
-		if !report.UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), switchDetected) {
+		// C2C-resolved Rubin racks require fabric registration even with generic
+		// names and no host PCIe switch. Do not promote GB200/GB300 family-only
+		// candidates to known racks: their existing applicability stays unchanged.
+		// https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html#post-reboot-verification
+		externalFabricKnown := product.IsRubin(c.nvmlInstance.ProductName(), c.nvmlInstance.Architecture()) && caps.ExternalFabricCandidate
+		if !report.UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), switchDetected, externalFabricKnown) {
 			fabricReport = &report
 		}
 		cr.FabricStates = report.Entries
@@ -420,7 +427,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting nvlink"
-			if fabricReport != nil || product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName()) {
+			if fabricReport != nil || caps.ExternalFabricCandidate {
 				var fabricErr error
 				if fabricReport != nil {
 					fabricErr = fabricReport.Err
@@ -506,8 +513,27 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	evaluateHealthStateWithThresholds(cr)
-	if cr.health == apiv1.HealthStateTypeUnhealthy && product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName()) {
-		// A bare GB200/GB300 name cannot establish that failed links are host-local.
+	// Rubin rack trays get a default per-link check. NVIDIA's DGX Vera Rubin
+	// NVL72 post-reboot verification requires "all the links are active" once
+	// fabric state reports Completed/Success:
+	// https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html
+	//
+	// Require confirmed registration first (fabricReport non-nil and Healthy:
+	// every visible GPU Completed+Success with no health issues). Links are
+	// legitimately down before the fabric is configured and while registration
+	// is pending; the registration guard above already reports those states.
+	//
+	// GB200/GB300 deliberately keep the implicit "zero active GPUs" fallback:
+	// that is existing fleet behavior and they are not part of Rubin
+	// qualification, so tightening it would change health on deployed racks.
+	if product.IsRubin(c.nvmlInstance.ProductName(), c.nvmlInstance.Architecture()) &&
+		caps.ExternalFabricCandidate && fabricReport != nil && fabricReport.Healthy {
+		evaluateRubinRackInactiveLinks(cr)
+	}
+	if cr.health == apiv1.HealthStateTypeUnhealthy && caps.ExternalFabricCandidate {
+		// A fabric candidate does not establish that failed links are host-local:
+		// on an NVL72 tray a dead link may be on the switch tray or cable
+		// cartridge side, which rebooting the compute tray cannot repair.
 		cr.suggestedActions = fabric.SuggestedActions(nil, cr.health)
 	}
 

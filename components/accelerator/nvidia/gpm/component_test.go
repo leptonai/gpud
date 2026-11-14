@@ -43,6 +43,11 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 	return false
 }
 
+func (m *mockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
+
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
@@ -103,6 +108,11 @@ func (m *customMockNVMLInstance) FabricManagerSupported() bool {
 
 func (m *customMockNVMLInstance) FabricStateSupported() bool {
 	return false
+}
+
+func (m *customMockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
 }
 
 func (m *customMockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {

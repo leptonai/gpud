@@ -113,6 +113,7 @@ type mockNVMLInstance struct {
 	getDevicesFunc                           func() map[string]device.Device
 	getProductNameFunc                       func() string
 	getMemoryErrorManagementCapabilitiesFunc func() nvidiaproduct.MemoryErrorManagementCapabilities
+	architecture                             string
 }
 
 func (m *mockNVMLInstance) Devices() map[string]device.Device {
@@ -124,7 +125,7 @@ func (m *mockNVMLInstance) ProductName() string {
 }
 
 func (m *mockNVMLInstance) Architecture() string {
-	return ""
+	return m.architecture
 }
 
 func (m *mockNVMLInstance) Brand() string {
@@ -153,6 +154,14 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return m.getMemoryErrorManagementCapabilitiesFunc()
+}
+
+func (m *mockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{
+		MemoryManagement: m.GetMemoryErrorManagementCapabilities(),
+		FabricManager:    m.FabricManagerSupported(),
+		FabricState:      m.FabricStateSupported(),
+	}
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -1438,10 +1447,7 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 				// Simulate error for remapped rows
 				return RemappedRows{}, errors.New("NVML error getting remapped rows")
 			},
-			// The component sets the overall health to Healthy when there are no issues detected
-			// Even with errors for individual GPUs, the component only becomes unhealthy if there are
-			// actual remapping issues detected
-			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 

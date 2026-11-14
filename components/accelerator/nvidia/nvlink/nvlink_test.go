@@ -212,7 +212,7 @@ func TestGetNVLink(t *testing.T) {
 			expectedStatesCount: 0,
 		},
 		{
-			name: "NVLink state error but continue",
+			name: "NVLink state error is not healthy telemetry",
 			mockDev: &mockDevice{
 				nvLinkState:       nvml.FEATURE_ENABLED,
 				nvLinkStateErr:    nvml.ERROR_UNKNOWN,
@@ -225,8 +225,10 @@ func TestGetNVLink(t *testing.T) {
 				fieldValuesErr:    nvml.SUCCESS,
 				busID:             "test-pci",
 			},
-			expectedSupported:   true,
-			expectedStatesCount: 0,
+			expectError:           true,
+			expectedErrorContains: "failed to get nvlink state for link 0",
+			expectedSupported:     true,
+			expectedStatesCount:   0,
 		},
 		{
 			name: "GPU lost error",

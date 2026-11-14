@@ -213,9 +213,8 @@ func (c *component) matchNVSentinelXid(ev nvsentinel.HealthEvent) (int, string, 
 		return 0, "", false
 	}
 
-	// Row remapping pending/failure (Xid 63/64) belongs to the remapped-rows
-	// component. Apply the same discard as the kmsg path.
-	if c.nvmlInstance != nil && c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping && (xidNum == 63 || xidNum == 64) {
+	// Apply the same row-remapping ownership as the kmsg path.
+	if c.rowRemappingOwnsXid(uint64(xidNum)) {
 		return 0, "", false
 	}
 

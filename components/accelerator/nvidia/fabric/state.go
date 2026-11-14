@@ -89,7 +89,10 @@ func CollectWith(devices map[string]device.Device, get func(device.Device) (devi
 }
 
 // UnsupportedWithoutFabric distinguishes an absent API from a failed fabric.
-// An explicit NVL72 topology or a detected switch still requires telemetry.
-func (r Report) UnsupportedWithoutFabric(product string, switchDetected bool) bool {
-	return r.AllUnsupported && !switchDetected && !strings.Contains(strings.ToLower(product), "nvl72")
+// An explicit NVL72 topology, a detected switch, or resolved external-fabric
+// evidence still requires telemetry. An unsupported API cannot prove a known
+// rack fabric absent: NVIDIA requires Completed/Success fabric registration.
+// https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html#post-reboot-verification
+func (r Report) UnsupportedWithoutFabric(product string, switchDetected, externalFabricKnown bool) bool {
+	return r.AllUnsupported && !switchDetected && !externalFabricKnown && !strings.Contains(strings.ToLower(product), "nvl72")
 }

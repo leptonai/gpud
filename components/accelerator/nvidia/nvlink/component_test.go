@@ -56,6 +56,10 @@ func (m *mockNVMLInstance) Architecture() string {
 	return ""
 }
 
+func (m *mockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.CapabilitiesForGPU(m.ProductName(), m.Architecture(), nvidiaproduct.HostLinkUnknown)
+}
+
 func (m *mockNVMLInstance) Brand() string {
 	return ""
 }

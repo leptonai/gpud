@@ -627,6 +627,7 @@ type mockNVMLInstance struct {
 	productName         string
 	architecture        string
 	deviceCount         int // Add device count field
+	hostLink            nvidiaproduct.HostLink
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -684,6 +685,15 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
+}
+
+// Capabilities derives topology hints like the real instance, while the
+// explicit support fields keep their existing per-test meaning.
+func (m *mockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	caps := nvidiaproduct.CapabilitiesForGPU(m.productName, m.architecture, m.hostLink)
+	caps.FabricManager = m.supportsFM
+	caps.FabricState = m.supportsFabricState
+	return caps
 }
 
 func (m *mockNVMLInstance) Shutdown() error {
@@ -1609,17 +1619,17 @@ func TestCheckFMExistsInRoots(t *testing.T) {
 func TestFabricManagerProcessRunning(t *testing.T) {
 	// empty proc root: not running
 	tmp := t.TempDir()
-	assert.False(t, fabricManagerProcessRunning(tmp))
+	assert.False(t, processRunning(tmp, "nv-fabricmanager"))
 
 	// a non-FM process: not running
 	pidDir := filepath.Join(tmp, "1234")
 	require.NoError(t, os.MkdirAll(pidDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(pidDir, "cmdline"), []byte("/usr/bin/kubelet\x00--v=2\x00"), 0o644))
-	assert.False(t, fabricManagerProcessRunning(tmp))
+	assert.False(t, processRunning(tmp, "nv-fabricmanager"))
 
 	// non-numeric entries are skipped
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, "bus"), []byte{}, 0o644))
-	assert.False(t, fabricManagerProcessRunning(tmp))
+	assert.False(t, processRunning(tmp, "nv-fabricmanager"))
 
 	// FM running inside another container with an absolute argv[0]:
 	// nv-fabricmanager -c /usr/share/nvidia/nvswitch/fabricmanager.cfg
@@ -1627,8 +1637,10 @@ func TestFabricManagerProcessRunning(t *testing.T) {
 	fmPidDir := filepath.Join(tmp, "39063")
 	require.NoError(t, os.MkdirAll(fmPidDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(fmPidDir, "cmdline"), []byte("nv-fabricmanager\x00-c\x00/usr/share/nvidia/nvswitch/fabricmanager.cfg\x00"), 0o644))
-	assert.True(t, fabricManagerProcessRunning(tmp))
+	assert.True(t, processRunning(tmp, "nv-fabricmanager"))
+	// The same scan must not report a different daemon such as nvidia-imex.
+	assert.False(t, processRunning(tmp, "nvidia-imex"))
 
 	// nonexistent proc root: not running, no error propagation
-	assert.False(t, fabricManagerProcessRunning(filepath.Join(tmp, "does-not-exist")))
+	assert.False(t, processRunning(filepath.Join(tmp, "does-not-exist"), "nv-fabricmanager"))
 }

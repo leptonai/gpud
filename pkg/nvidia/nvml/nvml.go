@@ -13,10 +13,20 @@ import (
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 )
 
-// GetArchFamily returns the GPU architecture family name
-// based on the given device CUDA compute capability.
-// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/f666bc3f836a09ae2fda439f3d7a8d8b06b48ac4/internal/lm/resource.go#L283C6-L283C19
+// GetArchFamily identifies the architecture independently of the product name.
+// NVML architecture identifiers are not CUDA compute capability numbers.
+// https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html
 func GetArchFamily(dev device.Device) (string, error) {
+	arch, ret := dev.GetArchitecture()
+	if ret == nvml.SUCCESS {
+		if name, ok := architectureNames[arch]; ok {
+			return name, nil
+		}
+	} else if ret != nvml.ERROR_NOT_SUPPORTED && ret != nvml.ERROR_FUNCTION_NOT_FOUND {
+		return "", fmt.Errorf("failed to get device architecture: %v", nvml.ErrorString(ret))
+	}
+
+	// Preserve detection on older drivers and architectures absent from NVML's enum.
 	computeMajor, computeMinor, ret := dev.GetCudaComputeCapability()
 	if ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to get device compute capability: %v", nvml.ErrorString(ret))
@@ -24,8 +34,20 @@ func GetArchFamily(dev device.Device) (string, error) {
 	return getArchFamily(computeMajor, computeMinor), nil
 }
 
-// getArchFamily maps architecture codes to human-readable names
-// as declared in nvml/nvml.h
+var architectureNames = map[nvml.DeviceArchitecture]string{
+	nvml.DEVICE_ARCH_KEPLER:    "kepler",
+	nvml.DEVICE_ARCH_MAXWELL:   "maxwell",
+	nvml.DEVICE_ARCH_PASCAL:    "pascal",
+	nvml.DEVICE_ARCH_VOLTA:     "volta",
+	nvml.DEVICE_ARCH_TURING:    "turing",
+	nvml.DEVICE_ARCH_AMPERE:    "ampere",
+	nvml.DEVICE_ARCH_ADA:       "ada-lovelace",
+	nvml.DEVICE_ARCH_HOPPER:    "hopper",
+	nvml.DEVICE_ARCH_BLACKWELL: "blackwell",
+	nvml.DEVICE_ARCH_RUBIN:     "rubin",
+}
+
+// getArchFamily maps CUDA compute capabilities to architecture names.
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/f666bc3f836a09ae2fda439f3d7a8d8b06b48ac4/internal/lm/resource.go#L283C6-L283C19
 func getArchFamily(computeMajor, computeMinor int) string {
 	switch computeMajor {

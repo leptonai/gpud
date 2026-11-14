@@ -60,6 +60,10 @@ type customMockNVMLInstanceIB struct {
 func (m *customMockNVMLInstanceIB) Devices() map[string]device.Device { return m.devs }
 func (m *customMockNVMLInstanceIB) FabricManagerSupported() bool      { return true }
 func (m *customMockNVMLInstanceIB) FabricStateSupported() bool        { return false }
+func (m *customMockNVMLInstanceIB) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *customMockNVMLInstanceIB) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

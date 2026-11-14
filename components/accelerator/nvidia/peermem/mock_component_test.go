@@ -33,6 +33,10 @@ type customMockNVMLInstancePeermem struct {
 func (m *customMockNVMLInstancePeermem) Devices() map[string]device.Device { return m.devs }
 func (m *customMockNVMLInstancePeermem) FabricManagerSupported() bool      { return true }
 func (m *customMockNVMLInstancePeermem) FabricStateSupported() bool        { return false }
+func (m *customMockNVMLInstancePeermem) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *customMockNVMLInstancePeermem) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
