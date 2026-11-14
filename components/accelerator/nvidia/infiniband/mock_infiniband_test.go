@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -19,35 +18,13 @@ import (
 	"github.com/leptonai/gpud/components"
 	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
+	componentkmsg "github.com/leptonai/gpud/components/kmsg"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
-
-func hasKmsgEventDedupWindowFunc(t *testing.T, opt kmsg.OpOption) bool {
-	t.Helper()
-	op := &kmsg.Op{}
-	opt(op)
-
-	v := reflect.ValueOf(op).Elem().FieldByName("eventDedupWindowFunc")
-	require.True(t, v.IsValid(), "eventDedupWindowFunc field must exist")
-	require.Equal(t, reflect.Func, v.Kind(), "eventDedupWindowFunc must be func")
-	return !v.IsNil()
-}
-
-func getKmsgCacheKeyTruncateSeconds(t *testing.T, opt kmsg.OpOption) int {
-	t.Helper()
-	op := &kmsg.Op{}
-	opt(op)
-
-	v := reflect.ValueOf(op).Elem().FieldByName("cacheKeyTruncateSeconds")
-	require.True(t, v.IsValid(), "cacheKeyTruncateSeconds field must exist")
-	require.Equal(t, reflect.Int, v.Kind(), "cacheKeyTruncateSeconds must be int")
-	return int(v.Int())
-}
 
 // customMockNVMLInstanceIB implements the nvml.Instance interface for testing with customizable behavior
 type customMockNVMLInstanceIB struct {
@@ -298,10 +275,9 @@ func TestComponent_Start_WithMockey(t *testing.T) {
 				// Zero threshold - Check() returns early but we detect it via getTimeNowFunc
 				return types.ExpectedPortStates{}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				return infinibandclass.Devices{}, nil
 			},
-			ignoreFiles: make(map[string]struct{}),
 		}
 
 		err := comp.Start()
@@ -341,11 +317,10 @@ func TestComponent_Start_WithContextCancel(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return types.ExpectedPortStates{}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				checkCount++
 				return infinibandclass.Devices{}, nil
 			},
-			ignoreFiles: make(map[string]struct{}),
 		}
 
 		err := comp.Start()
@@ -716,11 +691,10 @@ func TestCheck_ClassDevicesError_WithMockey(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return types.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				return nil, errors.New("failed to load class devices")
 			},
 			nvmlInstance: mockInst,
-			ignoreFiles:  make(map[string]struct{}),
 		}
 
 		result := comp.Check()
@@ -755,11 +729,10 @@ func TestCheck_ConcurrentAccess_WithMockey(t *testing.T) {
 			getThresholdsFunc: func() types.ExpectedPortStates {
 				return types.ExpectedPortStates{} // Zero threshold
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(context.Context) (infinibandclass.Devices, error) {
 				return infinibandclass.Devices{}, nil
 			},
 			nvmlInstance: mockInst,
-			ignoreFiles:  make(map[string]struct{}),
 		}
 
 		// Run concurrent access
@@ -864,7 +837,7 @@ func TestComponent_Close_WithComponents_WithMockey(t *testing.T) {
 			ctx:         cctx,
 			cancel:      cancel,
 			eventBucket: mockBucket,
-			kmsgSyncer:  nil,
+			stopKernel:  nil,
 		}
 
 		err := comp.Close()
@@ -893,28 +866,19 @@ func TestComponent_Events_NilBucket_WithMockey(t *testing.T) {
 	})
 }
 
-// TestNew_WithEventStoreAsRoot_KmsgSyncer tests that New() creates a kmsg syncer
-// with the correct dedup options when running as root with an event store.
-// This covers the os.Geteuid() == 0 branch and the custom kmsg dedup option pass-through.
-func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
-	mockey.PatchConvey("New creates kmsg syncer with dedup opts when running as root", t, func() {
+func TestNew_WithEventStoreAsRoot_KernelSubscription_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New creates experimental kernel subscription with dedup policy", t, func() {
 		// Mock os.Geteuid to simulate running as root
 		mockey.Mock(os.Geteuid).Return(0).Build()
 
-		// Track the options passed to kmsg.NewSyncer
-		var capturedOpts []kmsg.OpOption
-		mockey.Mock(kmsg.NewSyncer).To(func(
-			ctx context.Context,
-			matchFunc kmsg.MatchFunc,
-			eventBucket eventstore.Bucket,
-			opts ...kmsg.OpOption,
-		) (*kmsg.Syncer, error) {
-			capturedOpts = opts
-			return &kmsg.Syncer{}, nil
+		// Track the options passed to the kernel subscription
+		var policy eventstore.DedupPolicy
+		mockey.Mock((*component).observeKernel).To(func(
+			_ *component, _ componentkmsg.Observer, _ func(string) (string, string), configured eventstore.DedupPolicy,
+		) (func(), error) {
+			policy = configured
+			return func() {}, nil
 		}).Build()
-
-		// Mock Syncer.Close to avoid nil watcher panic from the zero-value Syncer
-		mockey.Mock((*kmsg.Syncer).Close).Return().Build()
 
 		ctx := context.Background()
 		mockInstance := &customMockNVMLInstanceIB{
@@ -927,10 +891,11 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		mockStore := &mockEventStoreIB{bucket: mockBucket}
 
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:              ctx,
-			NVMLInstance:         mockInstance,
-			NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{},
-			EventStore:           mockStore,
+			ExperimentalHealthValidation: true,
+			RootCtx:                      ctx,
+			NVMLInstance:                 mockInstance,
+			NVIDIAToolOverwrites:         pkgconfigcommon.ToolOverwrites{},
+			EventStore:                   mockStore,
 		}
 
 		c, err := New(gpudInstance)
@@ -940,14 +905,13 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 
 		tc, ok := c.(*component)
 		require.True(t, ok)
-		assert.NotNil(t, tc.kmsgSyncer, "kmsgSyncer should be set when running as root")
+		assert.NotNil(t, tc.stopKernel, "kernel subscription should be set when running as root")
 		assert.NotNil(t, tc.eventBucket, "eventBucket should be set")
 
 		// Verify InfiniBand keeps the long-standing 5-minute generic kmsg dedup
 		// and only adds the shared per-event override resolver for ACCESS_REG.
-		require.Len(t, capturedOpts, 2, "should pass exactly two OpOptions to NewSyncer")
-		assert.Equal(t, int(defaultKmsgEventDedupWindow.Seconds()), getKmsgCacheKeyTruncateSeconds(t, capturedOpts[0]))
-		assert.True(t, hasKmsgEventDedupWindowFunc(t, capturedOpts[1]))
+		assert.Equal(t, defaultKmsgEventDedupWindow, policy.Window)
+		assert.NotNil(t, policy.EventWindow)
 
 		// Clean up
 		err = c.Close()
@@ -955,20 +919,15 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 	})
 }
 
-// TestNew_WithEventStoreAsRoot_KmsgSyncerError tests that New() returns an error
-// when kmsg.NewSyncer fails while running as root.
-func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {
-	mockey.PatchConvey("New returns error when kmsg syncer creation fails as root", t, func() {
+func TestNew_WithEventStoreAsRoot_KernelSubscriptionError_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New returns experimental kernel subscription error", t, func() {
 		// Mock os.Geteuid to simulate running as root
 		mockey.Mock(os.Geteuid).Return(0).Build()
 
-		// Mock kmsg.NewSyncer to return an error
-		mockey.Mock(kmsg.NewSyncer).To(func(
-			ctx context.Context,
-			matchFunc kmsg.MatchFunc,
-			eventBucket eventstore.Bucket,
-			opts ...kmsg.OpOption,
-		) (*kmsg.Syncer, error) {
+		// Mock the kernel subscription to return an error
+		mockey.Mock((*component).observeKernel).To(func(
+			_ *component, _ componentkmsg.Observer, _ func(string) (string, string), _ eventstore.DedupPolicy,
+		) (func(), error) {
 			return nil, errors.New("failed to open /dev/kmsg")
 		}).Build()
 
@@ -983,10 +942,11 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {
 		mockStore := &mockEventStoreIB{bucket: mockBucket}
 
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:              ctx,
-			NVMLInstance:         mockInstance,
-			NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{},
-			EventStore:           mockStore,
+			ExperimentalHealthValidation: true,
+			RootCtx:                      ctx,
+			NVMLInstance:                 mockInstance,
+			NVIDIAToolOverwrites:         pkgconfigcommon.ToolOverwrites{},
+			EventStore:                   mockStore,
 		}
 
 		c, err := New(gpudInstance)

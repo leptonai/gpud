@@ -15,7 +15,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
@@ -253,7 +252,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
-		mockReadAllKmsg := func(_ context.Context) ([]kmsg.Message, error) {
+		mockReadAllKmsg := func(_ context.Context) ([]apiv1.KernelMessage, error) {
 			return nil, assert.AnError
 		}
 
@@ -276,8 +275,8 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
-		mockReadAllKmsg := func(_ context.Context) ([]kmsg.Message, error) {
-			return []kmsg.Message{
+		mockReadAllKmsg := func(_ context.Context) ([]apiv1.KernelMessage, error) {
+			return []apiv1.KernelMessage{
 				{
 					Message: "non-matching message",
 				},
@@ -303,8 +302,8 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
-		mockReadAllKmsg := func(_ context.Context) ([]kmsg.Message, error) {
-			return []kmsg.Message{
+		mockReadAllKmsg := func(_ context.Context) ([]apiv1.KernelMessage, error) {
+			return []apiv1.KernelMessage{
 				{
 					Message: "non-matching message",
 				},
@@ -366,7 +365,7 @@ func TestDataMethods(t *testing.T) {
 
 	t.Run("data with matched kmsg(s)", func(t *testing.T) {
 		cr := &checkResult{
-			MatchedKmsgs: []kmsg.Message{
+			MatchedKmsgs: []apiv1.KernelMessage{
 				{Message: "test message 1"},
 				{Message: "test message 2"},
 			},
@@ -686,7 +685,7 @@ func TestNew(t *testing.T) {
 			EventStore:   mockStore,
 		}
 
-		// This may create a kmsg.Syncer depending on runtime conditions
+		// This may create a kernel event subscription depending on runtime conditions
 		// so we'll just test that New succeeds and not worry about mocks
 		comp, err := New(instance)
 		if !assert.NoError(t, err) {

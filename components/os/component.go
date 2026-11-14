@@ -62,7 +62,7 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
-	kmsgSyncer       *kmsg.Syncer
+	stopKernel       func()
 	pstoreStore      pstore.Store
 
 	countProcessesByStatusFunc           func(ctx context.Context) (map[string][]process.ProcessStatus, error)
@@ -162,7 +162,15 @@ func newComponent(gpudInstance *components.GPUdInstance, pstoreDir string) (comp
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			if gpudInstance.ExperimentalHealthValidation {
+				c.stopKernel, err = c.observeKernel(gpudInstance.KernelStream().Subscribe, Match, eventstore.DedupPolicy{})
+			} else {
+				var syncer *kmsg.Syncer
+				syncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+				if err == nil {
+					c.stopKernel = syncer.Close
+				}
+			}
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -312,8 +320,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgSyncer != nil {
-		c.kmsgSyncer.Close()
+	if c.stopKernel != nil {
+		c.stopKernel()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

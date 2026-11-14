@@ -14,7 +14,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/product"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -39,12 +38,12 @@ func TestBlackwellRowRemappingOwnsXID(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { assert.NoError(t, comp.Close()) }()
 			c := mustComponent(t, comp)
-			c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
-				return []kmsg.Message{
+			c.readAllKmsg = kernelReaderForTest(func(context.Context) ([]apiv1.KernelMessage, error) {
+				return []apiv1.KernelMessage{
 					{Timestamp: metav1.Now(), Message: "NVRM: Xid (PCI:0000:01:00): 63, Row remapping event"},
 					{Timestamp: metav1.Now(), Message: "NVRM: Xid (PCI:0000:01:00): 64, Row remapping failure"},
 				}, nil
-			}
+			})
 			result := c.Check()
 			assert.Empty(t, mustCheckResult(t, result).FoundErrors)
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())

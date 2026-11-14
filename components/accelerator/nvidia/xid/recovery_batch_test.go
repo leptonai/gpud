@@ -70,6 +70,20 @@ func TestRecoverySameSecondBatch(t *testing.T) {
 					sendRecoveryBatchEvent(c, ch, now.Add(gap), 2, action, 0)
 					waitForRecoveryBatch(t, c, now.Add(-time.Second), 2)
 					state := c.LastHealthStates()[0]
+					if !native && gap == 0 {
+						// NVSentinel carries no kernel position. Tied timestamps
+						// cannot establish whether None preceded the request.
+						expected := apiv1.HealthStateTypeHealthy
+						if action == 1 {
+							expected = apiv1.HealthStateTypeUnhealthy
+						}
+						if action == 3 {
+							expected = apiv1.HealthStateTypeDegraded
+						}
+						assert.Equal(t, expected, state.Health)
+						assert.Contains(t, state.Reason, "XID 154")
+						return
+					}
 					assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 					assert.Nil(t, state.SuggestedActions)
 					assert.Equal(t, "XIDComponent is healthy", state.Reason)
@@ -103,6 +117,12 @@ func TestRecoveryLongTiedBatchKeepsOrder(t *testing.T) {
 				sendRecoveryBatchEvent(c, ch, now, i+1, 1-to, to)
 			}
 			waitForRecoveryBatch(t, c, now.Add(-time.Second), 32)
+			if !native {
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.LastHealthStates()[0].Health)
+				require.NotNil(t, c.LastHealthStates()[0].SuggestedActions)
+				assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, c.LastHealthStates()[0].SuggestedActions.RepairActions)
+				return
+			}
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, c.LastHealthStates()[0].Health)
 			assert.Nil(t, c.LastHealthStates()[0].SuggestedActions)
 		})

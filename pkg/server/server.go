@@ -40,7 +40,7 @@ import (
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/httputil"
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
+	kmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -87,8 +87,9 @@ type Server struct {
 	fifoPath string
 	fifo     *stdos.File
 
-	dataDir    string
-	dbInMemory bool
+	dataDir                      string
+	dbInMemory                   bool
+	experimentalHealthValidation bool
 
 	gpudInstance *components.GPUdInstance
 	session      *session.Session
@@ -254,9 +255,10 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		dbRW: dbRW,
 		dbRO: dbRO,
 
-		fifoPath:   fifoPath,
-		dataDir:    config.DataDir,
-		dbInMemory: config.DBInMemory,
+		fifoPath:                     fifoPath,
+		dataDir:                      config.DataDir,
+		dbInMemory:                   config.DBInMemory,
+		experimentalHealthValidation: config.ExperimentalHealthValidation,
 
 		enableAutoUpdate:        config.EnableAutoUpdate,
 		autoUpdateExitCode:      config.AutoUpdateExitCode,
@@ -278,7 +280,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
 
-	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
+	kmsgWriter := kmsgwriter.NewWriter(kmsgwriter.DefaultDevKmsg)
 	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
 
 	var nvmlInstance nvidianvml.Instance
@@ -331,7 +333,8 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	}
 
 	s.gpudInstance = &components.GPUdInstance{
-		RootCtx: ctx,
+		RootCtx:                      ctx,
+		ExperimentalHealthValidation: config.ExperimentalHealthValidation,
 
 		MachineID: s.machineID,
 
@@ -640,6 +643,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithDataDir(s.dataDir),
 			session.WithDBInMemory(s.dbInMemory),
+			session.WithExperimentalHealthValidation(s.experimentalHealthValidation),
 			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 			session.WithMetricsStore(metricsStore),
 			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
@@ -714,6 +718,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithDataDir(s.dataDir),
 				session.WithDBInMemory(s.dbInMemory),
+				session.WithExperimentalHealthValidation(s.experimentalHealthValidation),
 				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 				session.WithMetricsStore(metricsStore),
 				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {

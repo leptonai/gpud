@@ -84,6 +84,10 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
 				},
 				&cli.BoolFlag{
+					Name:  "experimental-health-validation",
+					Usage: "use experimental health-validation collection (default: false)",
+				},
+				&cli.BoolFlag{
 					Name:  "db-in-memory",
 					Usage: "use in-memory SQLite database (file::memory:?cache=shared) instead of file-based storage; overrides --data-dir for database",
 				},
@@ -185,6 +189,10 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "data-dir",
 					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
+				&cli.BoolFlag{
+					Name:  "experimental-health-validation",
+					Usage: "use experimental health-validation collection (default: false)",
 				},
 				&cli.BoolFlag{
 					Name:  "db-in-memory",

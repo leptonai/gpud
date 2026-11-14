@@ -50,11 +50,11 @@ func DefaultBinExists() bool {
 // login.Login() always writes credentials to the persistent state file (via dataDir).
 // When --db-in-memory is enabled, gpud run reads credentials from the persistent file
 // and passes them to the server to seed into the in-memory database.
-func CreateDefaultEnvFile(endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
-	return writeEnvFile(DefaultEnvFile, endpoint, dataDir, dbInMemory, sessionProtocol...)
+func CreateDefaultEnvFile(endpoint string, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
+	return writeEnvFile(DefaultEnvFile, endpoint, dataDir, dbInMemory, experimentalHealthValidation, sessionProtocol...)
 }
 
-func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) string {
+func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) string {
 	flags := "--log-level=info --log-file=/var/log/gpud.log"
 	if endpoint != "" {
 		flags += fmt.Sprintf(" --endpoint=%s", endpoint)
@@ -64,6 +64,9 @@ func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory boo
 	}
 	if dbInMemory {
 		flags += " --db-in-memory"
+	}
+	if experimentalHealthValidation {
+		flags += " --experimental-health-validation"
 	}
 	protocol := "auto"
 	if len(sessionProtocol) > 0 && sessionProtocol[0] != "" {
@@ -76,12 +79,12 @@ FLAGS="%s"
 `, flags)
 }
 
-func writeEnvFile(file string, endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+func writeEnvFile(file string, endpoint string, dataDir string, dbInMemory bool, experimentalHealthValidation bool, sessionProtocol ...string) error {
 	protocol, err := validateSessionProtocol(sessionProtocol)
 	if err != nil {
 		return err
 	}
-	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint, dataDir, dbInMemory, protocol)), 0644)
+	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint, dataDir, dbInMemory, experimentalHealthValidation, protocol)), 0644)
 }
 
 func validateSessionProtocol(values []string) (string, error) {

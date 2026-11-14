@@ -43,6 +43,7 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("log-file", "", "")
 	set.String("data-dir", "", "")
 	set.Bool("db-in-memory", false, "")
+	set.Bool("experimental-health-validation", false, "")
 	set.Int("gpu-count", 0, "")
 	set.String("endpoint", "", "")
 	set.String("token", "", "")
@@ -134,13 +135,14 @@ func TestCommand_SuccessPath(t *testing.T) {
 			"gpu-product-name": "H100-SXM",
 		},
 		boolFlags: map[string]bool{
-			"machine-id-overwrite":          true,
-			"plugin-specs-file-managed":     true,
-			"refresh-session-token":         true,
-			"pprof":                         true,
-			"enable-auto-update":            true,
-			"skip-session-update-config":    true,
-			"nvml-device-get-devices-error": true,
+			"machine-id-overwrite":           true,
+			"plugin-specs-file-managed":      true,
+			"refresh-session-token":          true,
+			"experimental-health-validation": true,
+			"pprof":                          true,
+			"enable-auto-update":             true,
+			"skip-session-update-config":     true,
+			"nvml-device-get-devices-error":  true,
 		},
 		intFlags: map[string]int{
 			"gpu-count":                         4,
@@ -191,6 +193,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, receivedCfg)
 		assert.True(t, receivedCfg.PluginSpecsFileManaged)
+		assert.True(t, receivedCfg.ExperimentalHealthValidation)
 		assert.True(t, receivedLoginCfg.MachineIDOverwrite)
 		assert.True(t, receivedLoginCfg.RefreshSessionToken)
 		assert.Equal(t, "eu-north-1", receivedLoginCfg.Region)

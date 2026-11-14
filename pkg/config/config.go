@@ -16,6 +16,8 @@ import (
 
 // Config provides gpud configuration data for the server
 type Config struct {
+	ExperimentalHealthValidation bool `json:"experimental_health_validation,omitempty"`
+
 	APIVersion string `json:"api_version"`
 
 	// Address for the server to listen on.
