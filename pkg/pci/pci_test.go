@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -76,6 +77,49 @@ func TestParseAccessControlServicesNoFilter(t *testing.T) {
 	}
 }
 
+// lspci prints the PCI domain in front of every device ID when the host has
+// any device outside domain 0 (or with "lspci -D"), e.g., "0009:01:00.0".
+// Parsing such output must give the same devices as the output without domains.
+func TestParseLspciVVVWithPCIDomain(t *testing.T) {
+	b, err := os.ReadFile("testdata/lspci-vvv")
+	if err != nil {
+		t.Fatalf("failed to read testdata: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	devs, err := parseLspciVVV(ctx, bufio.NewScanner(bytes.NewReader(b)), nil)
+	if err != nil {
+		t.Fatalf("failed to parse lspci output: %v", err)
+	}
+
+	// device header lines are the only non-indented, non-empty lines
+	lines := strings.Split(string(b), "\n")
+	for i, line := range lines {
+		if line != "" && line[0] != ' ' && line[0] != '\t' {
+			lines[i] = "0009:" + line
+		}
+	}
+	withDomain := strings.Join(lines, "\n")
+
+	domainDevs, err := parseLspciVVV(ctx, bufio.NewScanner(strings.NewReader(withDomain)), nil)
+	if err != nil {
+		t.Fatalf("failed to parse lspci output with PCI domain: %v", err)
+	}
+
+	if len(domainDevs) != len(devs) {
+		t.Fatalf("expected %d devices, got %d", len(devs), len(domainDevs))
+	}
+	for i := range devs {
+		want := devs[i]
+		want.ID = "0009:" + want.ID
+		if !reflect.DeepEqual(domainDevs[i], want) {
+			t.Errorf("device %d: expected %+v, got %+v", i, want, domainDevs[i])
+		}
+	}
+}
+
 func TestPCIDeviceHeaderRegex(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -103,8 +147,33 @@ func TestPCIDeviceHeaderRegex(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:  "valid PCI device header with domain",
+			input: "0001:00:00.0 3D controller: NVIDIA Corporation GH100 [H100 PCIe] (rev a1)",
+			want:  true,
+		},
+		{
+			name:  "valid bridge header with domain",
+			input: "000a:00:00.0 Bridge: NVIDIA Corporation Device 1af1 (rev a1)",
+			want:  true,
+		},
+		{
+			name:  "valid PCI device header with domain wider than 4 hex digits",
+			input: "10000:01:00.0 Non-Volatile memory controller: Samsung Electronics Co Ltd NVMe SSD Controller PM9A1/PM9A3/980PRO",
+			want:  true,
+		},
+		{
 			name:  "invalid format - no colon",
 			input: "1900.0 3D controller NVIDIA Corporation Device 2330",
+			want:  false,
+		},
+		{
+			name:  "invalid format - domain shorter than 4 hex digits",
+			input: "009:01:00.0 3D controller: NVIDIA Corporation Device 2330",
+			want:  false,
+		},
+		{
+			name:  "invalid format - leading space with domain",
+			input: " 0009:01:00.0 3D controller: NVIDIA Corporation Device 2330",
 			want:  false,
 		},
 		{
