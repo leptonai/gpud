@@ -42,6 +42,14 @@ func newMockLibrary(
 			SystemGetCudaDriverVersion_v2Func: func() (int, nvml.Return) {
 				return cudaVersion, nvml.SUCCESS
 			},
+			// Mock devices cannot answer go-nvml's C2C handler, so behave like a
+			// driver without the symbol; tests that need host-link evidence mock
+			// detectHostLink directly.
+			ExtensionsFunc: func() nvml.ExtendedInterface {
+				return &mock.ExtendedInterface{LookupSymbolFunc: func(name string) error {
+					return errors.New("symbol not available in mock: " + name)
+				}}
+			},
 		},
 		shutdownRet: nvml.SUCCESS,
 		devIface:    &mockDevInterface{devices: devs, err: devErr},

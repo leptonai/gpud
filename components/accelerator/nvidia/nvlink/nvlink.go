@@ -1,7 +1,7 @@
 package nvlink
 
 import (
-	"github.com/leptonai/gpud/pkg/log"
+	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -109,12 +109,16 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 		// Production case (issue #1085): B200 GPU reported all links inactive despite
 		// hardware supporting NVLink. Root cause unknown but threshold detection is needed.
 		state, ret := nvml.DeviceGetNvLinkState(dev, link)
+		// Older GPUs may report an invalid link index at the end of their range.
+		if ret == nvml.ERROR_INVALID_ARGUMENT && len(nvlink.States) > 0 {
+			break
+		}
 		if nvmlerrors.IsNotSupportError(ret) {
 			// NOT_SUPPORTED on the very first link means the GPU genuinely
 			// does not have NVLink hardware (e.g. GeForce, Tesla T4).
 			// NOT_SUPPORTED on a higher link index just means this GPU has
 			// fewer links than NVLINK_MAX_LINKS (e.g. A100 has 12 links
-			// while NVLINK_MAX_LINKS is 18). In that case the already-
+			// while NVLINK_MAX_LINKS is 36). In that case the already-
 			// enumerated links are valid and the GPU supports NVLink.
 			if len(nvlink.States) == 0 {
 				nvlink.Supported = false
@@ -128,41 +132,62 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 			return nvlink, nvmlerrors.ErrGPURequiresReset
 		}
 		if ret != nvml.SUCCESS {
-			log.Logger.Debugw("failed get nvlink state -- retrying", "link", link, "error", nvml.ErrorString(ret))
-			continue
+			return nvlink, fmt.Errorf("failed to get nvlink state for link %d: %v", link, nvml.ErrorString(ret))
 		}
 
-		nvlinkState := NVLinkState{
+		// Keep the state even if a subsequent counter query fails. A failed
+		// counter read must not become a fabricated zero in a healthy result.
+		nvlink.States = append(nvlink.States, NVLinkState{
 			Link:           link,
 			FeatureEnabled: state == nvml.FEATURE_ENABLED, // false when link is inactive/disabled
-		}
+		})
+		nvlinkState := &nvlink.States[len(nvlink.States)-1]
 
 		// e.g.,
 		// nvidia-smi nvlink -e
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
-		replayErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_REPLAY)
-		if ret == nvml.SUCCESS {
-			nvlinkState.ReplayErrors = replayErrors
+		var err error
+		nvlinkState.ReplayErrors, err = getNVLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_REPLAY)
+		if err != nil {
+			return nvlink, err
 		}
 
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
-		recoveryErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_RECOVERY)
-		if ret == nvml.SUCCESS {
-			nvlinkState.RecoveryErrors = recoveryErrors
+		nvlinkState.RecoveryErrors, err = getNVLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_RECOVERY)
+		if err != nil {
+			return nvlink, err
 		}
 
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
-		crcErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_CRC_FLIT)
-		if ret == nvml.SUCCESS {
-			nvlinkState.CRCErrors = crcErrors
+		nvlinkState.CRCErrors, err = getNVLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_CRC_FLIT)
+		if err != nil {
+			return nvlink, err
 		}
 
 		// TODO
 		// nvmlDeviceGetNvLinkRemotePciInfo_v2
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gee01cb84cd8a08f08ddaec36cd9e62ff
-
-		nvlink.States = append(nvlink.States, nvlinkState)
 	}
 
 	return nvlink, nil
+}
+
+func getNVLinkErrorCounter(dev device.Device, link int, counter nvml.NvLinkErrorCounter) (uint64, error) {
+	value, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, counter)
+	if ret == nvml.SUCCESS {
+		return value, nil
+	}
+	// Optional counters can be unsupported on a GPU generation. Other errors,
+	// including GPU loss on the last link, must fail the check just as a failed
+	// link-state query does. Preserve sentinels for the component's recovery policy.
+	if nvmlerrors.IsNotSupportError(ret) {
+		return 0, nil
+	}
+	var err error = ret
+	if nvmlerrors.IsGPULostError(ret) {
+		err = nvmlerrors.ErrGPULost
+	} else if nvmlerrors.IsGPURequiresReset(ret) {
+		err = nvmlerrors.ErrGPURequiresReset
+	}
+	return 0, fmt.Errorf("failed to get nvlink error counter %d for link %d: %w", counter, link, err)
 }

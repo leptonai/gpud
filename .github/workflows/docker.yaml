@@ -33,8 +33,13 @@ jobs:
           image=nvcr.io/nvstaging/lepton/gpud
           version="${GITHUB_REF_NAME#v}"
 
+          # Hardware qualification RCs must not replace the stable image alias.
+          tags=(--tag "$image:$version")
+          if [[ "$version" != *-* ]]; then
+            tags+=(--tag "$image:latest")
+          fi
+
           ./scripts/build-docker.sh \
             --version "$version" \
-            --tag "$image:$version" \
-            --tag "$image:latest" \
+            "${tags[@]}" \
             --push

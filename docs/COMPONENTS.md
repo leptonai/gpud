@@ -61,8 +61,44 @@ establish how long it has persisted. Restart persistence also requires the daemo
 database to survive restarts; `--db-in-memory` cannot provide it. Systems without
 fabric-state support keep their existing NVLink and Fabric Manager behavior.
 NVLink also falls through to its peer/port checks when all GPUs explicitly report
-unsupported fabric telemetry and no switch is detected. Mixed support, real
-faults, explicit NVL72 topology, and detected switches remain checked.
+unsupported fabric telemetry, no switch is detected, and no external fabric is known.
+Mixed support, real faults, explicit NVL72/NVL8 topology, and detected switches remain checked.
+Rubin GPUs with C2C host-link evidence require fabric telemetry even when the driver
+reports `NVIDIA Graphics Device`. Unsupported telemetry is unhealthy, not evidence
+that the rack fabric is absent. This follows NVIDIA's
+[Completed/Success registration requirement](https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html#post-reboot-verification).
+If the product name identifies Rubin but architecture is unavailable, GPUd still uses
+the measured C2C or PCIe host link. GB200/GB300 applicability remains unchanged.
+
+For LEP-7776 / DS9, GPUd identifies Rubin through the NVML architecture even when
+the driver reports `NVIDIA Graphics Device`. C2C evidence selects the external
+NVL72 fabric policy: the compute host does not require a local Fabric Manager.
+The rack's 72 GPUs are not an expected local GPU count; checks apply to the GPUs
+visible to GPUd. If C2C telemetry is unavailable, GPUd still probes fabric state,
+including on single-GPU partitions, without assuming rack topology.
+When that topology is unknown, failed links do not justify a compute-host reboot:
+the outage may be in the external switch trays. Explicit GPU-loss/reset errors
+still retain their recovery advice. A failed fabric query also does not establish
+that a local Fabric Manager is required; its original error is preserved in the
+health response. NVLink counter query failures fail the check, while counters
+explicitly reported as unsupported remain optional.
+If a link query fails after reading some states, those states and any earlier
+fabric query error remain in the health response. The V3 fabric API falls back to
+V1 only for API compatibility errors; actual query failures cannot become healthy
+registration with the detailed fabric health fields discarded. Memory-query
+GPU-loss/reset errors retain recovery guidance, while unrepairable memory on any
+GPU takes precedence and requires hardware inspection.
+
+GPU identity and C2C do not establish the installed InfiniBand NICs. Only an
+explicit Rubin NVL72 product profile selects the reference eight 800 Gb/s ports.
+For generic-name DS9 nodes with that NIC layout, configure
+`--infiniband-expected-port-states='{"at_least_ports":8,"at_least_rate":800}'`;
+use the actual port inventory for other layouts. Plain `Vera Rubin` and other
+rack sizes do not select the NVL72 network profile. Live DS9 qualification must
+verify architecture, C2C, fabric and link telemetry, and NIC inventory against
+the installed driver and hardware.
+See [Vera Rubin hardware qualification](VERA_RUBIN_QUALIFICATION.md) for the
+one-shot `machine-info`/`scan` procedure and evidence collection script.
 
 ## Available components
 

@@ -148,6 +148,10 @@ type customMockNVMLInstance struct {
 func (m *customMockNVMLInstance) Devices() map[string]device.Device { return m.devs }
 func (m *customMockNVMLInstance) FabricManagerSupported() bool      { return true }
 func (m *customMockNVMLInstance) FabricStateSupported() bool        { return false }
+func (m *customMockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *customMockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
@@ -204,6 +208,10 @@ type mockNVMLInstanceWithInitError struct {
 func (m *mockNVMLInstanceWithInitError) Devices() map[string]device.Device { return m.devs }
 func (m *mockNVMLInstanceWithInitError) FabricManagerSupported() bool      { return true }
 func (m *mockNVMLInstanceWithInitError) FabricStateSupported() bool        { return false }
+func (m *mockNVMLInstanceWithInitError) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNVMLInstanceWithInitError) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

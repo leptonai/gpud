@@ -38,6 +38,9 @@ func (m *customMockNVMLInstanceRR) FabricStateSupported() bool        { return f
 func (m *customMockNVMLInstanceRR) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return m.memCaps
 }
+func (m *customMockNVMLInstanceRR) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{MemoryManagement: m.memCaps, FabricManager: true}
+}
 func (m *customMockNVMLInstanceRR) ProductName() string   { return m.productName }
 func (m *customMockNVMLInstanceRR) Architecture() string  { return "" }
 func (m *customMockNVMLInstanceRR) Brand() string         { return "" }
@@ -380,12 +383,9 @@ func TestCheck_RemappingFailed_WithMockey(t *testing.T) {
 	})
 }
 
-// TestCheck_GPULostError_WithMockey tests Check when GPU lost error occurs
-// Note: When getRemappedRowsFunc returns an error, the component continues to next device
-// and the final health is determined by whether issues were found (not by the error itself).
-// The error IS stored in cr.err but health may be reset to Healthy if no issues found.
+// TestCheck_GPULostError_WithMockey verifies that a failed query remains unhealthy.
 func TestCheck_GPULostError_WithMockey(t *testing.T) {
-	mockey.PatchConvey("Check with GPU lost error - error is stored but health determined by issues", t, func() {
+	mockey.PatchConvey("Check with GPU lost error remains unhealthy", t, func() {
 		ctx := context.Background()
 
 		uuid := "gpu-uuid-lost"
@@ -414,18 +414,15 @@ func TestCheck_GPULostError_WithMockey(t *testing.T) {
 		cr, ok := result.(*checkResult)
 		require.True(t, ok)
 
-		// Error is stored in cr.err
-		assert.True(t, errors.Is(cr.err, nvmlerrors.ErrGPULost))
-		// Health is determined by issues at the end, since no issues found, it's Healthy
-		// (component continues past errors and resets health at end of Check)
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.ErrorIs(t, cr.err, nvmlerrors.ErrGPULost)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, "error getting remapped rows", cr.reason)
 	})
 }
 
-// TestCheck_GPURequiresReset_WithMockey tests Check when GPU requires reset
-// Note: Same as GPULost - error is stored but health is determined by issues at the end
+// TestCheck_GPURequiresReset_WithMockey verifies that a failed query remains unhealthy.
 func TestCheck_GPURequiresReset_WithMockey(t *testing.T) {
-	mockey.PatchConvey("Check with GPU requires reset - error is stored but health determined by issues", t, func() {
+	mockey.PatchConvey("Check with GPU requires reset remains unhealthy", t, func() {
 		ctx := context.Background()
 
 		uuid := "gpu-uuid-reset"
@@ -454,10 +451,9 @@ func TestCheck_GPURequiresReset_WithMockey(t *testing.T) {
 		cr, ok := result.(*checkResult)
 		require.True(t, ok)
 
-		// Error is stored
-		assert.True(t, errors.Is(cr.err, nvmlerrors.ErrGPURequiresReset))
-		// Health is determined by issues at the end
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.ErrorIs(t, cr.err, nvmlerrors.ErrGPURequiresReset)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, "error getting remapped rows", cr.reason)
 	})
 }
 

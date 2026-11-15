@@ -769,6 +769,9 @@ func (m *mockNVMLInstanceForMockey) FabricStateSupported() bool   { return false
 func (m *mockNVMLInstanceForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
+func (m *mockNVMLInstanceForMockey) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNVMLInstanceForMockey) ProductName() string   { return "Test GPU" }
 func (m *mockNVMLInstanceForMockey) Architecture() string  { return "" }
 func (m *mockNVMLInstanceForMockey) Brand() string         { return "" }
@@ -795,6 +798,9 @@ func (m *customMockNVMLInstanceForMockey) FabricStateSupported() bool        { r
 func (m *customMockNVMLInstanceForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return m.memoryErrorCapabilities
 }
+func (m *customMockNVMLInstanceForMockey) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{MemoryManagement: m.memoryErrorCapabilities, FabricManager: true}
+}
 func (m *customMockNVMLInstanceForMockey) ProductName() string   { return m.productName }
 func (m *customMockNVMLInstanceForMockey) Architecture() string  { return "" }
 func (m *customMockNVMLInstanceForMockey) Brand() string         { return "" }
@@ -818,6 +824,9 @@ func (m *mockNVMLInstanceWithInitErrorForMockey) FabricManagerSupported() bool  
 func (m *mockNVMLInstanceWithInitErrorForMockey) FabricStateSupported() bool        { return false }
 func (m *mockNVMLInstanceWithInitErrorForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
+}
+func (m *mockNVMLInstanceWithInitErrorForMockey) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{}
 }
 func (m *mockNVMLInstanceWithInitErrorForMockey) ProductName() string   { return "NVIDIA H100" }
 func (m *mockNVMLInstanceWithInitErrorForMockey) Architecture() string  { return "" }

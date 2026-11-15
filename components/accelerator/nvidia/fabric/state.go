@@ -31,11 +31,14 @@ func SuggestedActions(err error, health apiv1.HealthStateType) *apiv1.SuggestedA
 type Report struct {
 	Entries        []device.FabricStateEntry
 	AllUnsupported bool
-	Healthy        bool
-	Pending        bool
-	Failed         bool
-	Reason         string
-	Err            error
+	// AnySupported requires a successful query with fabric telemetry. A query
+	// error makes AllUnsupported false, but does not establish a fabric exists.
+	AnySupported bool
+	Healthy      bool
+	Pending      bool
+	Failed       bool
+	Reason       string
+	Err          error
 }
 
 func Collect(devices map[string]device.Device) Report {
@@ -71,6 +74,7 @@ func CollectWith(devices map[string]device.Device, get func(device.Device) (devi
 			(state.Status == nvml.SUCCESS || state.Status == nvml.ERROR_NOT_SUPPORTED || state.Status == nvml.ERROR_UNKNOWN) &&
 			state.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED && state.HealthMask == 0
 		r.AllUnsupported = r.AllUnsupported && unsupported
+		r.AnySupported = r.AnySupported || !unsupported
 		r.Entries = append(r.Entries, state.ToEntry(uuid))
 		issues := state.GetIssues()
 		if state.RegistrationPending() {
@@ -89,7 +93,15 @@ func CollectWith(devices map[string]device.Device, get func(device.Device) (devi
 }
 
 // UnsupportedWithoutFabric distinguishes an absent API from a failed fabric.
-// An explicit NVL72 topology or a detected switch still requires telemetry.
-func (r Report) UnsupportedWithoutFabric(product string, switchDetected bool) bool {
-	return r.AllUnsupported && !switchDetected && !strings.Contains(strings.ToLower(product), "nvl72")
+// An explicit NVL72/NVL8 topology, a detected switch, or resolved external-fabric
+// evidence still requires telemetry. An unsupported API cannot prove a known
+// rack fabric absent: NVIDIA requires Completed/Success fabric registration.
+// https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html#post-reboot-verification
+func (r Report) UnsupportedWithoutFabric(product string, switchDetected, externalFabricKnown bool) bool {
+	// NVL8's local switches need not appear on host PCIe. Its explicit profile
+	// establishes a fabric even when the driver cannot report registration;
+	// dropping that report would hide an all-links-down failure as Healthy.
+	p := strings.ToLower(product)
+	knownTopology := strings.Contains(p, "nvl72") || strings.Contains(p, "nvl8")
+	return r.AllUnsupported && !switchDetected && !externalFabricKnown && !knownTopology
 }

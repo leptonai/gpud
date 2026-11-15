@@ -33,6 +33,10 @@ type customMockNVMLInstanceSXID struct {
 func (m *customMockNVMLInstanceSXID) Devices() map[string]device.Device { return m.devs }
 func (m *customMockNVMLInstanceSXID) FabricManagerSupported() bool      { return true }
 func (m *customMockNVMLInstanceSXID) FabricStateSupported() bool        { return false }
+func (m *customMockNVMLInstanceSXID) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *customMockNVMLInstanceSXID) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

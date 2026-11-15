@@ -58,7 +58,10 @@ func createLibrary(opts ...OpOption) Library {
 
 	devLib := nvlibdevice.New(nvInterface.Interface)
 	nvInterface.dev = &devInterface{
-		Interface:                              devLib,
+		Interface: devLib,
+		lookupSymbol: func(name string) error {
+			return nvInterface.Interface.Extensions().LookupSymbol(name)
+		},
 		devices:                                options.devicesToReturn,
 		getRemappedRowsForAllDevs:              options.devGetRemappedRowsForAllDevs,
 		getCurrentClocksEventReasonsForAllDevs: options.devGetCurrentClocksEventReasonsForAllDevs,
@@ -88,6 +91,7 @@ var _ nvlibdevice.Interface = &devInterface{}
 
 type devInterface struct {
 	nvlibdevice.Interface
+	lookupSymbol                           func(string) error
 	devices                                []nvlibdevice.Device
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
@@ -115,6 +119,7 @@ func (d *devInterface) GetDevices() ([]nvlibdevice.Device, error) {
 	for i, dev := range devs {
 		updated[i] = &devDevInterface{
 			Device:                                 dev,
+			lookupSymbol:                           d.lookupSymbol,
 			getRemappedRowsForAllDevs:              d.getRemappedRowsForAllDevs,
 			getCurrentClocksEventReasonsForAllDevs: d.getCurrentClocksEventReasonsForAllDevs,
 		}
@@ -127,8 +132,50 @@ var _ nvlibdevice.Device = &devDevInterface{}
 
 type devDevInterface struct {
 	nvlibdevice.Device
+	lookupSymbol                           func(string) error
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
+}
+
+func (d *devDevInterface) GetArchitecture() (nvml.DeviceArchitecture, nvml.Return) {
+	// go-nvml calls this unversioned C symbol directly. Check the loaded library
+	// first so an older driver cannot terminate the process during lazy linking.
+	if d.lookupSymbol != nil && d.lookupSymbol("nvmlDeviceGetArchitecture") != nil {
+		return nvml.DEVICE_ARCH_UNKNOWN, nvml.ERROR_FUNCTION_NOT_FOUND
+	}
+	return d.Device.GetArchitecture()
+}
+
+// The memory-repair queries below are newer NVML entry points. go-nvml binds
+// each C symbol directly, so on a driver whose libnvidia-ml.so predates them the
+// first call fails lazy symbol resolution and terminates the process instead of
+// returning an error. Check the loaded library first and report
+// ERROR_FUNCTION_NOT_FOUND, which callers treat as "not supported".
+
+// GetBankRemapperStatus_v1 guards nvmlDeviceGetBankRemapperStatus_v1
+// (nvml.h: %RUBIN_OR_NEWER%).
+func (d *devDevInterface) GetBankRemapperStatus_v1() (nvml.EccBankRemapperStatus_v1, nvml.Return) {
+	if d.lookupSymbol != nil && d.lookupSymbol("nvmlDeviceGetBankRemapperStatus_v1") != nil {
+		return nvml.EccBankRemapperStatus_v1{}, nvml.ERROR_FUNCTION_NOT_FOUND
+	}
+	return d.Device.GetBankRemapperStatus_v1()
+}
+
+// GetRepairStatus guards nvmlDeviceGetRepairStatus (nvml.h: Ampere or newer).
+func (d *devDevInterface) GetRepairStatus() (nvml.RepairStatus, nvml.Return) {
+	if d.lookupSymbol != nil && d.lookupSymbol("nvmlDeviceGetRepairStatus") != nil {
+		return nvml.RepairStatus{}, nvml.ERROR_FUNCTION_NOT_FOUND
+	}
+	return d.Device.GetRepairStatus()
+}
+
+// GetUnrepairableMemoryFlag_v1 guards nvmlDeviceGetUnrepairableMemoryFlag_v1
+// (nvml.h: Hopper or newer).
+func (d *devDevInterface) GetUnrepairableMemoryFlag_v1() (nvml.UnrepairableMemoryStatus_v1, nvml.Return) {
+	if d.lookupSymbol != nil && d.lookupSymbol("nvmlDeviceGetUnrepairableMemoryFlag_v1") != nil {
+		return nvml.UnrepairableMemoryStatus_v1{}, nvml.ERROR_FUNCTION_NOT_FOUND
+	}
+	return d.Device.GetUnrepairableMemoryFlag_v1()
 }
 
 func (d *devDevInterface) GetRemappedRows() (int, int, bool, bool, nvml.Return) {

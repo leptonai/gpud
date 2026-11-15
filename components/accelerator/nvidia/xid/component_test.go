@@ -1014,6 +1014,14 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.
 	}
 }
 
+func (m *mockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{
+		MemoryManagement: m.GetMemoryErrorManagementCapabilities(),
+		FabricManager:    m.FabricManagerSupported(),
+		FabricState:      m.FabricStateSupported(),
+	}
+}
+
 func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }

@@ -124,6 +124,67 @@ func TestGetHealthMaskIssues(t *testing.T) {
 				uint32(nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY,
 			expected: []string{"access timeout recovery in progress"},
 		},
+		{
+			name:     "correct configuration is not an issue",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{},
+		},
+		{
+			name:     "incorrect configuration sysguid",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_SYSGUID) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=Incorrect System GUID"},
+		},
+		{
+			name:     "incorrect configuration chassis serial number",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_CHASSIS_SN) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=Incorrect Chassis Serial Number"},
+		},
+		{
+			name:     "incorrect configuration no partition",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NO_PARTITION) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=No Partition"},
+		},
+		{
+			name:     "incorrect configuration insufficient nvlinks",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=Insufficient NVLinks"},
+		},
+		{
+			name:     "incorrect configuration incompatible gpu firmware",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCOMPATIBLE_GPU_FW) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=Incompatible GPU Firmware"},
+		},
+		{
+			name:     "incorrect configuration invalid location",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=Invalid Location"},
+		},
+		{
+			name:     "incorrect configuration gpu state invalid",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_GPU_STATE_INVALID) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=GPU State Invalid"},
+		},
+		{
+			// Codes newer than the vendored nvml.h are still misconfigurations.
+			name:     "incorrect configuration unknown code",
+			mask:     uint32(9) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+			expected: []string{"incorrect configuration=Unknown(9)"},
+		},
+		{
+			name:     "partition not assigned alone is not an issue",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_FALSE) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_PARTITION_ASSIGNED,
+			expected: []string{},
+		},
+		{
+			name:     "gfm connected is not an issue",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_GFM_STATE_CONNECTED) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_GFM_STATE,
+			expected: []string{},
+		},
+		{
+			name:     "gfm disconnected",
+			mask:     uint32(nvml.GPU_FABRIC_HEALTH_MASK_GFM_STATE_DISCONNECTED) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_GFM_STATE,
+			expected: []string{"global fabric manager disconnected"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -142,13 +203,19 @@ func TestParseHealthMask(t *testing.T) {
 	mask := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
 		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
 		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
-		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_PARTITION_ASSIGNED |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_GFM_STATE_DISCONNECTED)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_GFM_STATE
 
 	health := ParseHealthMask(mask)
 	assert.Equal(t, "Full", health.Bandwidth)
 	assert.Equal(t, "False", health.RouteRecoveryProgress)
 	assert.Equal(t, "False", health.RouteUnhealthy)
 	assert.Equal(t, "True", health.AccessTimeoutRecovery)
+	assert.Equal(t, "Insufficient NVLinks", health.IncorrectConfiguration)
+	assert.Equal(t, "False", health.PartitionAssigned)
+	assert.Equal(t, "Disconnected", health.GFMState)
 }
 
 // TestDriverVersionGatingLogic tests the driver version comparison logic

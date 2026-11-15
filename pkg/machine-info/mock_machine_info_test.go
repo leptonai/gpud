@@ -60,6 +60,14 @@ func (m *mockNvmlInstanceForMockey) DriverMajor() int                  { return 
 func (m *mockNvmlInstanceForMockey) CUDAVersion() string               { return m.cudaVersion }
 func (m *mockNvmlInstanceForMockey) FabricManagerSupported() bool      { return m.fabricSupported }
 func (m *mockNvmlInstanceForMockey) FabricStateSupported() bool        { return m.fabricSupported }
+func (m *mockNvmlInstanceForMockey) Capabilities() nvidiaproduct.Capabilities {
+	// Preserve the fixture's fabric toggle for consumers of the unified capabilities.
+	return nvidiaproduct.Capabilities{
+		MemoryManagement: m.GetMemoryErrorManagementCapabilities(),
+		FabricManager:    m.fabricSupported,
+		FabricState:      m.fabricSupported,
+	}
+}
 func (m *mockNvmlInstanceForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
