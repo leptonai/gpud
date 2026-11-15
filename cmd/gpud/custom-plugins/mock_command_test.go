@@ -44,6 +44,10 @@ func (f *fakeNVMLInstance) CUDAVersion() string {
 }
 func (f *fakeNVMLInstance) FabricManagerSupported() bool { return false }
 func (f *fakeNVMLInstance) FabricStateSupported() bool   { return false }
+func (f *fakeNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (f *fakeNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

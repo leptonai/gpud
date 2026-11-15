@@ -37,6 +37,11 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	return nil
 }
 
+func (m *mockNVMLInstance) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
+
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{
 		ErrorContainment:     true,

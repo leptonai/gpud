@@ -42,9 +42,11 @@ changelog:
   use: github-native
 
 release:
+  # RC tags are hardware-test prereleases, not stable upgrades.
+  prerelease: auto
   draft: false
   replace_existing_draft: true
-  make_latest: true
+  make_latest: "{{ if .Prerelease }}false{{ else }}true{{ end }}"
   mode: replace
 
   github:

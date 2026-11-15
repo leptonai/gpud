@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -26,10 +27,15 @@ const (
 	// Name is the component name reported by the NVIDIA GPM checker.
 	Name = "accelerator-nvidia-gpm"
 
+	// EnvEnableGPM opts in to sampling after hardware qualification.
+	EnvEnableGPM = "GPUD_ENABLE_GPM"
+
 	sampleDuration = 5 * time.Second
 )
 
 var _ components.Component = &component{}
+
+var errSamplingDisabled = errors.New("GPM sampling disabled (set " + EnvEnableGPM + "=true)")
 
 var defaultGPMMetricIDs = []gonvml.GpmMetricId{
 	// By default, it tracks the SM occupancy metrics, with nvml.GPM_METRIC_SM_OCCUPANCY,
@@ -87,8 +93,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		nvmlInstance:        gpudInstance.NVMLInstance,
-		getGPMSupportedFunc: SupportedByDevice,
+		nvmlInstance: gpudInstance.NVMLInstance,
+		getGPMSupportedFunc: func(dev device.Device) (bool, error) {
+			// The binding update fixes GPM's version field and can newly activate
+			// sampling fleet-wide. Require opt-in until that path is hardware-qualified.
+			if os.Getenv(EnvEnableGPM) != "true" {
+				return false, errSamplingDisabled
+			}
+			return SupportedByDevice(dev)
+		},
 		getGPMMetricsFunc: func(ctx2 context.Context, dev device.Device) (map[gonvml.GpmMetricId]float64, error) {
 			return GetGPMMetrics(
 				ctx2,
@@ -202,6 +215,11 @@ func (c *component) Check() components.CheckResult {
 	// First, check if all GPUs support GPM
 	for uuid, dev := range devs {
 		supported, err := c.getGPMSupportedFunc(dev)
+		if errors.Is(err, errSamplingDisabled) {
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = errSamplingDisabled.Error()
+			return cr
+		}
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy

@@ -3,15 +3,25 @@ package scan
 import (
 	"github.com/leptonai/gpud/components"
 	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
+	infinibandtypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 type Op struct {
-	infinibandClassRootDir string
-	debug                  bool
-	failureInjector        *components.FailureInjector
+	infinibandClassRootDir       string
+	infinibandExpectedPortStates *infinibandtypes.ExpectedPortStates
+	debug                        bool
+	failureInjector              *components.FailureInjector
 }
 
 type OpOption func(*Op)
+
+// WithInfinibandExpectedPortStates gives the installed NIC inventory precedence
+// over a product profile. A non-nil zero value explicitly disables the threshold.
+func WithInfinibandExpectedPortStates(states infinibandtypes.ExpectedPortStates) OpOption {
+	return func(op *Op) {
+		op.infinibandExpectedPortStates = &states
+	}
+}
 
 func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {

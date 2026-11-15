@@ -311,17 +311,8 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
-		// row remapping pending/failure (Xid 63/64)
-		// can also be detected by NVML API (vs. kmsg scanning)
-		// thus we discard Xid 63/64 in favor of row remapping checks
-		// especially, NVIDIA row remapping pending can happen >3 times
-		// which warrants system reboots, before reaching its row remapping
-		// failures threshold which requires hardware inspection
-		// in other words, we do not want to blindly suggest hw inspection
-		// from Xid 63/64, while row remmaping pending may self-resolve
-		// after >3 times of system reboots
-		// this is why we here discard Xid 63/64 in favor of row remapping checks
-		if c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping && (xidErr.Xid == 63 || xidErr.Xid == 64) {
+		// Delegate only events covered by this GPU's row-remapping telemetry.
+		if c.rowRemappingOwnsXid(uint64(xidErr.Xid)) {
 			log.Logger.Warnw("discarding Xid 63/64 in favor of remapped-rows component", "xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
 			continue
 		}
@@ -558,17 +549,8 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-			// row remapping pending/failure (Xid 63/64)
-			// can also be detected by NVML API (vs. kmsg scanning)
-			// thus we discard Xid 63/64 in favor of row remapping checks
-			// especially, NVIDIA row remapping pending can happen >3 times
-			// which warrants system reboots, before reaching its row remapping
-			// failures threshold which requires hardware inspection
-			// in other words, we do not want to blindly suggest hw inspection
-			// from Xid 63/64, while row remmaping pending may self-resolve
-			// after >3 times of system reboots
-			// this is why we here discard Xid 63/64 in favor of row remapping checks
-			if c.nvmlInstance != nil && c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping && (xidErr.Xid == 63 || xidErr.Xid == 64) {
+			// Apply the same ownership as synchronous checks and event replay.
+			if c.rowRemappingOwnsXid(uint64(xidErr.Xid)) {
 				log.Logger.Warnw("discarding Xid 63/64 in favor of remapped-rows component", "xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
 				continue
 			}
@@ -719,9 +701,18 @@ func (c *component) updateCurrentState() error {
 	return nil
 }
 
-// eventsForHealth applies the same ownership as live kmsg ingestion to persisted
-// and NVSentinel events. An upgrade must not keep escalating old Xid 63/64 events
-// after remapped-rows has become responsible for that GPU's recovery policy.
+// rowRemappingOwnsXid limits delegation to failures covered by row telemetry.
+func (c *component) rowRemappingOwnsXid(code uint64) bool {
+	if c.nvmlInstance == nil || !c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping {
+		return false
+	}
+	// Keep memory recovery owned by the memory component for every family.
+	// Rubin bank/channel recovery needs hardware qualification before Xid 64
+	// alone can introduce a new reboot or hardware-inspection escalation policy.
+	return code == 63 || code == 64
+}
+
+// eventsForHealth applies the same ownership as live ingestion to stored events.
 // Stored events remain available for diagnostics.
 func (c *component) eventsForHealth(events eventstore.Events) eventstore.Events {
 	if c.nvmlInstance == nil || !c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping {
@@ -736,7 +727,7 @@ func (c *component) eventsForHealth(events eventstore.Events) eventstore.Events 
 				// Older stores encode only the numeric Xid.
 				detail.Xid, _ = strconv.ParseUint(raw, 10, 64)
 			}
-			if detail.Xid == 63 || detail.Xid == 64 {
+			if c.rowRemappingOwnsXid(detail.Xid) {
 				continue
 			}
 		}

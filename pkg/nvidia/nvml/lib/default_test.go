@@ -49,8 +49,11 @@ func TestNewDefaultMockAllSuccess(t *testing.T) {
 
 	// Test that device functions are available and succeed
 	devices, err := lib.Device().GetDevices()
-	assert.NoError(t, err)
-	assert.NotEmpty(t, devices)
+	require.NoError(t, err)
+	require.NotEmpty(t, devices)
+	arch, ret := devices[0].GetArchitecture()
+	require.Equal(t, nvml.SUCCESS, ret)
+	require.Equal(t, nvml.DeviceArchitecture(nvml.DEVICE_ARCH_AMPERE), arch)
 }
 
 // TestNewDefaultMultipleEnvVars tests the NewDefault function when multiple environment variables are set

@@ -380,6 +380,9 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		if i.GPUInfo.CliqueID != nil {
 			table.Append([]string{"GPU Fabric Clique ID", fmt.Sprintf("%d", *i.GPUInfo.CliqueID)})
 		}
+		for _, clique := range i.GPUInfo.Cliques {
+			table.Append([]string{"GPU Fabric " + clique.TypeName(), fmt.Sprintf("%d", clique.ID)})
+		}
 		if i.GPUInfo.ChassisSerial != "" {
 			table.Append([]string{"Chassis Serial", i.GPUInfo.ChassisSerial})
 		}
@@ -456,7 +459,8 @@ type MachineMemoryInfo struct {
 }
 
 type MachineGPUInfo struct {
-	// Product may be "NVIDIA-Graphics-Device" for NVIDIA GB200.
+	// Product is the driver name with whitespace normalized to hyphens.
+	// Development Blackwell and Rubin drivers may report "NVIDIA-Graphics-Device".
 	Product string `json:"product,omitempty"`
 
 	// Manufacturer is "NVIDIA" for NVIDIA GPUs (same as Brand).
@@ -473,10 +477,13 @@ type MachineGPUInfo struct {
 	// Collected with the NVML fabric state API. Empty when the node is not in
 	// an NVLink fabric.
 	ClusterUUID string `json:"clusterUUID,omitempty"`
-	// CliqueID is the GPU fabric clique ID ("Clique Id" in nvidia-smi -q).
-	// It identifies the clique of the node inside the NVLink fabric. A pointer
-	// preserves clique 0 as a reported value while nil means not reported.
+	// CliqueID retains the deprecated single-clique wire field for compatibility.
+	// With fabric-info V4 it is the first Unicast Pointer clique, never a logical
+	// endpoint clique. Nil means unavailable; a pointer preserves a valid zero.
 	CliqueID *uint32 `json:"cliqueID,omitempty"`
+	// Cliques contains the typed V4 assignments shared by every GPU on the node.
+	// Older APIs cannot supply this list; do not infer other types from CliqueID.
+	Cliques []GPUFabricClique `json:"cliques,omitempty"`
 	// ChassisSerial is the serial number of the chassis that contains the GPUs
 	// as reported by NVML platform info. Support and operations teams use it to
 	// find the physical hardware for repair or replacement.
@@ -485,6 +492,29 @@ type MachineGPUInfo struct {
 
 	// GPUs is the GPU info of the machine.
 	GPUs []MachineGPUInstance `json:"gpus,omitempty"`
+}
+
+// GPUFabricClique preserves NVML's (type, id) pair, including future types and
+// multiple assignments of one type. IDs from different types are not interchangeable.
+type GPUFabricClique struct {
+	Type uint8  `json:"type"`
+	ID   uint32 `json:"id"`
+}
+
+// TypeName returns the nvidia-smi label for a fabric clique type.
+func (c GPUFabricClique) TypeName() string {
+	switch c.Type {
+	case 0:
+		return "Unicast Pointer"
+	case 1:
+		return "Multicast Pointer"
+	case 2:
+		return "Unicast LE"
+	case 3:
+		return "Multicast LE"
+	default:
+		return fmt.Sprintf("Unknown Type %d", c.Type)
+	}
 }
 
 type MachineGPUInstance struct {

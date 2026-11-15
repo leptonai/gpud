@@ -33,6 +33,9 @@ type namedFabricTestInstance struct {
 }
 
 func (n *namedFabricTestInstance) ProductName() string { return n.name }
+func (n *namedFabricTestInstance) Capabilities() product.Capabilities {
+	return product.CapabilitiesForGPU(n.name, n.Architecture(), product.HostLinkUnknown)
+}
 
 func (*fabricTestInstance) FabricStateSupported() bool { return true }
 
