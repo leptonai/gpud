@@ -1,13 +1,13 @@
 # Install GPUd
 
-To install from the official release:
+To install the latest stable release:
 
 ```bash
 curl -fsSL https://pkg.gpud.dev/install.sh | sh
 gpud up
 ```
 
-To install the latest published version explicitly:
+To install the latest unstable release (including release candidates) explicitly:
 
 ```bash
 curl -fsSL https://pkg.gpud.dev/install.sh | sh -s $(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)
