@@ -91,7 +91,7 @@ func TestUpdateRunner_WithMockedRunCommand(t *testing.T) {
 					return nil
 				}
 				if arg == "shouldSkip" {
-					return errors.New("no skip")
+					return exitStatus(1)
 				}
 			case "upgrade.sh":
 				if arg == "version" {
@@ -101,7 +101,7 @@ func TestUpdateRunner_WithMockedRunCommand(t *testing.T) {
 					return nil
 				}
 				if arg == "shouldSkip" {
-					return errors.New("no skip")
+					return exitStatus(1)
 				}
 				if arg == "upgrade" {
 					select {
@@ -174,7 +174,7 @@ func TestUpdateRunner_UpgradesRecoveredPackageWithoutInstallDependencies(t *test
 				*result = "1.0.0"
 				return nil
 			case "shouldSkip":
-				return errors.New("no skip")
+				return exitStatus(1)
 			case "upgrade":
 				select {
 				case upgradeCalled <- struct{}{}:
@@ -295,17 +295,17 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			case "dep.sh":
 				switch arg {
 				case "shouldSkip":
-					return errors.New("no skip")
+					return exitStatus(1)
 				case "isInstalled":
 					return nil
 				}
 			case "missing.sh":
 				switch arg {
 				case "shouldSkip":
-					return errors.New("no skip")
+					return exitStatus(1)
 				case "isInstalled":
 					missingProbeCalls.Add(1)
-					return errors.New("not installed")
+					return exitStatus(1)
 				case "install":
 					missingInstallCalls.Add(1)
 					return nil
@@ -316,10 +316,10 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			case "version.sh":
 				switch arg {
 				case "shouldSkip":
-					return errors.New("no skip")
+					return exitStatus(1)
 				case "isInstalled":
 					oldVersionProbeCalls.Add(1)
-					return errors.New("not installed")
+					return exitStatus(1)
 				case "install":
 					oldVersionInstallCalls.Add(1)
 					return nil
@@ -330,10 +330,10 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			case "uninstalled-dep.sh":
 				switch arg {
 				case "shouldSkip":
-					return errors.New("no skip")
+					return exitStatus(1)
 				case "isInstalled":
 					uninstalledDepProbeCalls.Add(1)
-					return errors.New("not installed")
+					return exitStatus(1)
 				case "install":
 					uninstalledDepInstallCalls.Add(1)
 					return nil
@@ -344,10 +344,10 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			case "needs-recovered-dep.sh":
 				switch arg {
 				case "shouldSkip":
-					return errors.New("no skip")
+					return exitStatus(1)
 				case "isInstalled":
 					recoveredDependentProbeCalls.Add(1)
-					return errors.New("not installed")
+					return exitStatus(1)
 				case "install":
 					recoveredDependentInstallCalls.Add(1)
 					return nil
@@ -360,11 +360,11 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 				case "shouldSkip":
 					return nil
 				case "isInstalled":
-					return errors.New("not installed")
+					return exitStatus(1)
 				}
 			case "installed-with-missing-dep.sh":
 				if arg == "shouldSkip" {
-					return errors.New("no skip")
+					return exitStatus(1)
 				}
 				if arg == "isInstalled" {
 					installedProbeCalls.Add(1)
@@ -380,10 +380,10 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 				}
 			case "install.sh":
 				if arg == "shouldSkip" {
-					return errors.New("no skip")
+					return exitStatus(1)
 				}
 				if arg == "isInstalled" {
-					return errors.New("not installed")
+					return exitStatus(1)
 				}
 				if arg == "install" {
 					select {
@@ -403,7 +403,7 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 				switch arg {
 				case "shouldSkip":
 					installingShouldSkipCalls.Add(1)
-					return errors.New("no skip")
+					return exitStatus(1)
 				case "isInstalled":
 					installingProbeCalls.Add(1)
 					return nil
@@ -547,9 +547,9 @@ func TestInstallRunner_RecoveryProbeTimeoutDoesNotBlockFollowingPackage(t *testi
 					if installComplete.Load() {
 						return nil
 					}
-					return errors.New("not installed")
+					return exitStatus(1)
 				case "shouldSkip":
-					return errors.New("no skip")
+					return exitStatus(1)
 				case "install":
 					installComplete.Store(true)
 					select {
@@ -618,7 +618,7 @@ func TestStatusRunner_ChecksRecoveryOnlyPackageWithoutRestart(t *testing.T) {
 			mockCalls.Add(1)
 			switch arg {
 			case "shouldSkip":
-				return errors.New("no skip")
+				return exitStatus(1)
 			case "status":
 				switch filepath.Base(script) {
 				case "recovered-ok.sh":
@@ -702,14 +702,14 @@ func TestStatusAndDeleteRunner_WithMockedRunCommand(t *testing.T) {
 				}
 			case "ok.sh":
 				if arg == "shouldSkip" {
-					return errors.New("no skip")
+					return exitStatus(1)
 				}
 				if arg == "status" {
 					return nil
 				}
 			case "restart-stop.sh":
 				if arg == "shouldSkip" {
-					return errors.New("no skip")
+					return exitStatus(1)
 				}
 				if arg == "status" {
 					return errors.New("status failed")
@@ -723,7 +723,7 @@ func TestStatusAndDeleteRunner_WithMockedRunCommand(t *testing.T) {
 				}
 			case "restart-start.sh":
 				if arg == "shouldSkip" {
-					return errors.New("no skip")
+					return exitStatus(1)
 				}
 				if arg == "status" {
 					return errors.New("status failed")
