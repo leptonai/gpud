@@ -12,6 +12,12 @@ func OpenTestDB(t *testing.T) (*sql.DB, *sql.DB, func()) {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 
+	// SQLite opens its own connections; do not leak the CreateTemp descriptor.
+	if err := tmpf.Close(); err != nil {
+		_ = os.Remove(tmpf.Name())
+		t.Fatalf("failed to close temp file: %v", err)
+	}
+
 	dbRW, err := Open(tmpf.Name())
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)

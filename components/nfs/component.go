@@ -71,6 +71,9 @@ type component struct {
 	// lookbackPeriod controls how far back to query NFS kernel messages.
 	lookbackPeriod time.Duration
 
+	recoveryRunner pkgnfschecker.RecoveryRunner
+	recoverNFS     func(context.Context, pkgnfschecker.RecoveryRequest) error
+
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
@@ -260,10 +263,18 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	// Check kernel messages before probing: open()/write() can block on an
+	// A kernel OK or manual reset must not bypass a worker still blocked in I/O.
+	if c.recoveryRunner.IsRunning() {
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = "previous NFS recovery probe is still running"
+		return cr
+	}
+
+	// Check kernel messages before ordinary probing: open()/write() can block on an
 	// unavailable NFS mount. These signals do not prove a persistent client
 	// hang or local hardware failure. A client reboot cannot fix a server or
 	// network outage, so report Degraded without recommending node repair.
+	// Server warnings may be revalidated only by the bounded recovery worker.
 	if c.eventBucket != nil {
 		evs, err := c.eventBucket.Get(c.ctx, cr.ts.Add(-c.lookbackPeriod))
 		if err != nil {
@@ -291,6 +302,7 @@ func (c *component) Check() components.CheckResult {
 				if len(hangEvents) > 0 {
 					cr.health = apiv1.HealthStateTypeDegraded
 					cr.reason = hangReason
+					c.checkRecovery(cr, hangEvents, evs)
 					return cr
 				}
 				// With no qualifying messages after the latest reboot, use

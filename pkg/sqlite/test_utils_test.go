@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -43,39 +42,24 @@ func TestOpenTestDB(t *testing.T) {
 	})
 
 	t.Run("cleanup removes temp file", func(t *testing.T) {
-		// Get temp dir path for verification
-		tempDir := os.TempDir()
-
-		// Open test DB
-		_, _, cleanup := OpenTestDB(t)
-
-		// Count SQLite files in temp dir before cleanup
-		beforeCount := countSQLiteFiles(t, tempDir)
-
-		// Run cleanup
+		dbRW, _, cleanup := OpenTestDB(t)
+		defer cleanup()
+		var seq int
+		var name, path string
+		if err := dbRW.QueryRow("PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
+			t.Fatal(err)
+		}
+		if name != "main" || path == "" {
+			t.Fatalf("unexpected database: %q %q", name, path)
+		}
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("database file missing before cleanup: %v", err)
+		}
 		cleanup()
-
-		// Count SQLite files after cleanup
-		afterCount := countSQLiteFiles(t, tempDir)
-
-		if afterCount >= beforeCount {
-			t.Error("Cleanup did not remove temporary database file")
+		// Other packages create databases concurrently. Check this database's path,
+		// not the process-wide temp-directory file count.
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("database file still present after cleanup: %v", err)
 		}
 	})
-}
-
-// Helper function to count SQLite test files in directory
-func countSQLiteFiles(t *testing.T, dir string) int {
-	count := 0
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("Failed to read temp directory: %v", err)
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Base(entry.Name()) != "" && len(entry.Name()) >= 11 && entry.Name()[:11] == "test-sqlite" {
-			count++
-		}
-	}
-	return count
 }
