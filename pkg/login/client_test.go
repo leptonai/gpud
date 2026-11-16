@@ -65,7 +65,7 @@ func TestSendRequest_Success(t *testing.T) {
 }
 
 // The proof from the previous login goes in a header the control plane can
-// check, and never in the JSON body that the client debug-logs.
+// check, without adding it to the JSON request body.
 func TestSendRequest_SendsMachineProofHeaderOnly(t *testing.T) {
 	var gotHeader, gotBody string
 	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

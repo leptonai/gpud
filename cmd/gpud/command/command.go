@@ -94,8 +94,10 @@ nohup sudo gpud run &>> <your log file path> &
 
 				// optional, only required for logging into platform/control plane
 				cli.StringFlag{
-					Name:  "token",
-					Usage: "(optional) https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton workspace token for checking in",
+					Name: "token",
+					// Keep enrollment credentials out of process arguments in container deployments.
+					EnvVar: "GPUD_TOKEN",
+					Usage:  "(optional) https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton workspace token for checking in",
 				},
 				cli.StringFlag{
 					Name:  "private-ip",
@@ -217,7 +219,9 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "when login is configured, fail before registration if NVIDIA GPU hardware is present but the NVIDIA driver or NVML is unavailable",
 				},
 				&cli.StringFlag{
-					Name:   "token",
+					Name: "token",
+					// Keep enrollment credentials out of process arguments in container deployments.
+					EnvVar: "GPUD_TOKEN",
 					Hidden: true,
 					Usage:  "(optional) token for control plane",
 				},

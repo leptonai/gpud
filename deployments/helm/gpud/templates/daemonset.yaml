@@ -456,22 +456,31 @@ spec:
 
               # A token Secret (gpud.tokenSecret) is injected as GPUD_TOKEN and
               # takes priority over any token node label. This supports clusters
-              # that store the gpud session token in a Secret rather than a label.
+              # that store the enrollment token in a Secret rather than a label.
               if [ -n "${GPUD_TOKEN:-}" ]; then
                 TOKEN="$GPUD_TOKEN"
               fi
 
               # Token vs machine-id are intentionally sourced differently:
-              #   --token: a SHARED, cluster/node-group enrollment credential
+              #   GPUD_TOKEN: a SHARED, cluster/node-group enrollment credential
               #     ("may I join?"). Every node uses the same token (from the
               #     gpud.tokenSecret Secret, or a token label). It does NOT
               #     identify the machine.
               #   --machine-id: the UNIQUE per-node identity ("who am I?"), read
               #     from each node's machine-id label. Passing it keeps the node
               #     registered as the SAME machine across restarts/replacement.
+              # Pass the credential through the environment so neither the startup
+              # log nor the process argument list contains its value.
+              token_status="unset"
               if [ -n "$TOKEN" ]; then
-                set -- "$@" --token="$TOKEN"
+                export GPUD_TOKEN="$TOKEN"
+                token_status="set"
+              else
+                # An empty environment variable still counts as an explicit CLI
+                # input; leave it absent so tokenless starts continue to skip login.
+                unset GPUD_TOKEN
               fi
+              unset TOKEN
               if [ -n "$MID" ]; then
                 set -- "$@" --machine-id="$MID"
               fi
@@ -514,15 +523,9 @@ spec:
               set -- "$@" --nvsentinel-endpoint="{{ .Values.gpud.nvsentinel.socketPath }}"
               {{- end }}
 
-              # Log the command for debugging, then exec to replace shell with gpud.
-              # Keep the multi-line reboot script out of the startup log; gpud logs it
-              # when a reboot request actually schedules and executes it.
-              start_log_args="$*"
-
               # The chart default sets a host-namespace reboot script. Users can
               # set gpud.rebootCommands="" to preserve gpud's built-in sudo reboot path.
               if [ -n "${GPUD_REBOOT_COMMANDS:-}" ]; then
-                start_log_args="$start_log_args --reboot-commands=<set>"
                 set -- "$@" --reboot-commands="$GPUD_REBOOT_COMMANDS"
               fi
 
@@ -531,15 +534,12 @@ spec:
               # overlay. Users can set the corresponding gpud.*Commands value to
               # "" to preserve gpud's built-in in-namespace behavior.
               if [ -n "${GPUD_FINDMNT_COMMANDS:-}" ]; then
-                start_log_args="$start_log_args --findmnt-commands=<set>"
                 set -- "$@" --findmnt-commands="$GPUD_FINDMNT_COMMANDS"
               fi
               if [ -n "${GPUD_LSBLK_COMMANDS:-}" ]; then
-                start_log_args="$start_log_args --lsblk-commands=<set>"
                 set -- "$@" --lsblk-commands="$GPUD_LSBLK_COMMANDS"
               fi
               if [ -n "${GPUD_BLOCKDEV_USAGE_COMMANDS:-}" ]; then
-                start_log_args="$start_log_args --blockdev-usage-commands=<set>"
                 set -- "$@" --blockdev-usage-commands="$GPUD_BLOCKDEV_USAGE_COMMANDS"
               fi
 
@@ -550,11 +550,9 @@ spec:
               # without preventing this DaemonSet pod from starting. Systemd
               # installations do not use this Helm-only default.
               if [ -n "${GPUD_NFS_HOST_ROOT:-}" ]; then
-                start_log_args="$start_log_args --nfs-host-root=$GPUD_NFS_HOST_ROOT"
                 set -- "$@" --nfs-host-root="$GPUD_NFS_HOST_ROOT"
               fi
               if [ -n "${GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS:-}" ]; then
-                start_log_args="$start_log_args --containerd-service-active-commands=<set>"
                 set -- "$@" --containerd-service-active-commands="$GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS"
               fi
 
@@ -566,7 +564,8 @@ spec:
               {{- end }}
 
               # Using exec ensures gpud receives signals directly (important for graceful shutdown).
-              echo "Starting: /usr/local/bin/gpud $start_log_args"
+              # Never reconstruct a log from argv: future flags can carry secrets too.
+              printf 'Starting: /usr/local/bin/gpud run (token=<%s>)\n' "$token_status"
               exec /usr/local/bin/gpud "$@"
 {{- end }}
 
@@ -574,7 +573,7 @@ spec:
             - name: GPUD_NO_USAGE_STATS
               value: {{ not .Values.gpud.telemetry.enabled | quote }}
             {{- if .Values.gpud.tokenSecret.name }}
-            # Session token sourced from an existing Secret (takes priority over a
+            # Enrollment token sourced from an existing Secret (takes priority over a
             # token node label). Consumed by the startup script as $GPUD_TOKEN.
             - name: GPUD_TOKEN
               valueFrom:

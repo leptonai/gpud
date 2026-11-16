@@ -130,13 +130,15 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return &resp, fmt.Errorf("unexpected status code %d (%s)", httpResp.StatusCode, string(body))
+		// Response bodies can contain credentials; callers still receive the structured response.
+		return &resp, fmt.Errorf("unexpected status code %d", httpResp.StatusCode)
 	}
 
 	if resp.MachineID == "" {
 		return &resp, ErrEmptyMachineID
 	}
 
-	log.Logger.Debugw("login request processed", "data", string(b), "endpointURL", endpointURL, "machineID", resp.MachineID)
+	// The serialized request contains the enrollment token and must never reach logs.
+	log.Logger.Debugw("login request processed", "endpointURL", endpointURL, "machineID", resp.MachineID)
 	return &resp, nil
 }

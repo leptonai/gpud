@@ -49,10 +49,10 @@ gpud:
   # Leave empty to detect the region from provider metadata or DERP latency.
   region: ""
 
-  # Optional: read the gpud session token from a Secret instead of a node label.
+  # Optional: read the gpud enrollment token from a Secret instead of a node label.
   # Set create=true and value to have this chart create the Secret, or leave
   # create=false to reference an existing Secret. When name is set, the token is
-  # injected as the TOKEN env via secretKeyRef and takes priority over any token
+  # injected as GPUD_TOKEN via secretKeyRef and takes priority over any token
   # node label. Leave name empty to rely on the node label or no token.
   #
   # TOKEN MODEL: this is a SHARED, cluster/node-group-level enrollment credential.
