@@ -138,6 +138,10 @@ const (
 	// regex for PCI device header/first line
 	// no leading whitespace, the ID always in these formats:
 	// [HEXADECIMAL]:[HEXADECIMAL].[HEXADECIMAL] [any string ...]
+	// [DOMAIN]:[HEXADECIMAL]:[HEXADECIMAL].[HEXADECIMAL] [any string ...]
+	//
+	// lspci prints the PCI domain ("%04x", at least 4 hex digits) for every
+	// device when any device is outside domain 0, or when "-D" is set.
 	//
 	// e.g.,
 	// 00:0e.0 PCI ...
@@ -145,7 +149,8 @@ const (
 	// 85:00.0 Bridge ...
 	// ec:00.0 System ...
 	// ff:1e.7 System
-	pciDeviceHeaderRegex = `^[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F]{1} [^\s]+`
+	// 0009:01:00.0 3D controller ...
+	pciDeviceHeaderRegex = `^(?:[0-9a-fA-F]{4,8}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F]{1} [^\s]+`
 
 	// regex for "Access Control Services", which may have leading spaces or tabs
 	// e.g.,
