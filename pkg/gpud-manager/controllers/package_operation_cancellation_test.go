@@ -5,7 +5,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -64,7 +63,7 @@ func TestCanceledAsyncPackageInstallCanRetry(t *testing.T) {
 				starts.Add(1)
 				return nil
 			default:
-				return errors.New("not installed")
+				return exitStatus(1)
 			}
 		}).Build()
 		ctx, cancel := context.WithCancel(context.Background())

@@ -63,7 +63,10 @@ func TestPackageStatusRecoveryIsAtomic(t *testing.T) {
 					// Commands must not run with the controller state mutex held.
 					_, err := c.Status(ctx)
 					assert.NoError(t, err)
-					if arg == "shouldSkip" || arg == "status" || arg == failedCommand {
+					if arg == "shouldSkip" {
+						return exitStatus(1)
+					}
+					if arg == "status" || arg == failedCommand {
 						return errors.New("command failed")
 					}
 					return nil
@@ -114,7 +117,7 @@ func TestPackageInstallRetainsAsyncLock(t *testing.T) {
 						}
 						return nil
 					default:
-						return errors.New("not installed")
+						return exitStatus(1)
 					}
 				}).Build()
 				c.installPackage(context.Background(), pkg)

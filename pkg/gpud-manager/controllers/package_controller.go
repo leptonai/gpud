@@ -158,7 +158,13 @@ func (c *PackageController) updatePackage(ctx context.Context, pkg *packages.Pac
 	c.Unlock()
 
 	var shouldSkipResult string
-	if err = runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+	skipErr := runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult)
+	skip, answered := skipProbeResult(skipErr)
+	if !answered {
+		log.Logger.Warnw("[package controller] skip probe gave no answer, skipping update", "name", pkg.Name, "error", skipErr)
+		return
+	}
+	if skip {
 		c.Lock()
 		c.packageStatus[pkg.Name].Skipped = true
 		c.Unlock()
@@ -330,16 +336,16 @@ func (c *PackageController) installPackage(ctx context.Context, pkg *packages.Pa
 	probeCtx, cancel := context.WithTimeout(ctx, c.recoveryProbeTimeout)
 	var shouldSkipResult string
 	skipErr := runCommand(probeCtx, scriptPath, "shouldSkip", &shouldSkipResult)
-	probeErr := probeCtx.Err()
 	cancel()
-	if probeErr != nil {
+	skip, answered := skipProbeResult(skipErr)
+	if !answered {
 		c.Lock()
 		delete(c.runtimeValidationFailed, pkg.Name)
 		c.Unlock()
-		log.Logger.Warnw("[package controller] skip probe interrupted", "name", pkg.Name, "error", probeErr)
+		log.Logger.Warnw("[package controller] skip probe gave no answer", "name", pkg.Name, "error", skipErr)
 		return
 	}
-	if skipErr == nil {
+	if skip {
 		c.Lock()
 		c.packageStatus[pkg.Name].Skipped = true
 		delete(c.runtimeValidationFailed, pkg.Name)
@@ -356,7 +362,15 @@ func (c *PackageController) installPackage(ctx context.Context, pkg *packages.Pa
 	if ctx.Err() != nil {
 		return
 	}
-	if err == nil {
+	code, exited := probeExitCode(err)
+	if !exited {
+		c.Lock()
+		delete(c.runtimeValidationFailed, pkg.Name)
+		c.Unlock()
+		log.Logger.Warnw("[package controller] installation probe gave no answer", "name", pkg.Name, "error", err)
+		return
+	}
+	if code == 0 {
 		c.Lock()
 		delete(c.runtimeValidationFailed, pkg.Name)
 		c.packageStatus[pkg.Name].Progress = 100
@@ -502,7 +516,13 @@ func (c *PackageController) statusPackage(ctx context.Context, pkg *packages.Pac
 	}
 
 	var shouldSkipResult string
-	if err := runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+	skipErr := runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult)
+	skip, answered := skipProbeResult(skipErr)
+	if !answered {
+		log.Logger.Warnw("[package controller] skip probe gave no answer, skipping status check", "name", pkg.Name, "error", skipErr)
+		return
+	}
+	if skip {
 		c.Lock()
 		c.packageStatus[pkg.Name].Skipped = true
 		c.packageStatus[pkg.Name].Status = true
@@ -538,6 +558,46 @@ func (c *PackageController) statusPackage(ctx context.Context, pkg *packages.Pac
 	}
 	if err = runCommand(ctx, scriptPath, "start", nil); err != nil {
 		log.Logger.Errorf("[package controller]: %v unexpected start failure: %v", pkg.Name, err)
+	}
+}
+
+// probeExitCode returns the exit status of a probe such as shouldSkip or
+// isInstalled, and whether the probe ran to completion. A probe that could not
+// start, was killed by a signal, or was cut short by its context gives no
+// answer, so callers must not act on it.
+func probeExitCode(err error) (int, bool) {
+	if err == nil {
+		return 0, true
+	}
+	// Wait returns ErrWaitDelay only after a successful exit, when the output
+	// pipes stayed open past WaitDelay (a descendant held them, or the reader
+	// was descheduled). The exit status is still the probe's answer.
+	if errors.Is(err, exec.ErrWaitDelay) {
+		return 0, true
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.Exited() {
+		return exitErr.ExitCode(), true
+	}
+	return 0, false
+}
+
+// skipProbeResult interprets a shouldSkip run. Exit 0 skips the package and
+// exit 1 does not, which is also what a script without a shouldSkip command
+// returns. Any other outcome answers neither way: treating it as "do not skip"
+// could install, upgrade or restart a package that the node opted out of.
+func skipProbeResult(err error) (skip bool, answered bool) {
+	code, exited := probeExitCode(err)
+	if !exited {
+		return false, false
+	}
+	switch code {
+	case 0:
+		return true, true
+	case 1:
+		return false, true
+	default:
+		return false, false
 	}
 }
 
