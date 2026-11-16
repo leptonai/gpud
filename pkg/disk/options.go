@@ -11,12 +11,13 @@ type Op struct {
 	matchFuncMountPoint MatchFunc
 	skipUsage           bool
 	statTimeout         time.Duration
+	fstypeName          string
 
 	// findmntCommand overrides how the "findmnt" binary is invoked.
 	// Empty preserves the default behavior of locating "findmnt" on PATH and
 	// running it directly in the current namespace. When set, it is used as the
 	// command prefix (e.g. "nsenter --target 1 --mount -- findmnt") and gpud
-	// appends the flags it controls (--target, --json, --df).
+	// appends the flags for usage queries or metadata-only mount inventory.
 	findmntCommand string
 
 	// lsblkCommand overrides how the "lsblk" binary is invoked.
@@ -92,6 +93,15 @@ func WithMountPoint(matchFunc MatchFunc) OpOption {
 func WithSkipUsage() OpOption {
 	return func(op *Op) {
 		op.skipUsage = true
+	}
+}
+
+// WithFstypeName selects a filesystem type before collecting usage, including
+// in configured df commands. An empty name leaves filesystem types unfiltered.
+func WithFstypeName(name string) OpOption {
+	return func(op *Op) {
+		op.fstypeName = name
+		op.matchFuncFstype = func(fs string) bool { return name == "" || fs == name }
 	}
 }
 

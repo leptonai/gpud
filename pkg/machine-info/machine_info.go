@@ -213,25 +213,18 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 
 	commands := getDiskCommands()
 	var usage *disk.Usage
-	if commands.blockdevUsageCommand == "" {
+	if currentGOOS() != "linux" && commands.blockdevUsageCommand == "" {
 		var err error
 		usage, err = disk.GetUsage(ctx, "/")
 		if err != nil {
 			return "", fmt.Errorf("failed to get disk usage: %w", err)
 		}
 	} else {
-		partitions, err := disk.GetPartitions(
-			ctx,
-			disk.WithMountPoint(func(mountPoint string) bool { return mountPoint == "/" }),
-			disk.WithBlockdevUsageCommand(commands.blockdevUsageCommand),
-		)
+		var err error
+		usage, err = disk.GetUsageWithCommand(ctx, "/", commands.blockdevUsageCommand)
 		if err != nil {
 			return "", fmt.Errorf("failed to get disk usage: %w", err)
 		}
-		if len(partitions) == 0 || partitions[0].Usage == nil {
-			return "", fmt.Errorf("failed to get disk usage: root partition not found")
-		}
-		usage = partitions[0].Usage
 	}
 
 	qty := resource.NewQuantity(uint64ToInt64Capped(usage.TotalBytes), resource.DecimalSI)
@@ -731,18 +724,22 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 		})
 	}
 
-	// track nfs partitions only with available fields
+	// Remote inventory must not depend on filesystem responsiveness. Usage and
+	// reachability belong to the background health checks, not login or gossip.
 	if currentGOOS() == "linux" {
 		timeoutCtx, cancel := context.WithTimeout(ctx, diskPartitionsTimeout)
-		nfsParts, err := disk.GetPartitions(
+		nfsParts, err := disk.GetMounts(
 			timeoutCtx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 			disk.WithMountPoint(disk.DefaultMountPointFunc),
-			disk.WithBlockdevUsageCommand(commands.blockdevUsageCommand),
+			disk.WithFindmntCommand(commands.findmntCommand),
 		)
 		cancel()
 		if err != nil {
-			return nil, err
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			log.Logger.Warnw("failed to collect remote mount inventory", "error", err)
 		}
 		for _, part := range nfsParts {
 			dev := apiv1.MachineDiskDevice{
@@ -751,9 +748,9 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 				MountPoint: part.MountPoint,
 				FSType:     part.Fstype,
 			}
-			if part.Usage != nil {
-				dev.Size = uint64ToInt64Capped(part.Usage.TotalBytes)
-				dev.Used = uint64ToInt64Capped(part.Usage.UsedBytes)
+			if usage := disk.CachedNFSUsage(commands.blockdevUsageCommand, part); usage != nil {
+				dev.Size = uint64ToInt64Capped(usage.TotalBytes)
+				dev.Used = uint64ToInt64Capped(usage.UsedBytes)
 			}
 			rs = append(rs, dev)
 		}
@@ -764,30 +761,19 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	}
 
 	if currentGOOS() == "linux" {
-		kubeletRootExists := commands.findmntCommand != ""
-		if !kubeletRootExists {
-			_, serr := os.Stat("/var/lib/kubelet")
-			if serr != nil && !os.IsNotExist(serr) {
-				return nil, serr
-			}
-			kubeletRootExists = serr == nil
+		// This optional lookup may need to resolve a path on an unresponsive
+		// mount. Keep all path resolution in a bounded subprocess, and do not
+		// request usage merely to identify the backing device.
+		timeoutCtx, cancel := context.WithTimeout(ctx, diskPartitionsTimeout)
+		source, err := disk.FindMountSource(timeoutCtx, "/var/lib/kubelet", commands.findmntCommand)
+		cancel()
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-		if kubeletRootExists {
-			var out *disk.FindMntOutput
-			var err error
-			if commands.findmntCommand == "" {
-				out, err = disk.FindMnt(ctx, "/var/lib/kubelet")
-			} else {
-				out, err = disk.FindMntWithCommand(ctx, "/var/lib/kubelet", commands.findmntCommand)
-			}
-			if err != nil {
-				if commands.findmntCommand == "" {
-					return nil, err
-				}
-				log.Logger.Warnw("failed to find container root disk", "error", err)
-			} else if len(out.Filesystems) > 0 && len(out.Filesystems[0].Sources) > 0 {
-				info.ContainerRootDisk = out.Filesystems[0].Sources[0]
-			}
+		if err != nil {
+			log.Logger.Debugw("failed to find container root disk", "error", err)
+		} else {
+			info.ContainerRootDisk = source
 		}
 	}
 

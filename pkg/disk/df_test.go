@@ -2,7 +2,11 @@ package disk
 
 import (
 	"context"
+	"os/exec"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +21,45 @@ func TestRunDfCommandExecutes(t *testing.T) {
 	out, err := runDfCommand(context.Background(), "echo disk-ok")
 	require.NoError(t, err)
 	assert.Contains(t, out, "disk-ok")
+}
+
+func TestGetUsageWithCommandTargetsOneFilesystem(t *testing.T) {
+	command := diskCommandFixture(t, `
+[ "$#" -eq 5 ] && [ "$1 $2 $3 $4" = '-T -B1 -P --' ] || exit 9
+[ "$5" = "$EXPECTED_TARGET" ] || exit 10
+printf '%s\n' 'Filesystem Type 1B-blocks Used Available Capacity Mounted on' '/dev/root ext4 1000 400 600 40% /'
+`)
+	for _, target := range []string{"/", "/mount with spaces", "/mount'$(exit 99)`exit 99`"} {
+		t.Run(target, func(t *testing.T) {
+			t.Setenv("EXPECTED_TARGET", target)
+			usage, err := GetUsageWithCommand(context.Background(), target, command)
+			require.NoError(t, err)
+			assert.Equal(t, &Usage{TotalBytes: 1000, UsedBytes: 400, FreeBytes: 600}, usage)
+		})
+	}
+}
+
+func TestGetUsageWithCommandRejectsMissingUsage(t *testing.T) {
+	for _, output := range []string{"", "Filesystem Type 1B-blocks Used Available Capacity Mounted on", "/dev/root ext4 invalid 0 0 0% /"} {
+		t.Run(output, func(t *testing.T) {
+			t.Setenv("DF_OUTPUT", output)
+			usage, err := GetUsageWithCommand(context.Background(), "/", diskCommandFixture(t, `printf '%s\n' "$DF_OUTPUT"`))
+			require.Error(t, err)
+			assert.Nil(t, usage)
+		})
+	}
+}
+
+func TestTypedDfScanExcludesOtherFilesystemsBeforeCollection(t *testing.T) {
+	command := diskCommandFixture(t, `
+[ "$*" = '-T -B1 -P -t ext4' ] || exit 9
+printf '%s\n' '/dev/root ext4 1000 400 600 40% /'
+`)
+	parts, err := GetPartitions(context.Background(), WithBlockdevUsageCommand(command), WithFstypeName("ext4"))
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "/", parts[0].MountPoint)
+	assert.Equal(t, uint64(1000), parts[0].Usage.TotalBytes)
 }
 
 func TestParseDfOutput(t *testing.T) {
@@ -196,4 +239,48 @@ func TestDiskCommandOptionsSet(t *testing.T) {
 func TestFindMntCommandWithOverrideBase(t *testing.T) {
 	got := findMntCommand("nsenter --target 1 --mount -- findmnt", "/var/lib/kubelet")
 	assert.Equal(t, "nsenter --target 1 --mount -- findmnt --target /var/lib/kubelet --json --df", got)
+}
+
+func TestTypedDfScanHandlesNoMatchingFilesystems(t *testing.T) {
+	t.Setenv("LC_ALL", "invalid-locale")
+	command := diskCommandFixture(t, `
+[ "$LC_ALL" = C ] || exit 9
+[ "$*" = '-T -B1 -P -t ext4' ] || exit 9
+printf '%s\n' 'df: no file systems processed' >&2
+exit 1
+`)
+	parts, err := GetPartitions(t.Context(), WithBlockdevUsageCommand(command), WithFstypeName("ext4"))
+	require.NoError(t, err)
+	assert.Empty(t, parts)
+	_, err = GetPartitions(t.Context(), WithBlockdevUsageCommand(command))
+	require.Error(t, err, "an unfiltered scan failure must not be ignored")
+}
+
+func TestTypedDfScanPreservesRealFailures(t *testing.T) {
+	for name, body := range map[string]string{
+		"permission denied":    "printf '%s\n' 'df: /data: Permission denied' >&2; exit 1",
+		"partial output":       "printf '%s\n' '/dev/root ext4 1000 400 600 40% /'; printf '%s\n' 'df: no file systems processed' >&2; exit 1",
+		"multiple diagnostics": "printf '%s\n' 'df: /data: Permission denied' 'df: no file systems processed' >&2; exit 1",
+		"wrapper error":        "printf '%s\n' 'df: no file systems processed' >&2; exit 7",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := GetPartitions(t.Context(), WithBlockdevUsageCommand(diskCommandFixture(t, body)), WithFstypeName("ext4"))
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestTypedDfScanRealEmptyType(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("GNU df flags")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	version, err := exec.CommandContext(ctx, "df", "--version").Output()
+	if err != nil || !strings.Contains(string(version), "GNU coreutils") {
+		t.Skip("GNU df unavailable")
+	}
+	parts, err := GetPartitions(ctx, WithBlockdevUsageCommand("df"), WithFstypeName("gpud-test-no-such-filesystem"))
+	require.NoError(t, err)
+	assert.Empty(t, parts)
 }
