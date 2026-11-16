@@ -114,11 +114,11 @@ main() {
     exit 1
   fi
 
-  TRACK="${TRACK:-unstable}"
+  TRACK="${TRACK:-stable}"
   if [ -n "$1" ]; then
     APP_VERSION="$1"
   else
-    # e.g., https://pkg.gpud.dev/unstable_latest.txt
+    # e.g., https://pkg.gpud.dev/stable_latest.txt
     APP_VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
   fi
   # Git release artifacts are v-prefixed; accept either input spelling.
