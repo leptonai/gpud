@@ -213,7 +213,7 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 
 	commands := getDiskCommands()
 	var usage *disk.Usage
-	if commands.blockdevUsageCommand == "" {
+	if currentGOOS() != "linux" && commands.blockdevUsageCommand == "" {
 		var err error
 		usage, err = disk.GetUsage(ctx, "/")
 		if err != nil {
@@ -769,30 +769,19 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	}
 
 	if currentGOOS() == "linux" {
-		kubeletRootExists := commands.findmntCommand != ""
-		if !kubeletRootExists {
-			_, serr := os.Stat("/var/lib/kubelet")
-			if serr != nil && !os.IsNotExist(serr) {
-				return nil, serr
-			}
-			kubeletRootExists = serr == nil
+		// This optional lookup may need to resolve a path on an unresponsive
+		// mount. Keep all path resolution in a bounded subprocess, and do not
+		// request usage merely to identify the backing device.
+		timeoutCtx, cancel := context.WithTimeout(ctx, diskPartitionsTimeout)
+		source, err := disk.FindMountSource(timeoutCtx, "/var/lib/kubelet", commands.findmntCommand)
+		cancel()
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-		if kubeletRootExists {
-			var out *disk.FindMntOutput
-			var err error
-			if commands.findmntCommand == "" {
-				out, err = disk.FindMnt(ctx, "/var/lib/kubelet")
-			} else {
-				out, err = disk.FindMntWithCommand(ctx, "/var/lib/kubelet", commands.findmntCommand)
-			}
-			if err != nil {
-				if commands.findmntCommand == "" {
-					return nil, err
-				}
-				log.Logger.Warnw("failed to find container root disk", "error", err)
-			} else if len(out.Filesystems) > 0 && len(out.Filesystems[0].Sources) > 0 {
-				info.ContainerRootDisk = out.Filesystems[0].Sources[0]
-			}
+		if err != nil {
+			log.Logger.Debugw("failed to find container root disk", "error", err)
+		} else {
+			info.ContainerRootDisk = source
 		}
 	}
 

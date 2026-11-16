@@ -20,12 +20,17 @@ func TestLoginAndGossipDoNotProbeRemoteMounts(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux disk inventory")
 	}
-	for _, inventoryFails := range []bool{false, true} {
-		name := "remote mount present"
-		if inventoryFails {
-			name = "optional inventory unavailable"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		inventoryFails bool
+		kubeletFails   bool
+	}{
+		{name: "remote mount present"},
+		{name: "optional inventory unavailable", inventoryFails: true},
+		{name: "optional kubelet lookup unavailable", kubeletFails: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inventoryFails := tc.inventoryFails
 			command := func(name, body string) string {
 				path := filepath.Join(t.TempDir(), name)
 				require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\nset -eu\n"+body), 0700))
@@ -36,13 +41,19 @@ func TestLoginAndGossipDoNotProbeRemoteMounts(t *testing.T) {
 			} else {
 				t.Setenv("FAIL_MOUNT_INVENTORY", "0")
 			}
+			if tc.kubeletFails {
+				t.Setenv("FAIL_KUBELET_LOOKUP", "1")
+			} else {
+				t.Setenv("FAIL_KUBELET_LOOKUP", "0")
+			}
 			findmnt := command("findmnt", `
 case "$*" in
   '--kernel --list --json --nocanonicalize --nofsroot --output SOURCE,FSTYPE,TARGET')
     [ "$FAIL_MOUNT_INVENTORY" = 0 ] || exit 7
     printf '%s\n' '{"filesystems":[{"source":"server:/export","fstype":"nfs4","target":"/unresponsive"}]}'
     ;;
-  '--target /var/lib/kubelet --json --df')
+  '--kernel --list --json --nofsroot --output SOURCE,FSTYPE,TARGET --target /var/lib/kubelet')
+    [ "$FAIL_KUBELET_LOOKUP" = 0 ] || exit 7
     printf '%s\n' '{"filesystems":[{"source":"/dev/root","fstype":"ext4","target":"/","size":"1000B","used":"400B","avail":"600B","use%":"40%"}]}'
     ;;
   *) exit 9 ;;
@@ -91,7 +102,11 @@ printf '%s\n' '/dev/root ext4 1000 400 600 40% /'
 			require.NoError(t, err)
 			assert.Equal(t, req.MachineInfo.DiskInfo, gossip.MachineInfo.DiskInfo)
 			disks := req.MachineInfo.DiskInfo
-			assert.Equal(t, "/dev/root", disks.ContainerRootDisk)
+			if tc.kubeletFails {
+				assert.Empty(t, disks.ContainerRootDisk)
+			} else {
+				assert.Equal(t, "/dev/root", disks.ContainerRootDisk)
+			}
 			want := 2
 			if inventoryFails {
 				want = 1

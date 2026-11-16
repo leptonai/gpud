@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	"github.com/leptonai/gpud/pkg/process"
 )
 
 // GetMounts reads mount metadata without stat or statfs calls on the mounted
@@ -24,19 +21,43 @@ func GetMounts(ctx context.Context, opts ...OpOption) (Partitions, error) {
 	}
 	// Do not use --df or request size columns: those trigger filesystem I/O.
 	command += " --kernel --list --json --nocanonicalize --nofsroot --output SOURCE,FSTYPE,TARGET"
-	p, err := process.New(process.WithCommand(command), process.WithRunAsBashScript(), process.WithRunBashInline())
+	parts, err := readMounts(ctx, command)
 	if err != nil {
 		return nil, err
 	}
-	if err := p.Start(ctx); err != nil {
-		return nil, err
+	filtered := make(Partitions, 0, len(parts))
+	for _, part := range parts {
+		if op.matchFuncFstype(part.Fstype) && op.matchFuncMountPoint(part.MountPoint) {
+			filtered = append(filtered, part)
+		}
 	}
-	defer func() { _ = p.Close(ctx) }()
-	var output strings.Builder
-	if err := process.Read(ctx, p, process.WithReadStdout(), process.WithWaitForCmd(), process.WithProcessLine(func(line string) {
-		output.WriteString(line)
-		output.WriteByte('\n')
-	})); err != nil {
+	return filtered, nil
+}
+
+// FindMountSource resolves a path in the command's namespace without requesting
+// filesystem usage. Path resolution itself may require filesystem I/O, so the
+// caller must provide a deadline. Unlike an in-process stat, the subprocess can
+// be abandoned when that deadline expires.
+func FindMountSource(ctx context.Context, target, command string) (string, error) {
+	if target == "" {
+		return "", fmt.Errorf("empty mount target")
+	}
+	if command == "" {
+		command = "findmnt"
+	}
+	parts, err := readMounts(ctx, command+" --kernel --list --json --nofsroot --output SOURCE,FSTYPE,TARGET --target "+quoteShellArgument(target))
+	if err != nil {
+		return "", err
+	}
+	if len(parts) != 1 || parts[0].Device == "" {
+		return "", fmt.Errorf("expected one mount source for %q, got %d", target, len(parts))
+	}
+	return parts[0].Device, nil
+}
+
+func readMounts(ctx context.Context, command string) (Partitions, error) {
+	output, err := runDiskCommand(ctx, command)
+	if err != nil {
 		return nil, fmt.Errorf("failed to read mount inventory: %w", err)
 	}
 	var table struct {
@@ -46,14 +67,14 @@ func GetMounts(ctx context.Context, opts ...OpOption) (Partitions, error) {
 			Target string `json:"target"`
 		} `json:"filesystems"`
 	}
-	if err := json.Unmarshal([]byte(output.String()), &table); err != nil {
+	if err := json.Unmarshal([]byte(output), &table); err != nil {
 		return nil, fmt.Errorf("failed to parse mount inventory: %w", err)
+	}
+	if table.Filesystems == nil {
+		return nil, fmt.Errorf("missing filesystems in mount inventory")
 	}
 	parts := make(Partitions, 0, len(table.Filesystems))
 	for _, mount := range table.Filesystems {
-		if !op.matchFuncFstype(mount.Fstype) || !op.matchFuncMountPoint(mount.Target) {
-			continue
-		}
 		parts = append(parts, Partition{Device: mount.Source, Fstype: mount.Fstype, MountPoint: mount.Target, Mounted: true})
 	}
 	return parts, nil

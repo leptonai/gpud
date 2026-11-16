@@ -19,7 +19,6 @@ import (
 
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/process"
 )
 
 func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
@@ -142,7 +141,7 @@ func GetUsageWithCommand(ctx context.Context, mountPoint, command string) (*Usag
 		command = "df"
 	}
 	// The invocation prefix is configured shell code, but the target is data.
-	quotedTarget := "'" + strings.ReplaceAll(mountPoint, "'", "'\"'\"'") + "'"
+	quotedTarget := quoteShellArgument(mountPoint)
 	output, err := runDfCommand(ctx, command, "-- "+quotedTarget)
 	if err != nil {
 		return nil, err
@@ -153,6 +152,11 @@ func GetUsageWithCommand(ctx context.Context, mountPoint, command string) (*Usag
 	}
 	if len(parts) != 1 || parts[0].Usage == nil {
 		return nil, fmt.Errorf("expected one filesystem usage result for %q, got %d", mountPoint, len(parts))
+	}
+	// Root capacity is required during login; an override that ignores the
+	// operand must not silently substitute a different filesystem's capacity.
+	if mountPoint == "/" && parts[0].MountPoint != "/" {
+		return nil, fmt.Errorf("expected root filesystem usage, got %q", parts[0].MountPoint)
 	}
 	return parts[0].Usage, nil
 }
@@ -308,43 +312,13 @@ func filterDfPartitions(parsed Partitions, op *Op) Partitions {
 	return ps
 }
 
-// runDfCommand runs "<command> -T -B1 -P" and returns its stdout. The command is
-// the configured invocation prefix (gpud appends dfFlags). Only stdout is read,
-// since df may emit non-fatal warnings (e.g. permission denied on a mount) to
-// stderr that must not contaminate the parsed table.
+// runDfCommand runs the configured prefix with df's output flags and operands.
 func runDfCommand(ctx context.Context, command string, flags ...string) (string, error) {
-	p, err := process.New(
-		process.WithCommand(strings.TrimSpace(command+" "+dfFlags+" "+strings.Join(flags, " "))),
-		process.WithRunAsBashScript(),
-		process.WithRunBashInline(),
-	)
+	output, err := runDiskCommand(ctx, strings.TrimSpace(command+" "+dfFlags+" "+strings.Join(flags, " ")))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read df output: %w", err)
 	}
-
-	if err := p.Start(ctx); err != nil {
-		return "", err
-	}
-	defer func() {
-		if err := p.Close(ctx); err != nil {
-			log.Logger.Warnw("failed to abort command", "err", err)
-		}
-	}()
-
-	lines := make([]string, 0)
-	if err := process.Read(
-		ctx,
-		p,
-		process.WithReadStdout(),
-		process.WithProcessLine(func(line string) {
-			lines = append(lines, line)
-		}),
-		process.WithWaitForCmd(),
-	); err != nil {
-		return "", fmt.Errorf("failed to read df output: %w (output: %s)", err, strings.Join(lines, "\n"))
-	}
-
-	return strings.Join(lines, "\n"), nil
+	return output, nil
 }
 
 // parseDfOutput parses the output of "df -T -B1 -P". Expected columns per data

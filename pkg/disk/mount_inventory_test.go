@@ -44,7 +44,7 @@ JSON
 }
 
 func TestGetMountsErrors(t *testing.T) {
-	for _, body := range []string{"exit 7", "printf 'invalid json'"} {
+	for _, body := range []string{"exit 7", "printf 'invalid json'", "printf '{}'", "printf '{\"filesystems\":null}'"} {
 		t.Run(body, func(t *testing.T) {
 			parts, err := GetMounts(context.Background(), WithFindmntCommand(diskCommandFixture(t, body)))
 			require.Error(t, err)
@@ -63,6 +63,10 @@ func TestDiskCommandTimeouts(t *testing.T) {
 			_, err := GetMounts(ctx, WithFindmntCommand(command))
 			return err
 		}},
+		{"mount source", func(ctx context.Context) error {
+			_, err := FindMountSource(ctx, "/var/lib/kubelet", command)
+			return err
+		}},
 		{"usage", func(ctx context.Context) error {
 			_, err := GetUsageWithCommand(ctx, "/", command)
 			return err
@@ -76,4 +80,36 @@ func TestDiskCommandTimeouts(t *testing.T) {
 			assert.Less(t, time.Since(start), 5*time.Second)
 		})
 	}
+}
+
+func TestFindMountSource(t *testing.T) {
+	command := diskCommandFixture(t, `
+[ "$*" = '--kernel --list --json --nofsroot --output SOURCE,FSTYPE,TARGET --target /var/lib/kubelet' ] || exit 9
+printf '%s\n' '{"filesystems":[{"source":"/dev/root","target":"/","fstype":"ext4"}]}'
+`)
+	source, err := FindMountSource(context.Background(), "/var/lib/kubelet", command)
+	require.NoError(t, err)
+	assert.Equal(t, "/dev/root", source)
+	for _, output := range []string{`{"filesystems":[]}`, `{"filesystems":[{"source":""}]}`, `{"filesystems":[{"source":"a"},{"source":"b"}]}`} {
+		_, err := FindMountSource(context.Background(), "/", diskCommandFixture(t, "printf '%s' '"+output+"'"))
+		require.Error(t, err)
+	}
+}
+
+func TestDiskCommandsDrainStderr(t *testing.T) {
+	// More than a pipe buffer: collecting stderr after stdout would deadlock.
+	noisy := "dd if=/dev/zero bs=1048576 count=1 >&2 2>/dev/null\n"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	parts, err := GetMounts(ctx, WithFindmntCommand(diskCommandFixture(t, noisy+`printf '%s' '{"filesystems":[]}'`)))
+	require.NoError(t, err)
+	assert.Empty(t, parts)
+	usage, err := GetUsageWithCommand(ctx, "/", diskCommandFixture(t, noisy+`printf '%s\n' '/dev/root ext4 1000 400 600 40% /'`))
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1000), usage.TotalBytes)
+}
+
+func TestRootUsageRejectsWrongFilesystem(t *testing.T) {
+	_, err := GetUsageWithCommand(context.Background(), "/", diskCommandFixture(t, `printf '%s\n' '/dev/data ext4 1000 400 600 40% /data'`))
+	require.ErrorContains(t, err, "expected root filesystem usage")
 }

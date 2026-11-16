@@ -3,7 +3,9 @@ package machineinfo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -88,15 +90,6 @@ func (d *machineInfoCoverageDevice) GetFabricState() (nvidiadevice.FabricState, 
 		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED,
 	}, nil
 }
-
-type fakeFileInfo struct{}
-
-func (fakeFileInfo) Name() string       { return "kubelet" }
-func (fakeFileInfo) Size() int64        { return 0 }
-func (fakeFileInfo) Mode() os.FileMode  { return 0 }
-func (fakeFileInfo) ModTime() time.Time { return time.Time{} }
-func (fakeFileInfo) IsDir() bool        { return true }
-func (fakeFileInfo) Sys() interface{}   { return nil }
 
 func TestGetDiskCommandsZeroValue(t *testing.T) {
 	previous := diskCommandConfig.Swap(nil)
@@ -237,80 +230,43 @@ func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 }
 
 func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
-	mockey.PatchConvey("GetMachineDiskInfo succeeds with NFS and kubelet root disk", t, func() {
-		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
-		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
-			return disk.BlockDevices{
-				{Name: "/dev/sda", Type: "disk", MountPoint: "", Size: disk.CustomUint64{Uint64: 100}},
-				{Name: "/dev/sda1", Type: "part", MountPoint: "/", FSType: "ext4", FSUsed: disk.CustomUint64{Uint64: 50}, Size: disk.CustomUint64{Uint64: 100}},
-			}, nil
-		}).Build()
-		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
-			return disk.Partitions{
-				{
-					Device:     "10.0.0.10:/nfs",
-					Fstype:     "nfs",
-					MountPoint: "/mnt/nfs",
-					Usage: &disk.Usage{
-						TotalBytes: 1000,
-						UsedBytes:  100,
-					},
-				},
-			}, nil
-		}).Build()
-		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
-			if name == "/var/lib/kubelet" {
-				return fakeFileInfo{}, nil
-			}
-			return nil, os.ErrNotExist
-		}).Build()
-		mockey.Mock(disk.FindMnt).To(func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
-			return &disk.FindMntOutput{
-				Filesystems: []disk.FoundMnt{
-					{Sources: []string{"/dev/nvme0n1p1"}},
-				},
-			}, nil
-		}).Build()
-
-		info, err := GetMachineDiskInfo(context.Background())
-		require.NoError(t, err)
-		require.NotNil(t, info)
-		assert.Equal(t, "/dev/nvme0n1p1", info.ContainerRootDisk)
-		assert.GreaterOrEqual(t, len(info.BlockDevices), 2)
-	})
-
-	mockey.PatchConvey("GetMachineDiskInfo returns lsblk error", t, func() {
-		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
-		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
-			return nil, errors.New("lsblk failed")
-		}).Build()
+	for _, command := range []string{"", "host-findmnt"} {
+		for _, lookupErr := range []error{nil, os.ErrNotExist, context.DeadlineExceeded, errors.New("findmnt failed")} {
+			mockey.PatchConvey(fmt.Sprintf("command %q lookup %v", command, lookupErr), t, func() {
+				SetDiskCommands(command, "", "")
+				defer SetDiskCommands("", "", "")
+				mockey.Mock(currentGOOS).Return("linux").Build()
+				mockey.Mock(disk.GetBlockDevicesWithLsblk).Return(disk.BlockDevices{{Name: "/dev/root", MountPoint: "/", FSType: "ext4"}}, nil).Build()
+				mockey.Mock(disk.GetMounts).Return(disk.Partitions{{Device: "server:/export", Fstype: "nfs4", MountPoint: "/remote"}}, nil).Build()
+				mockey.Mock(disk.FindMountSource).To(func(ctx context.Context, target, prefix string) (string, error) {
+					assert.Equal(t, "/var/lib/kubelet", target)
+					assert.Equal(t, command, prefix)
+					_, bounded := ctx.Deadline()
+					assert.True(t, bounded)
+					return "/dev/root", lookupErr
+				}).Build()
+				info, err := GetMachineDiskInfo(context.Background())
+				require.NoError(t, err)
+				require.Len(t, info.BlockDevices, 2)
+				if lookupErr == nil {
+					assert.Equal(t, "/dev/root", info.ContainerRootDisk)
+				} else {
+					assert.Empty(t, info.ContainerRootDisk)
+				}
+			})
+		}
+	}
+	mockey.PatchConvey("lsblk failure remains fatal", t, func() {
+		mockey.Mock(currentGOOS).Return("linux").Build()
+		mockey.Mock(disk.GetBlockDevicesWithLsblk).Return(nil, errors.New("lsblk failed")).Build()
 		_, err := GetMachineDiskInfo(context.Background())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "lsblk failed")
+		require.ErrorContains(t, err, "lsblk failed")
 	})
-
-	mockey.PatchConvey("GetMachineDiskInfo preserves local disks on mount inventory error", t, func() {
-		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
-		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
-			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
-		}).Build()
-		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
-			return nil, errors.New("partitions failed")
-		}).Build()
-
-		mockey.Mock(os.Stat).Return(nil, os.ErrNotExist).Build()
-		info, err := GetMachineDiskInfo(context.Background())
-		require.NoError(t, err)
-		require.Len(t, info.BlockDevices, 1)
-		assert.Equal(t, "/dev/sda1", info.BlockDevices[0].Name)
-	})
-
-	mockey.PatchConvey("GetMachineDiskInfo tolerates inventory timeout but honors caller cancellation", t, func() {
+	mockey.PatchConvey("optional inventory timeout preserves local disks and caller cancellation", t, func() {
 		mockey.Mock(currentGOOS).Return("linux").Build()
 		mockey.Mock(disk.GetBlockDevicesWithLsblk).Return(disk.BlockDevices{{Name: "/dev/root", MountPoint: "/", FSType: "ext4"}}, nil).Build()
 		mockey.Mock(disk.GetMounts).Return(nil, context.DeadlineExceeded).Build()
-		mockey.Mock(os.Stat).Return(nil, os.ErrNotExist).Build()
-
+		mockey.Mock(disk.FindMountSource).Return("", context.DeadlineExceeded).Build()
 		info, err := GetMachineDiskInfo(context.Background())
 		require.NoError(t, err)
 		require.Len(t, info.BlockDevices, 1)
@@ -320,62 +276,19 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Nil(t, info)
 	})
-
-	mockey.PatchConvey("GetMachineDiskInfo returns kubelet stat error", t, func() {
-		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
-		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
-			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
+	mockey.PatchConvey("caller cancellation during kubelet lookup is honored", t, func() {
+		mockey.Mock(currentGOOS).Return("linux").Build()
+		mockey.Mock(disk.GetBlockDevicesWithLsblk).Return(disk.BlockDevices{}, nil).Build()
+		mockey.Mock(disk.GetMounts).Return(disk.Partitions{}, nil).Build()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		mockey.Mock(disk.FindMountSource).To(func(context.Context, string, string) (string, error) {
+			cancel()
+			return "", context.Canceled
 		}).Build()
-		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
-			return nil, nil
-		}).Build()
-		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
-			return nil, errors.New("stat failed")
-		}).Build()
-
-		_, err := GetMachineDiskInfo(context.Background())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "stat failed")
-	})
-
-	mockey.PatchConvey("GetMachineDiskInfo returns findmnt error", t, func() {
-		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
-		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
-			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
-		}).Build()
-		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
-			return nil, nil
-		}).Build()
-		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
-			return fakeFileInfo{}, nil
-		}).Build()
-		mockey.Mock(disk.FindMnt).To(func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
-			return nil, errors.New("findmnt failed")
-		}).Build()
-
-		_, err := GetMachineDiskInfo(context.Background())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "findmnt failed")
-	})
-
-	mockey.PatchConvey("GetMachineDiskInfo ignores configured host findmnt error", t, func() {
-		SetDiskCommands("host-findmnt", "", "")
-		defer SetDiskCommands("", "", "")
-		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
-		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
-			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
-		}).Build()
-		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
-			return nil, nil
-		}).Build()
-		mockey.Mock(disk.FindMntWithCommand).To(func(ctx context.Context, target, command string) (*disk.FindMntOutput, error) {
-			return nil, errors.New("findmnt failed")
-		}).Build()
-
-		info, err := GetMachineDiskInfo(context.Background())
-		require.NoError(t, err)
-		assert.Empty(t, info.ContainerRootDisk)
-		require.Len(t, info.BlockDevices, 1)
+		info, err := GetMachineDiskInfo(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, info)
 	})
 }
 
@@ -383,7 +296,13 @@ func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
 	mockey.PatchConvey("machine info uses configured host disk commands", t, func() {
 		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
 
-		findmnt := `printf '%s\n' '{"filesystems":[{"target":"/","source":"/dev/sda1","fstype":"ext4","size":"1000B","used":"400B","avail":"600B","use%":"40%"},{"target":"/mnt/nfs","source":"server:/data","fstype":"nfs4","size":"2000B","used":"1000B","avail":"1000B","use%":"50%"}]}' #`
+		findmntPath := filepath.Join(t.TempDir(), "findmnt.sh")
+		require.NoError(t, os.WriteFile(findmntPath, []byte(`case "$*" in
+*--target*) printf '%s\n' '{"filesystems":[{"target":"/","source":"/dev/sda1","fstype":"ext4"}]}' ;;
+*) printf '%s\n' '{"filesystems":[{"target":"/mnt/nfs","source":"server:/data","fstype":"nfs4"}]}' ;;
+esac
+`), 0600))
+		findmnt := "sh '" + findmntPath + "'"
 		lsblk := `printf '%s\n' '{"blockdevices":[{"name":"/dev/sda","type":"disk","size":1000,"mountpoint":null,"fstype":null,"children":[{"name":"/dev/sda1","type":"part","size":1000,"mountpoint":"/","fstype":"ext4","fsused":"400"}]}]}' #`
 		df := `printf '%s\n' 'Filesystem Type 1B-blocks Used Available Use% Mounted on' '/dev/sda1 ext4 1000 400 600 40% /' 'server:/data nfs4 2000 1000 1000 50% /mnt/nfs' #`
 		SetDiskCommands(findmnt, lsblk, df)
