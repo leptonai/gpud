@@ -11,7 +11,7 @@ type Op struct {
 	matchFuncMountPoint MatchFunc
 	skipUsage           bool
 	statTimeout         time.Duration
-	localFilesystems    bool
+	fstypeName          string
 
 	// findmntCommand overrides how the "findmnt" binary is invoked.
 	// Empty preserves the default behavior of locating "findmnt" on PATH and
@@ -96,11 +96,12 @@ func WithSkipUsage() OpOption {
 	}
 }
 
-// WithLocalFilesystems keeps configured df scans from probing remote mounts.
-// Pair it with a local fstype filter for the in-process collection path.
-func WithLocalFilesystems() OpOption {
+// WithFstypeName selects a filesystem type before collecting usage, including
+// in configured df commands. An empty name leaves filesystem types unfiltered.
+func WithFstypeName(name string) OpOption {
 	return func(op *Op) {
-		op.localFilesystems = true
+		op.fstypeName = name
+		op.matchFuncFstype = func(fs string) bool { return name == "" || fs == name }
 	}
 }
 

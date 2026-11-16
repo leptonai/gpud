@@ -49,10 +49,14 @@ func FindMountSource(ctx context.Context, target, command string) (string, error
 	if err != nil {
 		return "", err
 	}
-	if len(parts) != 1 || parts[0].Device == "" {
-		return "", fmt.Errorf("expected one mount source for %q, got %d", target, len(parts))
+	// findmnt emits mount-table order for stacked mounts. Use the last
+	// reported source (the topmost mount), allowing duplicate self-binds.
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i].Device != "" {
+			return parts[i].Device, nil
+		}
 	}
-	return parts[0].Device, nil
+	return "", fmt.Errorf("no mount source for %q", target)
 }
 
 func readMounts(ctx context.Context, command string) (Partitions, error) {

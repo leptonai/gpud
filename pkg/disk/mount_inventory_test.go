@@ -90,7 +90,7 @@ printf '%s\n' '{"filesystems":[{"source":"/dev/root","target":"/","fstype":"ext4
 	source, err := FindMountSource(context.Background(), "/var/lib/kubelet", command)
 	require.NoError(t, err)
 	assert.Equal(t, "/dev/root", source)
-	for _, output := range []string{`{"filesystems":[]}`, `{"filesystems":[{"source":""}]}`, `{"filesystems":[{"source":"a"},{"source":"b"}]}`} {
+	for _, output := range []string{`{"filesystems":[]}`, `{"filesystems":[{"source":""}]}`} {
 		_, err := FindMountSource(context.Background(), "/", diskCommandFixture(t, "printf '%s' '"+output+"'"))
 		require.Error(t, err)
 	}
@@ -112,4 +112,31 @@ func TestDiskCommandsDrainStderr(t *testing.T) {
 func TestRootUsageRejectsWrongFilesystem(t *testing.T) {
 	_, err := GetUsageWithCommand(context.Background(), "/", diskCommandFixture(t, `printf '%s\n' '/dev/data ext4 1000 400 600 40% /data'`))
 	require.ErrorContains(t, err, "expected root filesystem usage")
+}
+
+func TestFindMountSourceStackedMounts(t *testing.T) {
+	for _, tc := range []struct{ name, output, want string }{
+		{"missing source", `{"filesystems":[{"source":"/dev/root"},{"source":""}]}`, "/dev/root"},
+		{"self bind", `{"filesystems":[{"source":"/dev/root"},{"source":"/dev/root"}]}`, "/dev/root"},
+		{"overmount", `{"filesystems":[{"source":"/dev/root"},{"source":"/dev/data"}]}`, "/dev/data"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source, err := FindMountSource(t.Context(), "/var/lib/kubelet", diskCommandFixture(t, "printf '%s' '"+tc.output+"'"))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, source)
+		})
+	}
+}
+
+func TestDiskCommandFailureWithInheritedStderrHonorsDeadline(t *testing.T) {
+	command := diskCommandFixture(t, `sleep 30 >&2 &
+printf '%s\n' 'df: no file systems processed' >&2
+exit 1
+`)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := GetPartitions(ctx, WithBlockdevUsageCommand(command), WithFstypeName("ext4"))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 5*time.Second)
 }

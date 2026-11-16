@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/disk"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/providers"
 )
@@ -24,8 +25,10 @@ func TestLoginAndGossipDoNotProbeRemoteMounts(t *testing.T) {
 		name           string
 		inventoryFails bool
 		kubeletFails   bool
+		warmCache      bool
 	}{
 		{name: "remote mount present"},
+		{name: "remote usage available from background sample", warmCache: true},
 		{name: "optional inventory unavailable", inventoryFails: true},
 		{name: "optional kubelet lookup unavailable", kubeletFails: true},
 	} {
@@ -73,6 +76,10 @@ printf '%s\n' '/dev/root ext4 1000 400 600 40% /'
 `)
 			previous := getDiskCommands()
 			SetDiskCommands(findmnt, lsblk, df)
+			if tc.warmCache {
+				disk.PublishNFSUsage(df, disk.Partitions{{Device: "server:/export", MountPoint: "/unresponsive", Fstype: "nfs4", Mounted: true, Usage: &disk.Usage{TotalBytes: 2000, UsedBytes: 1000}}})
+				t.Cleanup(func() { disk.PublishNFSUsage(df, nil) })
+			}
 			t.Cleanup(func() { SetDiskCommands(previous.findmntCommand, previous.lsblkCommand, previous.blockdevUsageCommand) })
 
 			getInfo := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
@@ -115,8 +122,13 @@ printf '%s\n' '/dev/root ext4 1000 400 600 40% /'
 			assert.Equal(t, int64(1000), disks.BlockDevices[0].Size)
 			if !inventoryFails {
 				assert.Equal(t, "/unresponsive", disks.BlockDevices[1].MountPoint)
-				assert.Zero(t, disks.BlockDevices[1].Size)
-				assert.Zero(t, disks.BlockDevices[1].Used)
+				if tc.warmCache {
+					assert.Equal(t, int64(2000), disks.BlockDevices[1].Size)
+					assert.Equal(t, int64(1000), disks.BlockDevices[1].Used)
+				} else {
+					assert.Zero(t, disks.BlockDevices[1].Size)
+					assert.Zero(t, disks.BlockDevices[1].Used)
+				}
 			}
 		})
 	}

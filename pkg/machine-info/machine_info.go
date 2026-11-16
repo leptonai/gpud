@@ -760,6 +760,10 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 				MountPoint: part.MountPoint,
 				FSType:     part.Fstype,
 			}
+			if usage := disk.CachedNFSUsage(commands.blockdevUsageCommand, part); usage != nil {
+				dev.Size = uint64ToInt64Capped(usage.TotalBytes)
+				dev.Used = uint64ToInt64Capped(usage.UsedBytes)
+			}
 			rs = append(rs, dev)
 		}
 	}

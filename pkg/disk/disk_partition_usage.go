@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -250,11 +251,20 @@ const dfFlags = "-T -B1 -P"
 // the override is explicitly configured; the default path is unchanged.
 func getPartitionsWithDf(ctx context.Context, op *Op) (Partitions, error) {
 	var flags []string
-	if op.localFilesystems {
-		flags = append(flags, "--local")
+	if op.fstypeName != "" {
+		flags = append(flags, "-t "+quoteShellArgument(op.fstypeName))
 	}
-	output, err := runDfCommand(ctx, op.blockdevUsageCommand, flags...)
+	output, diagnostics, err := runDfCommandOutput(ctx, op.blockdevUsageCommand, flags...)
 	if err != nil {
+		// GNU df uses exit 1 for an empty type-filtered scan. Do not hide
+		// permission errors, partial scans, wrapper failures, or cancellation.
+		var exitErr *exec.ExitError
+		diagnostic := strings.TrimSpace(diagnostics)
+		if op.fstypeName != "" && errors.As(err, &exitErr) && exitErr.ExitCode() == 1 &&
+			strings.TrimSpace(output) == "" && !strings.Contains(diagnostic, "\n") &&
+			strings.HasSuffix(diagnostic, ": no file systems processed") {
+			return Partitions{}, nil
+		}
 		return nil, err
 	}
 
@@ -314,11 +324,16 @@ func filterDfPartitions(parsed Partitions, op *Op) Partitions {
 
 // runDfCommand runs the configured prefix with df's output flags and operands.
 func runDfCommand(ctx context.Context, command string, flags ...string) (string, error) {
-	output, err := runDiskCommand(ctx, strings.TrimSpace(command+" "+dfFlags+" "+strings.Join(flags, " ")))
+	output, _, err := runDfCommandOutput(ctx, command, flags...)
+	return output, err
+}
+
+func runDfCommandOutput(ctx context.Context, command string, flags ...string) (string, string, error) {
+	output, diagnostics, err := runDiskCommandOutput(ctx, strings.TrimSpace(command+" "+dfFlags+" "+strings.Join(flags, " ")))
 	if err != nil {
-		return "", fmt.Errorf("failed to read df output: %w", err)
+		return output, diagnostics, fmt.Errorf("failed to read df output: %w (%s)", err, strings.TrimSpace(diagnostics))
 	}
-	return output, nil
+	return output, diagnostics, nil
 }
 
 // parseDfOutput parses the output of "df -T -B1 -P". Expected columns per data

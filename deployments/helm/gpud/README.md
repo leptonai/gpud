@@ -224,13 +224,18 @@ flags it controls (for example `findmnt --target ... --json --df`, or
 
 Login and gossip read remote mount names, types, and paths from `findmnt`'s
 mount table without querying remote filesystem usage. Remote size and used-byte
-fields are omitted from machine inventory; usage and reachability remain part
-of the background disk checks. If mount inventory cannot be read, GPUd logs a
+fields use the disk component's last successful background sample, matched by
+command, mount point, source, and filesystem type. Samples expire after five
+minutes; cold starts, disabled NFS checks, or stale/missing samples leave these
+fields zero. This preserves shared-volume capacity reporting after a background
+sample is available without making login or gossip wait for remote I/O. Usage
+and reachability checks remain in the background disk component. If mount inventory cannot be read, GPUd logs a
 warning and retains the local disk inventory. The optional kubelet backing-device
 lookup requests only mount metadata and runs with a deadline; failure leaves
 `containerRootDisk` unset. On Linux, root capacity is queried with
-`df -T -B1 -P -- /`, and local disk scans use `--local`, so an unrelated stalled
-remote mount does not block either collection. Configure all three command
+`df -T -B1 -P -- /`, and ext4 scans use `-t ext4` to exclude other filesystem
+types before probing them. A scan with no ext4 filesystems is an empty result;
+other command failures remain errors. Configure all three command
 prefixes together to keep inventory and usage in the same mount namespace.
 
 Set any of these to `""` to keep GPUd's built-in in-namespace behavior, which is
