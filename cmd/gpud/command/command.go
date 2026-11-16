@@ -95,7 +95,7 @@ nohup sudo gpud run &>> <your log file path> &
 				// optional, only required for logging into platform/control plane
 				cli.StringFlag{
 					Name:  "token",
-					Usage: "(optional) https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton workspace token for checking in",
+					Usage: "(optional) https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton workspace token for checking in (defaults to non-empty GPUD_TOKEN)",
 				},
 				cli.StringFlag{
 					Name:  "private-ip",
@@ -179,7 +179,7 @@ sudo rm /etc/systemd/system/gpud.service
 		},
 		{
 			Name:   "run",
-			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux) -- if --token is provided, it will perform login",
+			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux) -- if --token or non-empty GPUD_TOKEN is provided, it will perform login",
 			Action: cmdrun.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{

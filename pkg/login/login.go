@@ -353,6 +353,11 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 				// nolint:staticcheck // SA1019 This field is used for compatibility with older versions.
 				statusCode = loginResp.Status
 			}
+			if statusCode == "" && errorMessage == "" {
+				// Gateways may return JSON with no login error fields. Preserve the
+				// safe HTTP-status error instead of emitting an empty reason.
+				return fmt.Errorf("failed to login: %w", err)
+			}
 			return fmt.Errorf("failed to login (reason: %s%s)", statusCode, es)
 		}
 		return err

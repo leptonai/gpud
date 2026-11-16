@@ -376,12 +376,16 @@ gpud:
       value: "true"
 ```
 
-### Session Token from a Secret
+### Enrollment Token from a Secret
 
 When `nodeLabelExporter.enabled=true`, the chart's init container can read the
-session token from a node label. To read it from an existing Kubernetes Secret
-instead, set `gpud.tokenSecret`; the token is injected as the `TOKEN` env via
-`secretKeyRef` and takes priority over any token label:
+enrollment token from a node label. To read it from an existing Kubernetes Secret
+instead, set `gpud.tokenSecret`; the enrollment token is injected as `GPUD_TOKEN` via
+`secretKeyRef` and takes priority over any token label. The startup wrapper passes
+it through the environment, keeping it out of logs and process arguments. GPUd
+clears this variable before login or startup so child processes cannot inherit it.
+Use the chart and GPUd image from the same release; when a token is configured,
+the wrapper rejects images whose help does not advertise `GPUD_TOKEN` support:
 
 ```yaml
 gpud:
@@ -399,7 +403,7 @@ gpud:
     create: true
     name: gpud-token
     key: TOKEN
-    value: "<YOUR_GPUD_SESSION_TOKEN>"
+    value: "<YOUR_GPUD_ENROLLMENT_TOKEN>"
 ```
 
 The token is stored in Helm values and release state when `value` is used.
@@ -418,7 +422,7 @@ gpud:
     create: true
     name: gpud-token
     key: TOKEN
-    value: "<YOUR_GPUD_SESSION_TOKEN>"
+    value: "<YOUR_GPUD_ENROLLMENT_TOKEN>"
   # The node also exposes /dev/mem on this platform.
   mountHostDevMem: true
   # reboot / disk (findmnt,lsblk,df) / containerd command overrides and the

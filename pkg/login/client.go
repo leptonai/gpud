@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -67,8 +68,8 @@ func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) err
 //   - ID Generation Error
 //
 // machineProof is the proof from this machine's previous login, or empty. It is
-// sent in the X-GPUD-Machine-Proof header and never in the JSON body, which is
-// debug-logged.
+// sent in the X-GPUD-Machine-Proof header rather than the JSON body. Neither
+// credential-bearing payload is logged.
 func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
 	url, err := httputil.CreateURL("https", endpoint, "/api/v1/login")
 	if err != nil {
@@ -126,17 +127,47 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 
 	var resp apiv1.LoginResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("error unmarshaling login response: %w", err)
+		// Keep the HTTP status useful even when an upstream returns malformed JSON.
+		// Decoder details are untrusted response data, just like the body itself.
+		return nil, fmt.Errorf("error unmarshaling login response (HTTP %d)", httpResp.StatusCode)
+	}
+
+	if httpResp.StatusCode != http.StatusOK || resp.MachineID == "" {
+		redactLoginErrorResponse(&resp, req.Token, machineProof)
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return &resp, fmt.Errorf("unexpected status code %d (%s)", httpResp.StatusCode, string(body))
+		// Response bodies can contain credentials; callers still receive the structured response.
+		return &resp, fmt.Errorf("unexpected status code %d", httpResp.StatusCode)
 	}
 
 	if resp.MachineID == "" {
 		return &resp, ErrEmptyMachineID
 	}
 
-	log.Logger.Debugw("login request processed", "data", string(b), "endpointURL", endpointURL, "machineID", resp.MachineID)
+	// The serialized request contains the enrollment token and must never reach logs.
+	log.Logger.Debugw("login request processed", "endpointURL", endpointURL, "machineID", resp.MachineID)
 	return &resp, nil
+}
+
+// redactLoginErrorResponse preserves server diagnostics without letting echoed
+// credentials reach the caller's logs or CLI output, including legacy fields.
+func redactLoginErrorResponse(resp *apiv1.LoginResponse, credentials ...string) {
+	credentials = append(credentials, resp.Token, resp.MachineProof)
+	// A rotated credential can extend an old one; match the longest value first
+	// so replacing the old prefix cannot leave the new credential's suffix behind.
+	slices.SortFunc(credentials, func(a, b string) int { return len(b) - len(a) })
+	replacements := make([]string, 0, 2*len(credentials))
+	for _, credential := range credentials {
+		if credential != "" {
+			replacements = append(replacements, credential, "<redacted>")
+		}
+	}
+	replacer := strings.NewReplacer(replacements...)
+	resp.Code = replacer.Replace(resp.Code)
+	resp.Message = replacer.Replace(resp.Message)
+	//nolint:staticcheck // Older servers still populate these error fields.
+	resp.Status = replacer.Replace(resp.Status)
+	//nolint:staticcheck // Older servers still populate these error fields.
+	resp.Error = replacer.Replace(resp.Error)
 }
