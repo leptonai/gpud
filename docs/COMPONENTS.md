@@ -60,9 +60,79 @@ One-shot scans without a database can identify incomplete registration but canno
 establish how long it has persisted. Restart persistence also requires the daemon's
 database to survive restarts; `--db-in-memory` cannot provide it. Systems without
 fabric-state support keep their existing NVLink and Fabric Manager behavior.
-NVLink also falls through to its peer/port checks when all GPUs explicitly report
-unsupported fabric telemetry and no switch is detected. Mixed support, real
-faults, explicit NVL72 topology, and detected switches remain checked.
+NVLink falls through to peer and port checks when all GPUs explicitly report
+unsupported fabric telemetry, no switch is detected, and the product does not
+identify NVL72. Mixed support, faults, explicit NVL72 names, and detected switches
+remain checked.
+
+For Vera Rubin, GPUd uses the NVML architecture even when the driver reports
+`NVIDIA Graphics Device` (displayed as `NVIDIA-Graphics-Device` after existing
+product-name normalization). Enabled C2C marks an external-fabric candidate,
+using the same candidate policy as GB200/GB300. It does not establish a rack
+layout. Disabled or unavailable C2C leaves the host topology unknown; GPUd does
+not infer PCIe, NVL8, or local Fabric Manager ownership from it. Rubin fabric
+state is probed even on single-GPU partitions. Rack size is never an expected
+local GPU count.
+
+Rubin NVLink collection checks up to 36 indices and preserves unexpected query
+errors and partial results. Unsupported counters remain optional. Non-Rubin
+families retain the previous 18-index range and query-error tolerance. Link or
+fabric-query failures on Rubin include fabric investigation guidance without
+suggesting a compute-host reboot; independent GPU-loss/reset errors retain their
+recovery advice. The additional all-links-active rule on registered C2C Rubin
+fabric is opt-in.
+
+Rubin uses fabric-info V4 when available, preserving every `(type, id)` clique
+assignment in `cliques` in machine-info JSON and per-GPU scan telemetry, with
+readable names in text. The legacy `cliqueID` remains the first Unicast Pointer
+assignment; it is not a Logical Endpoint ID. It is omitted if V4 provides no
+Unicast Pointer assignment. Common machine identifiers require matching,
+successfully registered data from every GPU. Legacy APIs retain their single
+field without inventing typed assignments.
+
+V4 falls back to V3 and V1 for API compatibility errors. Rubin preserves actual
+query failures instead of masking them with older APIs. Other families retain
+their previous V3-to-V1 fallback. Configuration and disconnected-GFM health bits
+are decoded for all families but only add new faults on opted-in Rubin
+installations. IMEX process telemetry is informational and collected only for Rubin external-fabric candidates.
+
+Rubin memory checks include bank remapping, channel/TPC repair, and unrepairable
+memory when the driver supports those APIs. Version mismatches report unavailable
+telemetry. Query errors are unhealthy on Rubin; other families retain their
+existing row-remapping health policy. Pending bank/channel/TPC repair and
+unrepairable-memory flags are telemetry only by default. When opted in,
+unrepairable memory takes precedence over reset advice. Xid 63/64 retain existing
+memory-component ownership; recovered
+bank-remapping fault behavior still requires hardware qualification before any
+new Xid-only escalation is introduced.
+
+The additional Rubin rules require `GPUD_ENABLE_RUBIN_HEALTH_RULES=true`:
+all-links-active enforcement, configuration/GFM fault bits, and repair-flag-driven
+reboot or hardware-inspection suggestions. Leave this unset for bring-up; raw
+telemetry remains visible. Existing registration, summary health, query failures,
+row-remapping rules, and independent GPU-loss/reset handling still apply. Scan
+representative production trays and qualify recovery behavior before enabling the
+new rules in a daemon connected to automated remediation. A healthy development
+snapshot does not qualify idle partition behavior or fault recovery.
+
+C2C is queried only on Rubin. Two diagnostic changes apply across families:
+a failed fabric query omits common machine fabric identifiers, while chassis
+serial still uses the first readable GPU; fabric-manager also includes the query
+error in `HealthState.Error` without changing the existing health/action policy.
+
+The NVML dependency update corrects the GPM support query version. To avoid
+silently enabling previously inactive sampling paths, GPM sampling now requires
+`GPUD_ENABLE_GPM=true`. Qualify sampling on each GPU family before opting in.
+This explicit opt-in is a behavior change for any installation already sampling GPM.
+Disabled sampling is reported as `GPM sampling disabled`, separately from hardware
+that reports GPM unsupported.
+
+Rubin identity does not establish the installed InfiniBand NIC inventory. No
+Rubin-specific port-count or rate default is selected. Configure
+`--infiniband-expected-port-states` from the actual inventory. See
+[Vera Rubin hardware qualification](VERA_RUBIN_QUALIFICATION.md) for the snapshot
+`machine-info`/`scan` procedure. Older-family hardware regression testing and
+representative production hardware qualification remain release requirements.
 
 ## Available components
 

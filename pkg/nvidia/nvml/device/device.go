@@ -32,7 +32,8 @@ type nvDevice struct {
 	device.Device
 	busID       string
 	uuid        string
-	driverMajor int // Driver major version, used to gate V3 fabric API calls
+	rubin       bool // Gates new telemetry and health semantics to the qualified family.
+	driverMajor int  // Driver major version, used to gate V3 fabric API calls
 }
 
 func (d *nvDevice) PCIBusID() string {
@@ -54,7 +55,7 @@ func New(dev device.Device, busID string, opts ...OpOption) Device {
 	}
 
 	// Create the base device
-	baseDevice := &nvDevice{Device: dev, busID: busID, uuid: uuid, driverMajor: op.DriverMajor}
+	baseDevice := &nvDevice{Device: dev, busID: busID, uuid: uuid, driverMajor: op.DriverMajor, rubin: op.Rubin}
 
 	// If ANY test flags are set, wrap with testDevice
 	if op.GPULost || op.GPURequiresReset || op.FabricHealthUnhealthy {
@@ -71,6 +72,7 @@ func New(dev device.Device, busID string, opts ...OpOption) Device {
 
 // Op struct holds options for device creation
 type Op struct {
+	Rubin bool
 	// DriverMajor is the major version of the NVIDIA driver.
 	// Used to gate V3 fabric API calls which require driver >= 550.
 	DriverMajor int
@@ -120,3 +122,6 @@ func WithDriverMajor(major int) OpOption {
 		op.DriverMajor = major
 	}
 }
+
+// WithRubin scopes new fabric queries and strict error handling to Rubin.
+func WithRubin(rubin bool) OpOption { return func(op *Op) { op.Rubin = rubin } }

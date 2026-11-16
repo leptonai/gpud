@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +41,7 @@ func TestCheck_FabricStateSupportedHealthy(t *testing.T) {
 				Entries: []devwrap.FabricStateEntry{
 					{
 						GPUUUID:     "GPU-0",
-						CliqueID:    4026,
+						CliqueID:    ptr.To(uint32(4026)),
 						ClusterUUID: "9c6f5af3-53bf-49b5-a436-b66766c413c3",
 						State:       "Completed",
 						Status:      "Success",
@@ -143,7 +145,8 @@ func TestCheck_FabricStateSupportedError(t *testing.T) {
 	// Unhealthy fabric state should preserve the unhealthy health state
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ; NVIDIA GB200 does not support fabric manager", cr.reason)
-	assert.Nil(t, cr.err)
+	assert.ErrorIs(t, cr.err, fabricErr)
+	assert.Equal(t, fabricErr.Error(), cr.HealthStates()[0].Error)
 }
 
 func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T) {
@@ -181,7 +184,8 @@ func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 NVL72 with unhealthy fabric state: "+reason+"; NVIDIA GB200 NVL72 does not support fabric manager", cr.reason)
 	assert.Equal(t, reason, cr.FabricStateReason)
-	assert.Nil(t, cr.err)
+	assert.ErrorIs(t, cr.err, fabricErr)
+	assert.Equal(t, fabricErr.Error(), cr.HealthStates()[0].Error)
 }
 
 func TestCheck_FabricStateSupportedHealthyWithMultipleGPUs(t *testing.T) {
@@ -377,7 +381,7 @@ func TestFabricStateEntryRenderTable(t *testing.T) {
 
 	entry := devwrap.FabricStateEntry{
 		GPUUUID:     "GPU-123",
-		CliqueID:    4026,
+		CliqueID:    ptr.To(uint32(4026)),
 		ClusterUUID: "9c6f5af3-53bf-49b5-a436-b66766c413c3",
 		State:       "Completed",
 		Status:      "Success",
@@ -419,7 +423,7 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 				Entries: []devwrap.FabricStateEntry{
 					{
 						GPUUUID:  "GPU-0",
-						CliqueID: 4026,
+						CliqueID: ptr.To(uint32(4026)),
 						State:    "Completed",
 						Status:   "Success",
 					},

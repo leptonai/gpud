@@ -890,6 +890,17 @@
                 "EventTypeFatal"
             ]
         },
+        "github_com_leptonai_gpud_api_v1.GPUFabricClique": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_leptonai_gpud_api_v1.HealthState": {
             "type": "object",
             "properties": {
@@ -1136,8 +1147,15 @@
                     "type": "string"
                 },
                 "cliqueID": {
-                    "description": "CliqueID is the GPU fabric clique ID (\"Clique Id\" in nvidia-smi -q).\nIt identifies the clique of the node inside the NVLink fabric. A pointer\npreserves clique 0 as a reported value while nil means not reported.",
+                    "description": "CliqueID retains the deprecated single-clique wire field for compatibility.\nWith fabric-info V4 it is the first Unicast Pointer clique, never a logical\nendpoint clique. Nil means unavailable; a pointer preserves a valid zero.",
                     "type": "integer"
+                },
+                "cliques": {
+                    "description": "Cliques contains the typed V4 assignments shared by every GPU on the node.\nOlder APIs cannot supply this list; do not infer other types from CliqueID.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_leptonai_gpud_api_v1.GPUFabricClique"
+                    }
                 },
                 "clusterUUID": {
                     "description": "ClusterUUID is the GPU fabric cluster UUID (\"Cluster UUID\" in nvidia-smi -q).\nAll nodes in one NVLink fabric, for example one NVIDIA GB200 NVL72 rack,\nreport the same value. NVIDIA uses it to group nodes by fabric domain.\nCollected with the NVML fabric state API. Empty when the node is not in\nan NVLink fabric.",
@@ -1158,7 +1176,7 @@
                     "type": "string"
                 },
                 "product": {
-                    "description": "Product may be \"NVIDIA-Graphics-Device\" for NVIDIA GB200.",
+                    "description": "Product is the driver name with whitespace normalized to hyphens.\nDevelopment Blackwell and Rubin drivers may report \"NVIDIA-Graphics-Device\".",
                     "type": "string"
                 }
             }

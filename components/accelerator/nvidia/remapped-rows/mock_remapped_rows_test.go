@@ -38,6 +38,9 @@ func (m *customMockNVMLInstanceRR) FabricStateSupported() bool        { return f
 func (m *customMockNVMLInstanceRR) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return m.memCaps
 }
+func (m *customMockNVMLInstanceRR) Capabilities() nvidiaproduct.Capabilities {
+	return nvidiaproduct.Capabilities{MemoryManagement: m.memCaps, FabricManager: true}
+}
 func (m *customMockNVMLInstanceRR) ProductName() string   { return m.productName }
 func (m *customMockNVMLInstanceRR) Architecture() string  { return "" }
 func (m *customMockNVMLInstanceRR) Brand() string         { return "" }

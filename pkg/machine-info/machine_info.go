@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,7 +33,6 @@ import (
 	"github.com/leptonai/gpud/pkg/netutil"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
-	nvidiadevice "github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
@@ -126,7 +126,7 @@ func getMachineInfo(nvmlInstance nvidianvml.Instance, containerdConfig configcom
 	// Machine.Status.MachineInfo.GPUInfo. Keep the producer wire shape aligned
 	// with that CRD shape so gpud-manager can unmarshal and persist them.
 	if info.GPUInfo != nil {
-		info.GPUInfo.ClusterUUID, info.GPUInfo.CliqueID = getGPUFabricIdentifiers(nvmlInstance)
+		info.GPUInfo.ClusterUUID, info.GPUInfo.CliqueID, info.GPUInfo.Cliques = getGPUFabricIdentifiers(nvmlInstance)
 		info.GPUInfo.ChassisSerial = getGPUChassisSerial(nvmlInstance)
 	}
 
@@ -564,9 +564,9 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 	return qty.String(), nil
 }
 
-// getGPUFabricIdentifiers returns the NVLink fabric cluster UUID and clique ID
+// getGPUFabricIdentifiers returns the NVLink fabric cluster UUID and clique assignments
 // of the machine (e.g., NVIDIA GB200 NVL72). It returns them only when every
-// GPU with a readable fabric state has completed fabric registration and all
+// GPU has readable, completed fabric registration and all
 // of them report the same values. Fabric state telemetry is not supported on
 // all platforms; in that case this function returns empty values and does not
 // fail.
@@ -582,45 +582,33 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 // cluster UUID means the node is not in a fabric: the clique ID must stay
 // unreported, because clique 0 on the wire is indistinguishable from a real
 // clique 0 and groups unrelated nodes into one false clique (LEP-6676).
-func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, *uint32) {
+func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, *uint32, []apiv1.GPUFabricClique) {
 	var clusterUUID string
-	var cliqueID uint32
+	var cliqueID *uint32
+	var cliques []apiv1.GPUFabricClique
 	for uuid, dev := range nvmlInstance.Devices() {
 		fabricState, err := dev.GetFabricState()
 		if err != nil {
+			// Partial observations cannot establish agreement across the whole node.
 			log.Logger.Debugw("failed to get gpu fabric state for machine info", "uuid", uuid, "error", err)
-			continue
+			return "", nil, nil
 		}
-		if fabricState.ClusterUUID == "" {
-			return "", nil
+		if fabricState.ClusterUUID == "" || fabricState.State != nvml.GPU_FABRIC_STATE_COMPLETED || fabricState.Status != nvml.SUCCESS {
+			return "", nil, nil
 		}
-		if fabricState.State != nvml.GPU_FABRIC_STATE_COMPLETED || fabricState.Status != nvml.SUCCESS {
-			log.Logger.Debugw("gpu fabric registration is not complete, omitting fabric identifiers from machine info",
-				"uuid", uuid,
-				"state", nvidiadevice.FabricStateToString(fabricState.State),
-				"status", nvidiadevice.FabricStatusToString(fabricState.Status),
-			)
-			return "", nil
-		}
+		legacy := fabricState.LegacyCliqueID()
 		if clusterUUID == "" {
-			clusterUUID, cliqueID = fabricState.ClusterUUID, fabricState.CliqueID
+			clusterUUID, cliqueID, cliques = fabricState.ClusterUUID, legacy, fabricState.Cliques
 			continue
 		}
-		if fabricState.ClusterUUID != clusterUUID || fabricState.CliqueID != cliqueID {
-			log.Logger.Warnw("gpus report different fabric identifiers, omitting them from machine info",
-				"uuid", uuid,
-				"clusterUUID", fabricState.ClusterUUID,
-				"cliqueID", fabricState.CliqueID,
-				"otherClusterUUID", clusterUUID,
-				"otherCliqueID", cliqueID,
-			)
-			return "", nil
+		// Equal pointer IDs do not establish agreement on Logical Endpoint cliques.
+		legacyEqual := (legacy == nil && cliqueID == nil) || (legacy != nil && cliqueID != nil && *legacy == *cliqueID)
+		if fabricState.ClusterUUID != clusterUUID || !legacyEqual || !slices.Equal(fabricState.Cliques, cliques) {
+			log.Logger.Warnw("gpus report different fabric identifiers, omitting them from machine info", "uuid", uuid)
+			return "", nil, nil
 		}
 	}
-	if clusterUUID == "" {
-		return "", nil
-	}
-	return clusterUUID, &cliqueID
+	return clusterUUID, cliqueID, cliques
 }
 
 // getGPUChassisSerial returns the chassis serial reported by NVML platform

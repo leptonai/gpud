@@ -10,6 +10,7 @@ import (
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/ptr"
 
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
@@ -154,7 +155,7 @@ func TestFabricState_ToEntry(t *testing.T) {
 	entry := fs.ToEntry("GPU-12345")
 
 	assert.Equal(t, "GPU-12345", entry.GPUUUID)
-	assert.Equal(t, uint32(42), entry.CliqueID)
+	assert.Equal(t, uint32(42), *entry.CliqueID)
 	assert.Equal(t, "test-cluster-uuid", entry.ClusterUUID)
 	assert.Equal(t, "Completed", entry.State)
 	assert.Equal(t, "Success", entry.Status)
@@ -172,7 +173,7 @@ func TestFabricStateEntry_RenderTable(t *testing.T) {
 			name: "basic entry",
 			entry: FabricStateEntry{
 				GPUUUID:  "GPU-12345",
-				CliqueID: 1,
+				CliqueID: ptr.To(uint32(1)),
 				State:    "Completed",
 				Status:   "Success",
 			},
@@ -182,7 +183,7 @@ func TestFabricStateEntry_RenderTable(t *testing.T) {
 			name: "entry with cluster UUID",
 			entry: FabricStateEntry{
 				GPUUUID:     "GPU-12345",
-				CliqueID:    1,
+				CliqueID:    ptr.To(uint32(1)),
 				ClusterUUID: "cluster-uuid-123",
 				State:       "Completed",
 				Status:      "Success",
@@ -193,7 +194,7 @@ func TestFabricStateEntry_RenderTable(t *testing.T) {
 			name: "entry with health summary",
 			entry: FabricStateEntry{
 				GPUUUID:  "GPU-12345",
-				CliqueID: 1,
+				CliqueID: ptr.To(uint32(1)),
 				State:    "Completed",
 				Status:   "Success",
 				Summary:  "Healthy",
@@ -204,7 +205,7 @@ func TestFabricStateEntry_RenderTable(t *testing.T) {
 			name: "entry with health details",
 			entry: FabricStateEntry{
 				GPUUUID:  "GPU-12345",
-				CliqueID: 1,
+				CliqueID: ptr.To(uint32(1)),
 				State:    "Completed",
 				Status:   "Success",
 				Health: FabricHealthSnapshot{
@@ -916,7 +917,7 @@ func TestOp_ApplyEmptyOpts(t *testing.T) {
 func TestFabricStateEntry_RenderTable_MinimalFields(t *testing.T) {
 	entry := FabricStateEntry{
 		GPUUUID:  "GPU-MINIMAL",
-		CliqueID: 0,
+		CliqueID: ptr.To(uint32(0)),
 		State:    "Completed",
 		Status:   "Success",
 	}
@@ -936,7 +937,7 @@ func TestFabricStateEntry_RenderTable_MinimalFields(t *testing.T) {
 func TestFabricStateEntry_RenderTable_AllFields(t *testing.T) {
 	entry := FabricStateEntry{
 		GPUUUID:     "GPU-FULL",
-		CliqueID:    42,
+		CliqueID:    ptr.To(uint32(42)),
 		ClusterUUID: "cluster-abc",
 		State:       "Completed",
 		Status:      "Success",
@@ -973,7 +974,7 @@ func TestFabricState_ToEntry_WithAllFields(t *testing.T) {
 
 	entry := state.ToEntry("GPU-TEST-UUID")
 	assert.Equal(t, "GPU-TEST-UUID", entry.GPUUUID)
-	assert.Equal(t, uint32(5), entry.CliqueID)
+	assert.Equal(t, uint32(5), *entry.CliqueID)
 	assert.Equal(t, "test-cluster", entry.ClusterUUID)
 	assert.Equal(t, "Completed", entry.State)
 	assert.Equal(t, "Success", entry.Status)
@@ -1024,9 +1025,9 @@ func TestNvDevice_GetFabricState_V3Success(t *testing.T) {
 }
 
 func TestNvDevice_GetFabricState_V3FallbackToV1(t *testing.T) {
-	mockey.PatchConvey("GetFabricState falls back to V1 when V3 fails", t, func() {
+	mockey.PatchConvey("GetFabricState falls back to V1 when V3 is unavailable", t, func() {
 		mockey.Mock(nvml.GpuFabricInfoHandler.V3).To(func(_ nvml.GpuFabricInfoHandler) (nvml.GpuFabricInfo_v3, nvml.Return) {
-			return nvml.GpuFabricInfo_v3{}, nvml.ERROR_UNKNOWN
+			return nvml.GpuFabricInfo_v3{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
 		}).Build()
 
 		clusterUUID := [16]uint8{0xaa, 0xbb, 0xcc, 0xdd, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb}

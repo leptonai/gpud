@@ -87,6 +87,17 @@ jobs:
           rclone --config "${rclone_config}" copy --verbose \
             "${release_dir}" default:gpud-public-artifacts/
 
+          # Check both tag syntax and GitHub metadata before advancing the shared installer channel.
+          [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Leaving shared pointer unchanged for non-stable tag ${VERSION}"
+            exit 0
+          }
+          release_flags="$(gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')"
+          [[ "${release_flags}" == false ]] || {
+            echo "Leaving shared pointer unchanged for draft or prerelease ${VERSION}"
+            exit 0
+          }
+
           printf '%s' "${VERSION}" > "${RUNNER_TEMP}/unstable_latest.txt"
           rclone --config "${rclone_config}" copyto --verbose \
             "${RUNNER_TEMP}/unstable_latest.txt" \

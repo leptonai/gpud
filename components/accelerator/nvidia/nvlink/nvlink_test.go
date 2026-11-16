@@ -196,7 +196,7 @@ func TestGetNVLink(t *testing.T) {
 				busID:             "test-pci",
 			},
 			expectedSupported:      true,
-			expectedStatesCount:    nvml.NVLINK_MAX_LINKS,
+			expectedStatesCount:    18,
 			expectedFeatureEnabled: true,
 			expectedReplayErrors:   10,
 			expectedRecoveryErrors: 20,

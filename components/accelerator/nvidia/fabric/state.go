@@ -88,8 +88,9 @@ func CollectWith(devices map[string]device.Device, get func(device.Device) (devi
 	return r
 }
 
-// UnsupportedWithoutFabric distinguishes an absent API from a failed fabric.
-// An explicit NVL72 topology or a detected switch still requires telemetry.
+// UnsupportedWithoutFabric retains the existing candidate policy: C2C alone
+// does not prove a configured rack. An explicit rack name or detected switch
+// still establishes fabric applicability.
 func (r Report) UnsupportedWithoutFabric(product string, switchDetected bool) bool {
 	return r.AllUnsupported && !switchDetected && !strings.Contains(strings.ToLower(product), "nvl72")
 }

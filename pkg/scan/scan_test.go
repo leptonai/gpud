@@ -21,6 +21,8 @@ type mockCheckResult struct {
 	summary         string
 	healthStateType apiv1.HealthStateType
 	stringOutput    string
+	queryError      string
+	actions         *apiv1.SuggestedActions
 }
 
 func (m *mockCheckResult) ComponentName() string {
@@ -42,9 +44,11 @@ func (m *mockCheckResult) HealthStateType() apiv1.HealthStateType {
 func (m *mockCheckResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{
 		{
-			Component: m.componentName,
-			Health:    m.healthStateType,
-			Reason:    m.summary,
+			Component:        m.componentName,
+			Health:           m.healthStateType,
+			Reason:           m.summary,
+			Error:            m.queryError,
+			SuggestedActions: m.actions,
 		},
 	}
 }
@@ -68,6 +72,17 @@ func TestPrintSummary(t *testing.T) {
 		checkResult    components.CheckResult
 		expectedOutput string
 	}{
+		{
+			name: "query failure retains recovery evidence",
+			checkResult: &mockCheckResult{
+				componentName:   "memory-repair",
+				summary:         "error getting memory repair status",
+				healthStateType: apiv1.HealthStateTypeUnhealthy,
+				queryError:      "GPU requires reset",
+				actions:         &apiv1.SuggestedActions{Description: "reset required", RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
+			},
+			expectedOutput: fmt.Sprintf("%s error getting memory repair status\n\nmemory-repair error: GPU requires reset\nmemory-repair suggested actions: [%s] reset required\n", cmdcommon.WarningSign, apiv1.RepairActionTypeRebootSystem),
+		},
 		{
 			name: "healthy result",
 			checkResult: &mockCheckResult{

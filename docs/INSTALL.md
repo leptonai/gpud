@@ -7,11 +7,17 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 gpud up
 ```
 
-To install the latest unstable release (including release candidates) explicitly:
+To install an RC, pin its exact published version:
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s $(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)
+GPUD_VERSION="vX.Y.Z-rc.N" # replace with an existing RC tag
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s -- "$GPUD_VERSION"
 ```
+
+The default installer reads `stable_latest.txt`. Publishing advances the legacy
+`unstable_latest.txt` pointer only for stable tags that are neither drafts nor
+prereleases. RC packages are uploaded for explicitly pinned installs; they do not
+advance that pointer.
 
 Then open [localhost:15132](https://localhost:15132) for the local web UI.
 

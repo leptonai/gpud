@@ -11,7 +11,6 @@ import (
 	"github.com/leptonai/gpud/cmd/gpud/common"
 	gpudcomponents "github.com/leptonai/gpud/components"
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
-	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
@@ -108,6 +107,7 @@ func cmdScan(
 	log.SetLogger(log.CreateLogger(zapLvl, ""))
 
 	log.Logger.Debugw("starting scan command")
+	var opts []scan.OpOption
 
 	if gpuCount > 0 {
 		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
@@ -122,7 +122,7 @@ func cmdScan(
 		if err := json.Unmarshal([]byte(infinibandExpectedPortStates), &expectedPortStates); err != nil {
 			return err
 		}
-		componentsinfiniband.SetDefaultExpectedPortStates(expectedPortStates)
+		opts = append(opts, scan.WithInfinibandExpectedPortStates(expectedPortStates))
 
 		log.Logger.Infow("set infiniband expected port states", "infinibandExpectedPortStates", infinibandExpectedPortStates)
 	}
@@ -172,7 +172,7 @@ func cmdScan(
 	gpuUUIDsWithGPURequiresReset := common.ParseGPUUUIDs(gpuUUIDsWithGPURequiresResetRaw)
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
 
-	opts := []scan.OpOption{
+	opts = append(opts,
 		scan.WithInfinibandClassRootDir(ibClassRootDir),
 		scan.WithFailureInjector(&gpudcomponents.FailureInjector{
 			GPUUUIDsWithRowRemappingPending:               gpuUUIDsWithRowRemappingPending,
@@ -186,7 +186,7 @@ func cmdScan(
 			GPUProductNameOverride:                        gpuProductNameOverride,
 			ContainerdSocketMissing:                       containerdSocketMissing,
 		}),
-	}
+	)
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		opts = append(opts, scan.WithDebug(true))
 	}

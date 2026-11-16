@@ -10,15 +10,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
-type fabricStateReport struct {
-	Entries        []device.FabricStateEntry
-	AllUnsupported bool
-	Healthy        bool
-	Pending        bool
-	Failed         bool
-	Reason         string
-	Err            error
-}
+type fabricStateReport fabric.Report
 
 // RenderTable renders the fabric state report as a formatted table
 func (r fabricStateReport) RenderTable(wr io.Writer) {

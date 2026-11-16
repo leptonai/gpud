@@ -51,6 +51,10 @@ func (m *mockNvmlInstanceForMockey) DriverMajor() int                  { return 
 func (m *mockNvmlInstanceForMockey) CUDAVersion() string               { return "mock-cuda" }
 func (m *mockNvmlInstanceForMockey) FabricManagerSupported() bool      { return false }
 func (m *mockNvmlInstanceForMockey) FabricStateSupported() bool        { return false }
+func (m *mockNvmlInstanceForMockey) Capabilities() nvidiaproduct.Capabilities {
+	// This fixture does not model capability-gated behavior.
+	return nvidiaproduct.Capabilities{}
+}
 func (m *mockNvmlInstanceForMockey) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }

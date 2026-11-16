@@ -36,6 +36,7 @@ var ErrNoExpectedPortStates = errors.New("no expected port states found (not sup
 
 // SupportsInfinibandPortRate returns the expected InfiniBand port thresholds for a GPU product.
 func SupportsInfinibandPortRate(gpuProductName string) (types.ExpectedPortStates, error) {
+	// Rubin has no qualified default NIC inventory. Require explicit thresholds.
 	p := strings.ToLower(gpuProductName)
 
 	longestMatch := ""

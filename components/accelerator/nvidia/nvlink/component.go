@@ -28,7 +28,7 @@ import (
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
-	"github.com/leptonai/gpud/pkg/nvidia/product"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // Name is the name of the NVIDIA NVLink component.
@@ -81,9 +81,14 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now()
 		},
-		getBootTimeFunc:          pkghost.BootTime,
-		nvmlInstance:             gpudInstance.NVMLInstance,
-		getNVLinkFunc:            GetNVLink,
+		getBootTimeFunc: pkghost.BootTime,
+		nvmlInstance:    gpudInstance.NVMLInstance,
+		getNVLinkFunc: func(uuid string, dev device.Device) (NVLink, error) {
+			if gpudInstance.NVMLInstance.Capabilities().Rubin {
+				return getRubinNVLink(uuid, dev)
+			}
+			return GetNVLink(uuid, dev)
+		},
 		getPeerNVLinkP2PStatusFn: getPeerNVLinkP2PStatus,
 		getThresholdsFunc:        GetDefaultExpectedLinkStates,
 		checkNVSwitchExistsFunc: func() bool {
@@ -330,13 +335,19 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
+	caps := c.nvmlInstance.Capabilities()
+	// Physical architecture is diagnostic metadata; capabilities honor overrides.
+	isRubin := caps.Rubin
 	var fabricReport *fabric.Report
-	if len(devs) > 1 && c.nvmlInstance.FabricStateSupported() {
+	// Rubin may expose a single GPU from a rack even without C2C telemetry.
+	// Probe registration before deciding whether a fabric is present.
+	if (len(devs) > 1 || isRubin) && c.nvmlInstance.FabricStateSupported() {
 		report := fabric.Collect(devs)
 		switchDetected := false
 		if report.AllUnsupported && c.checkNVSwitchExistsFunc != nil {
 			switchDetected = c.checkNVSwitchExistsFunc()
 		}
+
 		if !report.UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), switchDetected) {
 			fabricReport = &report
 		}
@@ -362,6 +373,13 @@ func (c *component) Check() components.CheckResult {
 	// and some are not, operators must still configure ExpectedLinkStates to make
 	// partial degradation fail health checks.
 	cr.SystemExpectedNVLink = len(devs) > 1 && (c.nvmlInstance.FabricManagerSupported() || c.nvmlInstance.FabricStateSupported())
+	if isRubin {
+		// Rubin's family-wide FabricState capability permits a query; it does
+		// not prove NVLink connectivity on PCIe-only development systems. The
+		// report is retained when telemetry or topology establishes a fabric,
+		// and discarded only for unsupported telemetry with no fabric evidence.
+		cr.SystemExpectedNVLink = len(devs) > 1 && fabricReport != nil
+	}
 	sortedUUIDs := make([]string, 0, len(devs))
 	for uuid := range devs {
 		sortedUUIDs = append(sortedUUIDs, uuid)
@@ -417,15 +435,20 @@ func (c *component) Check() components.CheckResult {
 		dev := devs[uuid]
 		nvLink, err := c.getNVLinkFunc(uuid, dev)
 		if err != nil {
+			// A counter can fail after link states have been read, and fabric
+			// collection can already have found a separate error. Keep both the
+			// partial link evidence and every error in the public health response.
+			if len(nvLink.States) > 0 {
+				cr.NVLinks = append(cr.NVLinks, nvLink)
+			}
 			cr.err = err
+			if fabricReport != nil {
+				cr.err = errors.Join(cr.err, fabricReport.Err)
+			}
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting nvlink"
-			if fabricReport != nil || product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName()) {
-				var fabricErr error
-				if fabricReport != nil {
-					fabricErr = fabricReport.Err
-				}
-				cr.suggestedActions = fabric.SuggestedActions(errors.Join(err, fabricErr), cr.health)
+			if fabricReport != nil || caps.ExternalFabricCandidate || isRubin {
+				cr.suggestedActions = fabric.SuggestedActions(cr.err, cr.health)
 			}
 
 			if errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
@@ -506,8 +529,35 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	evaluateHealthStateWithThresholds(cr)
-	if cr.health == apiv1.HealthStateTypeUnhealthy && product.MayHaveExternalFabricByGPUProduct(c.nvmlInstance.ProductName()) {
-		// A bare GB200/GB300 name cannot establish that failed links are host-local.
+	// Rubin rack trays get a default per-link check. NVIDIA's DGX Vera Rubin
+	// NVL72 post-reboot verification requires "all the links are active" once
+	// fabric state reports Completed/Success:
+	// https://docs.nvidia.com/dgx/dgxvr-user-guide/rack-reboot-sequence.html
+	//
+	// Require confirmed registration first (fabricReport non-nil and Healthy:
+	// every visible GPU Completed+Success with no health issues). Links are
+	// legitimately down before the fabric is configured and while registration
+	// is pending; the registration guard above already reports those states.
+	//
+	// GB200/GB300 deliberately keep the implicit "zero active GPUs" fallback:
+	// that is existing fleet behavior and they are not part of Rubin
+	// qualification, so tightening it would change health on deployed racks.
+	// An unwired index is not yet qualified as a fault on every Rubin tray.
+	// Keep its raw state visible and require an operator opt-in to this rule.
+	if isRubin && nvidiaproduct.RubinHealthRulesEnabled() &&
+		caps.ExternalFabricCandidate && fabricReport != nil && fabricReport.Healthy {
+		evaluateRubinRackInactiveLinks(cr)
+	}
+	// Unknown Rubin host attachment can still be an NVL72 rack when C2C queries
+	// are unavailable. Failed links establish an outage, not that the failed
+	// hardware belongs to this host. Earlier GPU families retain
+	// the legacy link-based reboot advice; device loss/reset above still wins.
+	externalOrUnknownFabric := caps.ExternalFabricCandidate ||
+		isRubin
+	if cr.health == apiv1.HealthStateTypeUnhealthy && externalOrUnknownFabric {
+		// A fabric candidate does not establish that failed links are host-local:
+		// on an NVL72 tray a dead link may be on the switch tray or cable
+		// cartridge side, which rebooting the compute tray cannot repair.
 		cr.suggestedActions = fabric.SuggestedActions(nil, cr.health)
 	}
 
