@@ -78,6 +78,11 @@ func requireNVIDIADriver() error {
 var ensureNVIDIADriver = requireNVIDIADriver
 
 func Command(cliContext *cli.Context) error {
+	controlPlaneLoginRegistrationToken, err := common.ConsumeEnrollmentToken(cliContext)
+	if err != nil {
+		return err
+	}
+
 	logLevel := cliContext.String("log-level")
 	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -127,11 +132,6 @@ func Command(cliContext *cli.Context) error {
 	// perform "login" if and only if configured
 	// Optional overrides for control plane connectivity
 	controlPlaneEndpoint := cliContext.String("endpoint")
-
-	// Represents the machine registration login token.
-	// This is the token that GPUd sends to the control plane to register the machine.
-	// This is NOT the token that GPUd uses for session authentication.
-	controlPlaneLoginRegistrationToken := cliContext.String("token")
 
 	machineIDForOverride := cliContext.String("machine-id")
 	shouldOverwriteMachineID := cliContext.Bool("machine-id-overwrite")

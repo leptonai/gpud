@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
+
+	"github.com/leptonai/gpud/cmd/gpud/common"
 )
 
 func TestEnrollmentTokenEnvironment(t *testing.T) {
@@ -16,14 +18,19 @@ func TestEnrollmentTokenEnvironment(t *testing.T) {
 			args  []string
 			want  string
 			unset bool
+			empty bool
 		}{
 			{name: "absent environment skips login", unset: true},
+			{name: "empty environment skips login", empty: true},
 			{name: "environment", want: "synthetic-enrollment-token"},
 			{name: "explicit flag wins", args: []string{"--token=explicit-token"}, want: "explicit-token"},
 			{name: "explicit empty wins", args: []string{"--token="}, want: ""},
 		} {
 			t.Run(name+"/"+tt.name, func(t *testing.T) {
 				t.Setenv("GPUD_TOKEN", "synthetic-enrollment-token")
+				if tt.empty {
+					t.Setenv("GPUD_TOKEN", "")
+				}
 				if tt.unset {
 					require.NoError(t, os.Unsetenv("GPUD_TOKEN"))
 				}
@@ -33,8 +40,12 @@ func TestEnrollmentTokenEnvironment(t *testing.T) {
 					if app.Commands[i].Name == name {
 						app.Commands[i].Action = func(c *cli.Context) error {
 							called = true
-							require.Equal(t, tt.want, c.String("token"))
-							require.Equal(t, !tt.unset, c.IsSet("token"))
+							token, err := common.ConsumeEnrollmentToken(c)
+							require.NoError(t, err)
+							require.Equal(t, tt.want, token)
+							require.Equal(t, len(tt.args) > 0, c.IsSet("token"))
+							_, present := os.LookupEnv("GPUD_TOKEN")
+							require.False(t, present, "child processes must not inherit the credential")
 							return nil
 						}
 					}
@@ -51,6 +62,7 @@ func TestEnrollmentTokenEnvironment(t *testing.T) {
 			app.ErrWriter = &output
 			require.NoError(t, app.Run([]string{"gpud", name, "--help"}))
 			require.NotContains(t, output.String(), "synthetic-enrollment-token")
+			require.Contains(t, output.String(), "GPUD_TOKEN", "the chart probes help for environment-token support")
 		})
 	}
 }

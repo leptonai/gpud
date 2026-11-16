@@ -19,6 +19,7 @@ func TestEnrollmentTokenStartup(t *testing.T) {
 	for _, tt := range []struct {
 		name, secret, label, want string
 		labels                    bool
+		unsupported               bool
 	}{
 		{name: "secret", secret: "synthetic-secret", want: "synthetic-secret"},
 		{name: "label", label: "synthetic-label", want: "synthetic-label", labels: true},
@@ -26,6 +27,9 @@ func TestEnrollmentTokenStartup(t *testing.T) {
 		{name: "empty secret falls back to label", label: "synthetic-label", want: "synthetic-label", labels: true},
 		{name: "disabled label ignored", label: "synthetic-label"},
 		{name: "no credential"},
+		{name: "older image with secret fails", secret: "synthetic-secret", unsupported: true},
+		{name: "older image with label fails", label: "synthetic-label", labels: true, unsupported: true},
+		{name: "older image without credential", unsupported: true},
 		{name: "special characters", secret: "synthetic space = $ & / ' \" \\ token\nnewline", want: "synthetic space = $ & / ' \" \\ token\nnewline"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,12 +50,28 @@ func TestEnrollmentTokenStartup(t *testing.T) {
 			// Execute the rendered wrapper with a substitute binary so assertions
 			// cover both its logs and the actual arguments/environment at exec.
 			binary := filepath.Join(dir, "gpud")
-			require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s\\000' \"$@\" > \"$GPUD_TEST_DIR/argv\"\nprintf '%s' \"${GPUD_TOKEN-}\" > \"$GPUD_TEST_DIR/token\"\nprintf '%s' \"${GPUD_TOKEN+set}\" > \"$GPUD_TEST_DIR/present\"\n"), 0700))
+			stub := `#!/bin/sh
+if [ "$1" = up ] && [ "$2" = --help ]; then
+  # The compatibility probe must not receive the enrollment credential.
+  [ -z "${GPUD_TOKEN:-}" ] || exit 1
+  [ "$GPUD_TEST_UNSUPPORTED" = true ] || echo GPUD_TOKEN
+  exit 0
+fi
+printf '%s\000' "$@" > "$GPUD_TEST_DIR/argv"
+printf '%s' "${GPUD_TOKEN-}" > "$GPUD_TEST_DIR/token"
+printf '%s' "${GPUD_TOKEN+set}" > "$GPUD_TEST_DIR/present"
+`
+			require.NoError(t, os.WriteFile(binary, []byte(stub), 0700))
 			script := container.Command[2]
 			require.Equal(t, 1, strings.Count(script, `exec /usr/local/bin/gpud "$@"`))
 			script = strings.Replace(script, `exec /usr/local/bin/gpud "$@"`, `exec "$GPUD_TEST_BINARY" "$@"`, 1)
+			require.Equal(t, 1, strings.Count(script, `/usr/local/bin/gpud up --help`))
+			script = strings.Replace(script, `/usr/local/bin/gpud up --help`, `"$GPUD_TEST_BINARY" up --help`, 1)
 			cmd := exec.Command(container.Command[0], container.Command[1], script)
 			cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "GPUD_TEST_BINARY=" + binary, "GPUD_TEST_DIR=" + dir, "GPUD_TOKEN=" + tt.secret}
+			if tt.unsupported {
+				cmd.Env = append(cmd.Env, "GPUD_TEST_UNSUPPORTED=true")
+			}
 			for _, env := range container.Env {
 				if env.ValueFrom == nil {
 					cmd.Env = append(cmd.Env, env.Name+"="+env.Value)
@@ -60,6 +80,13 @@ func TestEnrollmentTokenStartup(t *testing.T) {
 				}
 			}
 			output, err := cmd.CombinedOutput()
+			if tt.unsupported && (tt.secret != "" || tt.label != "") {
+				require.Error(t, err)
+				require.Contains(t, string(output), "this gpud image does not read GPUD_TOKEN")
+				require.NotContains(t, string(output), "synthetic-")
+				require.NoFileExists(t, filepath.Join(dir, "argv"), "incompatible images must not start")
+				return
+			}
 			require.NoError(t, err, "%s", output)
 			argv, err := os.ReadFile(filepath.Join(dir, "argv"))
 			require.NoError(t, err)

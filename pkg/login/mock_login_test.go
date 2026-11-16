@@ -955,11 +955,10 @@ func TestLogin_SendRequestErrorWithResponse(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
+		response := &apiv1.LoginResponse{Code: "401", Message: "invalid token"}
+		requestErr := errors.New("authentication failed")
 		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
-			return &apiv1.LoginResponse{
-				Code:    "401",
-				Message: "invalid token",
-			}, errors.New("authentication failed")
+			return response, requestErr
 		}).Build()
 
 		ctx := context.Background()
@@ -974,6 +973,18 @@ func TestLogin_SendRequestErrorWithResponse(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to login")
 		assert.Contains(t, err.Error(), "401")
 		assert.Contains(t, err.Error(), "invalid token")
+
+		// A gateway response without recognized error fields must preserve the
+		// safe transport error, including HTTP status, in the user-visible error.
+		response = &apiv1.LoginResponse{}
+		requestErr = errors.New("unexpected status code 502")
+		err = Login(ctx, cfg)
+		require.ErrorIs(t, err, requestErr)
+		assert.Contains(t, err.Error(), "failed to login: unexpected status code 502")
+
+		requestErr = ErrEmptyMachineID
+		err = Login(ctx, cfg)
+		require.ErrorIs(t, err, ErrEmptyMachineID)
 	})
 }
 

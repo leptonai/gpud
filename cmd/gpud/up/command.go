@@ -23,6 +23,11 @@ import (
 )
 
 func Command(cliContext *cli.Context) (retErr error) {
+	token, err := common.ConsumeEnrollmentToken(cliContext)
+	if err != nil {
+		return err
+	}
+
 	logLevel := cliContext.String("log-level")
 	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -43,7 +48,6 @@ func Command(cliContext *cli.Context) (retErr error) {
 	}
 
 	gpuCountStr := cliContext.String("gpu-count")
-	token := cliContext.String("token")
 
 	var nodeLabels map[string]string
 	if cliContext.IsSet("node-labels") {

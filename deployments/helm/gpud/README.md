@@ -382,8 +382,10 @@ When `nodeLabelExporter.enabled=true`, the chart's init container can read the
 enrollment token from a node label. To read it from an existing Kubernetes Secret
 instead, set `gpud.tokenSecret`; the enrollment token is injected as `GPUD_TOKEN` via
 `secretKeyRef` and takes priority over any token label. The startup wrapper passes
-it through the environment, keeping it out of logs and process arguments. Use the
-chart and GPUd image from the same release so the binary supports `GPUD_TOKEN`:
+it through the environment, keeping it out of logs and process arguments. GPUd
+clears this variable before login or startup so child processes cannot inherit it.
+Use the chart and GPUd image from the same release; when a token is configured,
+the wrapper rejects images whose help does not advertise `GPUD_TOKEN` support:
 
 ```yaml
 gpud:

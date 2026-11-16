@@ -473,11 +473,16 @@ spec:
               # log nor the process argument list contains its value.
               token_status="unset"
               if [ -n "$TOKEN" ]; then
+                # An overridden older image could silently skip enrollment.
+                # Check the advertised capability before handing it a credential.
+                if ! GPUD_TOKEN= /usr/local/bin/gpud up --help 2>/dev/null | grep -q GPUD_TOKEN; then
+                  echo "this gpud image does not read GPUD_TOKEN; use the image from the same release" >&2
+                  exit 1
+                fi
                 export GPUD_TOKEN="$TOKEN"
                 token_status="set"
               else
-                # An empty environment variable still counts as an explicit CLI
-                # input; leave it absent so tokenless starts continue to skip login.
+                # Leave tokenless starts without a credential in the environment.
                 unset GPUD_TOKEN
               fi
               unset TOKEN
