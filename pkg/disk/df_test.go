@@ -19,6 +19,45 @@ func TestRunDfCommandExecutes(t *testing.T) {
 	assert.Contains(t, out, "disk-ok")
 }
 
+func TestGetUsageWithCommandTargetsOneFilesystem(t *testing.T) {
+	command := diskCommandFixture(t, `
+[ "$#" -eq 5 ] && [ "$1 $2 $3 $4" = '-T -B1 -P --' ] || exit 9
+[ "$5" = "$EXPECTED_TARGET" ] || exit 10
+printf '%s\n' 'Filesystem Type 1B-blocks Used Available Capacity Mounted on' '/dev/root ext4 1000 400 600 40% /'
+`)
+	for _, target := range []string{"/", "/mount with spaces", "/mount'$(exit 99)`exit 99`"} {
+		t.Run(target, func(t *testing.T) {
+			t.Setenv("EXPECTED_TARGET", target)
+			usage, err := GetUsageWithCommand(context.Background(), target, command)
+			require.NoError(t, err)
+			assert.Equal(t, &Usage{TotalBytes: 1000, UsedBytes: 400, FreeBytes: 600}, usage)
+		})
+	}
+}
+
+func TestGetUsageWithCommandRejectsMissingUsage(t *testing.T) {
+	for _, output := range []string{"", "Filesystem Type 1B-blocks Used Available Capacity Mounted on", "/dev/root ext4 invalid 0 0 0% /"} {
+		t.Run(output, func(t *testing.T) {
+			t.Setenv("DF_OUTPUT", output)
+			usage, err := GetUsageWithCommand(context.Background(), "/", diskCommandFixture(t, `printf '%s\n' "$DF_OUTPUT"`))
+			require.Error(t, err)
+			assert.Nil(t, usage)
+		})
+	}
+}
+
+func TestLocalDfScanExcludesRemoteFilesystemsBeforeCollection(t *testing.T) {
+	command := diskCommandFixture(t, `
+[ "$*" = '-T -B1 -P --local' ] || exit 9
+printf '%s\n' '/dev/root ext4 1000 400 600 40% /'
+`)
+	parts, err := GetPartitions(context.Background(), WithBlockdevUsageCommand(command), WithLocalFilesystems(), WithFstype(DefaultExt4FsTypeFunc))
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "/", parts[0].MountPoint)
+	assert.Equal(t, uint64(1000), parts[0].Usage.TotalBytes)
+}
+
 func TestParseDfOutput(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -245,7 +245,7 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 				{Name: "/dev/sda1", Type: "part", MountPoint: "/", FSType: "ext4", FSUsed: disk.CustomUint64{Uint64: 50}, Size: disk.CustomUint64{Uint64: 100}},
 			}, nil
 		}).Build()
-		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
 			return disk.Partitions{
 				{
 					Device:     "10.0.0.10:/nfs",
@@ -289,18 +289,36 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 		assert.Contains(t, err.Error(), "lsblk failed")
 	})
 
-	mockey.PatchConvey("GetMachineDiskInfo returns partition error", t, func() {
+	mockey.PatchConvey("GetMachineDiskInfo preserves local disks on mount inventory error", t, func() {
 		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
 		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
 			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
 		}).Build()
-		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
 			return nil, errors.New("partitions failed")
 		}).Build()
 
-		_, err := GetMachineDiskInfo(context.Background())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "partitions failed")
+		mockey.Mock(os.Stat).Return(nil, os.ErrNotExist).Build()
+		info, err := GetMachineDiskInfo(context.Background())
+		require.NoError(t, err)
+		require.Len(t, info.BlockDevices, 1)
+		assert.Equal(t, "/dev/sda1", info.BlockDevices[0].Name)
+	})
+
+	mockey.PatchConvey("GetMachineDiskInfo tolerates inventory timeout but honors caller cancellation", t, func() {
+		mockey.Mock(currentGOOS).Return("linux").Build()
+		mockey.Mock(disk.GetBlockDevicesWithLsblk).Return(disk.BlockDevices{{Name: "/dev/root", MountPoint: "/", FSType: "ext4"}}, nil).Build()
+		mockey.Mock(disk.GetMounts).Return(nil, context.DeadlineExceeded).Build()
+		mockey.Mock(os.Stat).Return(nil, os.ErrNotExist).Build()
+
+		info, err := GetMachineDiskInfo(context.Background())
+		require.NoError(t, err)
+		require.Len(t, info.BlockDevices, 1)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		info, err = GetMachineDiskInfo(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, info)
 	})
 
 	mockey.PatchConvey("GetMachineDiskInfo returns kubelet stat error", t, func() {
@@ -308,7 +326,7 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
 			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
 		}).Build()
-		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
 			return nil, nil
 		}).Build()
 		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
@@ -325,7 +343,7 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
 			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
 		}).Build()
-		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
 			return nil, nil
 		}).Build()
 		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
@@ -347,7 +365,7 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
 			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
 		}).Build()
-		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+		mockey.Mock(disk.GetMounts).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
 			return nil, nil
 		}).Build()
 		mockey.Mock(disk.FindMntWithCommand).To(func(ctx context.Context, target, command string) (*disk.FindMntOutput, error) {
@@ -365,7 +383,7 @@ func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
 	mockey.PatchConvey("machine info uses configured host disk commands", t, func() {
 		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
 
-		findmnt := `printf '%s\n' '{"filesystems":[{"target":"/","source":"/dev/sda1","fstype":"ext4","size":"1000B","used":"400B","avail":"600B","use%":"40%"}]}' #`
+		findmnt := `printf '%s\n' '{"filesystems":[{"target":"/","source":"/dev/sda1","fstype":"ext4","size":"1000B","used":"400B","avail":"600B","use%":"40%"},{"target":"/mnt/nfs","source":"server:/data","fstype":"nfs4","size":"2000B","used":"1000B","avail":"1000B","use%":"50%"}]}' #`
 		lsblk := `printf '%s\n' '{"blockdevices":[{"name":"/dev/sda","type":"disk","size":1000,"mountpoint":null,"fstype":null,"children":[{"name":"/dev/sda1","type":"part","size":1000,"mountpoint":"/","fstype":"ext4","fsused":"400"}]}]}' #`
 		df := `printf '%s\n' 'Filesystem Type 1B-blocks Used Available Use% Mounted on' '/dev/sda1 ext4 1000 400 600 40% /' 'server:/data nfs4 2000 1000 1000 50% /mnt/nfs' #`
 		SetDiskCommands(findmnt, lsblk, df)
@@ -391,16 +409,10 @@ func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
 		assert.Equal(t, "/dev/sda1", info.BlockDevices[0].Name)
 		assert.Equal(t, "server:/data", info.BlockDevices[1].Name)
 
-		// GetMachineDiskInfo above already exercises the configured commands. Avoid
-		// launching the same shell-backed df fixture again here: under the full CI
-		// suite that second short-lived process can sporadically produce no parsed
-		// rows. GetSystemResourceRootVolumeTotal only needs a root usage result for
-		// this assertion; command execution and df parsing have dedicated tests.
-		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
-			return disk.Partitions{{
-				MountPoint: "/",
-				Usage:      &disk.Usage{TotalBytes: 1000},
-			}}, nil
+		mockey.Mock(disk.GetUsageWithCommand).To(func(ctx context.Context, target, command string) (*disk.Usage, error) {
+			assert.Equal(t, "/", target)
+			assert.Equal(t, df, command)
+			return &disk.Usage{TotalBytes: 1000}, nil
 		}).Build()
 
 		total, err := GetSystemResourceRootVolumeTotal()

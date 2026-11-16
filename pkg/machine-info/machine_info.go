@@ -220,18 +220,11 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 			return "", fmt.Errorf("failed to get disk usage: %w", err)
 		}
 	} else {
-		partitions, err := disk.GetPartitions(
-			ctx,
-			disk.WithMountPoint(func(mountPoint string) bool { return mountPoint == "/" }),
-			disk.WithBlockdevUsageCommand(commands.blockdevUsageCommand),
-		)
+		var err error
+		usage, err = disk.GetUsageWithCommand(ctx, "/", commands.blockdevUsageCommand)
 		if err != nil {
 			return "", fmt.Errorf("failed to get disk usage: %w", err)
 		}
-		if len(partitions) == 0 || partitions[0].Usage == nil {
-			return "", fmt.Errorf("failed to get disk usage: root partition not found")
-		}
-		usage = partitions[0].Usage
 	}
 
 	qty := resource.NewQuantity(uint64ToInt64Capped(usage.TotalBytes), resource.DecimalSI)
@@ -743,18 +736,22 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 		})
 	}
 
-	// track nfs partitions only with available fields
+	// Remote inventory must not depend on filesystem responsiveness. Usage and
+	// reachability belong to the background health checks, not login or gossip.
 	if currentGOOS() == "linux" {
 		timeoutCtx, cancel := context.WithTimeout(ctx, diskPartitionsTimeout)
-		nfsParts, err := disk.GetPartitions(
+		nfsParts, err := disk.GetMounts(
 			timeoutCtx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 			disk.WithMountPoint(disk.DefaultMountPointFunc),
-			disk.WithBlockdevUsageCommand(commands.blockdevUsageCommand),
+			disk.WithFindmntCommand(commands.findmntCommand),
 		)
 		cancel()
 		if err != nil {
-			return nil, err
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			log.Logger.Warnw("failed to collect remote mount inventory", "error", err)
 		}
 		for _, part := range nfsParts {
 			dev := apiv1.MachineDiskDevice{
@@ -762,10 +759,6 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 				Type:       "nfs",
 				MountPoint: part.MountPoint,
 				FSType:     part.Fstype,
-			}
-			if part.Usage != nil {
-				dev.Size = uint64ToInt64Capped(part.Usage.TotalBytes)
-				dev.Used = uint64ToInt64Capped(part.Usage.UsedBytes)
 			}
 			rs = append(rs, dev)
 		}

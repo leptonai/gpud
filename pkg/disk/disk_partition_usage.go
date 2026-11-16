@@ -131,6 +131,32 @@ func GetUsage(ctx context.Context, mountPoint string) (*Usage, error) {
 	}, nil
 }
 
+// GetUsageWithCommand measures only mountPoint in the configured command's
+// namespace. Unlike filtering a complete df table, an explicit operand avoids
+// querying unrelated filesystems. An empty command uses df on PATH.
+func GetUsageWithCommand(ctx context.Context, mountPoint, command string) (*Usage, error) {
+	if mountPoint == "" {
+		return nil, errors.New("empty usage target")
+	}
+	if command == "" {
+		command = "df"
+	}
+	// The invocation prefix is configured shell code, but the target is data.
+	quotedTarget := "'" + strings.ReplaceAll(mountPoint, "'", "'\"'\"'") + "'"
+	output, err := runDfCommand(ctx, command, "-- "+quotedTarget)
+	if err != nil {
+		return nil, err
+	}
+	parts, err := parseDfOutput(output)
+	if err != nil {
+		return nil, err
+	}
+	if len(parts) != 1 || parts[0].Usage == nil {
+		return nil, fmt.Errorf("expected one filesystem usage result for %q, got %d", mountPoint, len(parts))
+	}
+	return parts[0].Usage, nil
+}
+
 type Partitions []Partition
 
 func (parts Partitions) RenderTable(wr io.Writer) {
@@ -219,7 +245,11 @@ const dfFlags = "-T -B1 -P"
 // FreeBytes (which includes filesystem-reserved blocks). This only applies when
 // the override is explicitly configured; the default path is unchanged.
 func getPartitionsWithDf(ctx context.Context, op *Op) (Partitions, error) {
-	output, err := runDfCommand(ctx, op.blockdevUsageCommand)
+	var flags []string
+	if op.localFilesystems {
+		flags = append(flags, "--local")
+	}
+	output, err := runDfCommand(ctx, op.blockdevUsageCommand, flags...)
 	if err != nil {
 		return nil, err
 	}
@@ -282,9 +312,9 @@ func filterDfPartitions(parsed Partitions, op *Op) Partitions {
 // the configured invocation prefix (gpud appends dfFlags). Only stdout is read,
 // since df may emit non-fatal warnings (e.g. permission denied on a mount) to
 // stderr that must not contaminate the parsed table.
-func runDfCommand(ctx context.Context, command string) (string, error) {
+func runDfCommand(ctx context.Context, command string, flags ...string) (string, error) {
 	p, err := process.New(
-		process.WithCommand(command+" "+dfFlags),
+		process.WithCommand(strings.TrimSpace(command+" "+dfFlags+" "+strings.Join(flags, " "))),
 		process.WithRunAsBashScript(),
 		process.WithRunBashInline(),
 	)

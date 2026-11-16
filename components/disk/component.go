@@ -145,7 +145,7 @@ func newComponent(
 			// path); when configured it runs the override (e.g. nsenter df) so usage
 			// is read from the host mount namespace. The getPartitionsTimeout context
 			// bounds the command, so a hung filesystem cannot block indefinitely.
-			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc), disk.WithBlockdevUsageCommand(gpudInstance.BlockdevUsageCommands))
+			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc), disk.WithLocalFilesystems(), disk.WithBlockdevUsageCommand(gpudInstance.BlockdevUsageCommands))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// statfs on nfs can incur network I/O or impact disk I/O performance

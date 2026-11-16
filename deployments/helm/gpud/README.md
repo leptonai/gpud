@@ -222,6 +222,15 @@ flags it controls (for example `findmnt --target ... --json --df`, or
 `df -T -B1 -P`). They depend on the same chart defaults as `rebootCommands`
 (`hostPID: true`, `securityContext.privileged: true`, `runAsUser: 0`).
 
+Login and gossip read remote mount names, types, and paths from `findmnt`'s
+mount table without querying remote filesystem usage. Remote size and used-byte
+fields are omitted from machine inventory; usage and reachability remain part
+of the background disk checks. If mount inventory cannot be read, GPUd logs a
+warning and retains the local disk inventory. Root capacity is queried with
+`df -T -B1 -P -- /`, and local disk scans use `--local`, so an unrelated stalled
+remote mount does not block either collection. Configure all three command
+prefixes together to keep inventory and usage in the same mount namespace.
+
 Set any of these to `""` to keep GPUd's built-in in-namespace behavior, which is
 appropriate when GPUd runs directly on the host (e.g. as a systemd service) or in
 a non-privileged pod. As with reboot, if `gpud.commandOverride` is set the
