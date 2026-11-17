@@ -216,8 +216,9 @@ type Partition struct {
 	Fstype     string `json:"fstype"`
 	MountPoint string `json:"mount_point"`
 	Mounted    bool   `json:"mounted"`
-	// StatTimedOut is true if the stat operation timed out.
-	StatTimedOut bool `json:"stat_timed_out"`
+	// StatTimedOut is true if stat or filesystem usage collection timed out.
+	StatTimedOut bool   `json:"stat_timed_out"`
+	StatError    string `json:"stat_error,omitempty"`
 
 	Usage *Usage `json:"usage"`
 }

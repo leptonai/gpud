@@ -1319,6 +1319,8 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 			return disk.Partitions{mockNFSPartition}, nil
 		}
 
+		require.Equal(t, apiv1.HealthStateTypeDegraded, c.Check().HealthStateType())
+		require.Equal(t, 1, callCount, "retry on the next health check, not within this check")
 		c.Check()
 
 		c.lastMu.RLock()

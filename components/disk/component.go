@@ -80,6 +80,7 @@ type component struct {
 
 	nfsStatTimeoutMu     sync.Mutex
 	nfsStatTimeoutCounts map[string]int
+	nfsStatIdentities    map[string]string
 
 	// lookbackPeriod defines how far back to query historical reboot and disk failure events
 	// when evaluating suggested repair actions. Default is 14 days.
@@ -123,6 +124,7 @@ func newComponent(
 	}
 
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	nfsUsage := &disk.NFSUsageCollector{}
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
@@ -148,15 +150,20 @@ func newComponent(
 			return disk.GetPartitions(timeoutCtx, disk.WithFstypeName("ext4"), disk.WithMountPoint(disk.DefaultMountPointFunc), disk.WithBlockdevUsageCommand(gpudInstance.BlockdevUsageCommands))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			// Usage collection stays in the background health check. Machine
-			// inventory only reads the latest successful sample from the cache.
 			timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
 			defer cancel()
-			parts, err := disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc), disk.WithBlockdevUsageCommand(gpudInstance.BlockdevUsageCommands))
-			if err == nil && timeoutCtx.Err() == nil {
-				disk.PublishNFSUsage(gpudInstance.BlockdevUsageCommands, parts)
+			mounts, err := disk.GetMounts(timeoutCtx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc), disk.WithFindmntCommand(gpudInstance.FindmntCommands))
+			if err != nil {
+				return nil, err
 			}
-			return parts, err
+			parts := nfsUsage.Collect(timeoutCtx, mounts, gpudInstance.BlockdevUsageCommands)
+			if ctx.Err() != nil {
+				return parts, ctx.Err()
+			}
+			// Publish successful mounts even when another mount times out. The cache
+			// retains failed mounts' old samples without refreshing their timestamps.
+			disk.PublishNFSUsage(gpudInstance.BlockdevUsageCommands, parts)
+			return parts, nil
 		},
 
 		// findMntFunc defaults to the legacy in-namespace findmnt when
@@ -574,6 +581,15 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	for target := range c.mountPointsToTrackUsage {
+		if nfsUsage, matched := nfsMountTargetUsage(target, cr.NFSPartitions); matched {
+			if nfsUsage != nil {
+				if cr.MountTargetUsages == nil {
+					cr.MountTargetUsages = make(map[string]disk.FindMntOutput)
+				}
+				cr.MountTargetUsages[target] = *nfsUsage
+			}
+			continue
+		}
 		timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 		_, err := c.statWithTimeoutFunc(timeoutCtx, target)
 		cancel()
@@ -727,11 +743,14 @@ func (c *component) Check() components.CheckResult {
 		cr.reason += strings.Join(degradedPartitionsDueToThresholdExceeded, "; ")
 	}
 
+	c.reconcileNFSStatFailures(cr.NFSPartitions)
 	var statTimeoutMounts []string
+	statErrors := make(map[string]string)
 	for _, p := range cr.NFSPartitions {
-		consecutive := c.recordNFSStatTimeout(p.MountPoint, p.StatTimedOut)
-		if p.StatTimedOut && consecutive >= nfsStatTimeoutConsecutiveThreshold {
+		consecutive := c.recordNFSStatTimeout(p.MountPoint, p.StatTimedOut || p.StatError != "")
+		if (p.StatTimedOut || p.StatError != "") && consecutive >= nfsStatTimeoutConsecutiveThreshold {
 			statTimeoutMounts = append(statTimeoutMounts, p.MountPoint)
+			statErrors[p.MountPoint] = p.StatError
 		}
 	}
 	if len(statTimeoutMounts) > 0 {
@@ -744,6 +763,10 @@ func (c *component) Check() components.CheckResult {
 
 		var timeoutReasons []string
 		for _, mountPoint := range statTimeoutMounts {
+			if err := statErrors[mountPoint]; err != "" {
+				timeoutReasons = append(timeoutReasons, fmt.Sprintf("%s stat failed continuously for %d checks: %s", mountPoint, nfsStatTimeoutConsecutiveThreshold, err))
+				continue
+			}
 			timeoutReasons = append(timeoutReasons,
 				fmt.Sprintf("%s stat timed out (possible connection issue) has failed continuously for %d checks", mountPoint, nfsStatTimeoutConsecutiveThreshold),
 			)
@@ -860,41 +883,30 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 }
 
 func (c *component) fetchNFSPartitions(cr *checkResult) bool {
-	prevFailed := false
-	for range 5 {
-		parts, err := c.getNFSPartitionsFunc(c.ctx) // "getNFSPartitionsFunc" itself already sets its own timeout
-		if err != nil {
-			select {
-			case <-c.ctx.Done():
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.err = c.ctx.Err()
-
-				if cr.reason == "ok" {
-					cr.reason = ""
-				}
-				if cr.reason != "" {
-					cr.reason += "; "
-				}
-				cr.reason += "failed to get nfs partitions -- took too long"
-
-				log.Logger.Warnw("failed to get nfs partitions -- took too long", "error", err)
-				return false
-
-			case <-time.After(c.retryInterval):
-				log.Logger.Warnw("failed to get nfs partitions -- retrying", "error", err)
-			}
-
-			prevFailed = true
-			continue
-		}
-
-		cr.NFSPartitions = parts
-		if prevFailed {
-			log.Logger.Infow("successfully got nfs partitions after retries", "num_partitions", len(parts))
-		}
-		break
+	parts, err := c.getNFSPartitionsFunc(c.ctx)
+	cr.NFSPartitions = parts
+	if err == nil {
+		return true
 	}
-	return true
+	// One collection per health check: retries must not masquerade as consecutive
+	// checks, and inventory errors must never fall through as an empty success.
+	cr.err = err
+	if cr.health != apiv1.HealthStateTypeUnhealthy {
+		cr.health = apiv1.HealthStateTypeDegraded
+	}
+	reason := "failed to get nfs partitions: " + err.Error()
+	if c.ctx.Err() != nil {
+		cr.health, cr.err = apiv1.HealthStateTypeUnhealthy, c.ctx.Err()
+		reason = "failed to get nfs partitions -- took too long"
+	}
+	if cr.reason == "ok" {
+		cr.reason = ""
+	}
+	if cr.reason != "" {
+		cr.reason += "; "
+	}
+	cr.reason += reason
+	return false
 }
 
 func (c *component) recordNFSStatTimeout(mountPoint string, timedOut bool) int {
