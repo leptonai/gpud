@@ -6,9 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Product names below are either the generic name observed on Rubin
-// development drivers or the documented system names (DGX Vera Rubin NVL72,
-// DGX Rubin NVL8); NVIDIA has not published NVML marketing names for Rubin.
 func TestRubinCapabilities(t *testing.T) {
 	const generic = "NVIDIA-Graphics-Device"
 	for _, tc := range []struct {
@@ -36,7 +33,15 @@ func TestRubinCapabilities(t *testing.T) {
 		},
 		{
 			name: "explicit NVL72 name without evidence", product: "NVIDIA Vera Rubin NVL72",
-			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true},
+			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true, ExplicitNVL72: true},
+		},
+		{
+			name: "VR NVL72 driver name", product: "NVIDIA VR NVL72",
+			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true, ExplicitNVL72: true},
+		},
+		{
+			name: "sanitized VR NVL72 driver name", product: "NVIDIA-VR-NVL72",
+			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true, ExplicitNVL72: true},
 		},
 		{
 			name: "explicit NVL8 name without evidence", product: "NVIDIA DGX Rubin NVL8",
@@ -59,6 +64,7 @@ func TestRubinCapabilities(t *testing.T) {
 
 	// Product names alone do not establish Rubin fabric ownership.
 	require.False(t, HasExternalFabricByGPUProduct("NVIDIA Vera Rubin NVL72"))
+	require.False(t, HasExternalFabricByGPUProduct("NVIDIA-VR-NVL72"))
 	require.False(t, HasExternalFabricByGPUProduct("NVIDIA DGX Rubin NVL8"))
 	require.False(t, HasExternalFabricByGPUProduct(generic))
 }

@@ -89,8 +89,8 @@ func CollectWith(devices map[string]device.Device, get func(device.Device) (devi
 }
 
 // UnsupportedWithoutFabric retains the existing candidate policy: C2C alone
-// does not prove a configured rack. An explicit rack name or detected switch
-// still establishes fabric applicability.
-func (r Report) UnsupportedWithoutFabric(product string, switchDetected bool) bool {
-	return r.AllUnsupported && !switchDetected && !strings.Contains(strings.ToLower(product), "nvl72")
+// does not prove a configured rack. A declared NVL72 product or a detected
+// switch establishes fabric applicability.
+func (r Report) UnsupportedWithoutFabric(explicitNVL72, switchDetected bool) bool {
+	return r.AllUnsupported && !switchDetected && !explicitNVL72
 }

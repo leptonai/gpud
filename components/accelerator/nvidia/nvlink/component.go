@@ -348,7 +348,7 @@ func (c *component) Check() components.CheckResult {
 			switchDetected = c.checkNVSwitchExistsFunc()
 		}
 
-		if !report.UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), switchDetected) {
+		if !report.UnsupportedWithoutFabric(caps.ExplicitNVL72, switchDetected) {
 			fabricReport = &report
 		}
 		cr.FabricStates = report.Entries

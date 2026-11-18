@@ -431,7 +431,7 @@ func (c *component) Check() components.CheckResult {
 		cr.FabricStates = report.Entries
 
 		if report.AllUnsupported && !c.testingMode && c.checkNVSwitchExistsFunc != nil &&
-			fabric.Report(report).UnsupportedWithoutFabric(c.nvmlInstance.ProductName(), c.checkNVSwitchExistsFunc()) {
+			fabric.Report(report).UnsupportedWithoutFabric(caps.ExplicitNVL72, c.checkNVSwitchExistsFunc()) {
 			cr.FabricStateSupported = false
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = c.nvmlInstance.ProductName() + ": fabric telemetry unsupported and no NVSwitch detected; skipping fabric state check"

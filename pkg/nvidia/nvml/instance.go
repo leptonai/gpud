@@ -210,16 +210,18 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 	log.Logger.Debugw("got devices from device library", "numDevices", len(devices))
 
 	productName := ""
+	productNameInferred := false
 	archFamily := ""
 	brand := ""
 
 	devs := make(map[string]device.Device)
 	if len(devices) > 0 {
-		name, ret := devices[0].GetName()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+		name, inferred, err := getProductName(devices[0])
+		if err != nil {
+			return nil, err
 		}
 		productName = name
+		productNameInferred = inferred
 		log.Logger.Debugw("detected product name", "productName", productName)
 
 		// Apply product name override for testing if configured
@@ -230,6 +232,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 				"original", productName,
 				"override", failureInjector.GPUProductNameOverride)
 			productName = failureInjector.GPUProductNameOverride
+			productNameInferred = false
 		}
 
 		for _, dev := range devices {
@@ -286,7 +289,6 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 			devs[uuid] = device.New(dev, busID, opts...)
 		}
 
-		var err error
 		for _, dev := range devs {
 			brand, err = GetBrand(dev)
 			if err != nil {
@@ -309,6 +311,9 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 		}
 	}
 	caps := nvidiaproduct.CapabilitiesForGPU(productName, capabilityArch, hostLink)
+	if productNameInferred {
+		caps.ExplicitNVL72 = false
+	}
 
 	return &instance{
 		nvmlLib:              nvmlLib,
