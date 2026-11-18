@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// VRNVL72Name is the product label used for Rubin GPUs with a generic driver name.
+const VRNVL72Name = "NVIDIA VR NVL72"
+
 var (
 	productNameSanitizerRegex  = "[^A-Za-z0-9-_. ]"
 	productNameSanitizerRegexp = regexp.MustCompile(productNameSanitizerRegex)

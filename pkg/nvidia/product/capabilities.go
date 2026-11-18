@@ -56,7 +56,8 @@ func CapabilitiesForGPU(name, architecture string, link HostLink) Capabilities {
 
 // IsRubin identifies the family without inferring a rack size or product SKU.
 func IsRubin(name, architecture string) bool {
-	return strings.EqualFold(architecture, "rubin") || strings.Contains(strings.ToLower(name), "rubin")
+	return strings.EqualFold(architecture, "rubin") || strings.Contains(strings.ToLower(name), "rubin") ||
+		strings.EqualFold(strings.ReplaceAll(name, "-", " "), VRNVL72Name)
 }
 
 // rubinCapabilities enables telemetry without guessing a rack size or NIC layout.

@@ -85,7 +85,7 @@ func TestRubinInstanceGenericProduct(t *testing.T) {
 				inst, err := newInstance(context.Background(), nil, &FailureInjectorConfig{GPUProductNameOverride: tc.override})
 				require.NoError(t, err)
 				require.Equal(t, "rubin", inst.Architecture())
-				wantProduct := "NVIDIA-Rubin"
+				wantProduct := "NVIDIA-VR-NVL72"
 				if tc.override != "" {
 					wantProduct = nvidiaproduct.SanitizeProductName(tc.override)
 				}

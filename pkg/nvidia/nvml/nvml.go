@@ -11,6 +11,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // GetArchFamily identifies the architecture independently of the product name.
@@ -246,10 +247,10 @@ func getProductName(dev nvml.Device) (string, error) {
 		return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 	}
 	// Early drivers can expose a generic name before a marketing name is available.
-	// Architecture establishes the family, but cannot establish a SKU or topology.
+	// Use the product label for reporting. Fabric detection uses separate evidence.
 	if strings.EqualFold(strings.TrimSpace(name), "NVIDIA Graphics Device") {
 		if arch, ret := dev.GetArchitecture(); ret == nvml.SUCCESS && arch == nvml.DEVICE_ARCH_RUBIN {
-			return "NVIDIA Rubin", nil
+			return product.VRNVL72Name, nil
 		}
 	}
 	return name, nil

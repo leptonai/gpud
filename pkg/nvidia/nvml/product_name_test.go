@@ -20,8 +20,9 @@ func TestProductNameInference(t *testing.T) {
 		archRet, nameRet    nvml.Return
 		queryArch           bool
 	}{
-		{name: "generic Rubin", product: "NVIDIA Graphics Device", arch: nvml.DEVICE_ARCH_RUBIN, want: "NVIDIA Rubin", queryArch: true},
-		{name: "case and whitespace", product: " nvidia graphics device ", arch: nvml.DEVICE_ARCH_RUBIN, want: "NVIDIA Rubin", queryArch: true},
+		{name: "generic Rubin", product: "NVIDIA Graphics Device", arch: nvml.DEVICE_ARCH_RUBIN, want: "NVIDIA VR NVL72", queryArch: true},
+		{name: "case and whitespace", product: " nvidia graphics device ", arch: nvml.DEVICE_ARCH_RUBIN, want: "NVIDIA VR NVL72", queryArch: true},
+		{name: "driver reports VR NVL72", product: "NVIDIA VR NVL72", want: "NVIDIA VR NVL72"},
 		{name: "specific Rubin name", product: "NVIDIA Rubin", arch: nvml.DEVICE_ARCH_RUBIN, want: "NVIDIA Rubin"},
 		{name: "specific legacy name", product: "NVIDIA H100 80GB HBM3", want: "NVIDIA H100 80GB HBM3"},
 		{name: "generic Blackwell", product: "NVIDIA Graphics Device", arch: nvml.DEVICE_ARCH_BLACKWELL, want: "NVIDIA Graphics Device", queryArch: true},
