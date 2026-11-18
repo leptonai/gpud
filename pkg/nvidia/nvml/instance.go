@@ -215,9 +215,9 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 
 	devs := make(map[string]device.Device)
 	if len(devices) > 0 {
-		name, ret := devices[0].GetName()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+		name, err := getProductName(devices[0])
+		if err != nil {
+			return nil, err
 		}
 		productName = name
 		log.Logger.Debugw("detected product name", "productName", productName)
@@ -286,7 +286,6 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 			devs[uuid] = device.New(dev, busID, opts...)
 		}
 
-		var err error
 		for _, dev := range devs {
 			brand, err = GetBrand(dev)
 			if err != nil {

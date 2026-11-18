@@ -224,9 +224,9 @@ func LoadGPUDeviceName() (string, error) {
 	}
 
 	for _, d := range devices {
-		name, ret := d.GetName()
-		if ret != nvml.SUCCESS {
-			return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+		name, err := getProductName(d)
+		if err != nil {
+			return "", err
 		}
 		if name != "" {
 			return name, nil
@@ -237,9 +237,20 @@ func LoadGPUDeviceName() (string, error) {
 }
 
 func GetProductName(dev device.Device) (string, error) {
+	return getProductName(dev)
+}
+
+func getProductName(dev nvml.Device) (string, error) {
 	name, ret := dev.GetName()
 	if ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+	}
+	// Early drivers can expose a generic name before a marketing name is available.
+	// Architecture establishes the family, but cannot establish a SKU or topology.
+	if strings.EqualFold(strings.TrimSpace(name), "NVIDIA Graphics Device") {
+		if arch, ret := dev.GetArchitecture(); ret == nvml.SUCCESS && arch == nvml.DEVICE_ARCH_RUBIN {
+			return "NVIDIA Rubin", nil
+		}
 	}
 	return name, nil
 }
