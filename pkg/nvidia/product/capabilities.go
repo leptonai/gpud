@@ -22,6 +22,8 @@ type Capabilities struct {
 	FabricState             bool
 	ExternalFabricCandidate bool
 	NonPCIFabricCandidate   bool
+	// ExplicitNVL72 indicates that the driver name or a product-name override declares NVL72.
+	ExplicitNVL72 bool
 }
 
 // HostLink is NVML evidence of how a GPU attaches to its host CPU.
@@ -51,6 +53,7 @@ func CapabilitiesForGPU(name, architecture string, link HostLink) Capabilities {
 		FabricState:             caps.fabricState,
 		ExternalFabricCandidate: caps.externalFabricCandidate,
 		NonPCIFabricCandidate:   caps.externalFabricCandidate || caps.switchBehindBridge,
+		ExplicitNVL72:           strings.Contains(strings.ToLower(name), "nvl72"),
 	}
 }
 

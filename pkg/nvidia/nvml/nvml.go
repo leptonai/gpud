@@ -225,7 +225,7 @@ func LoadGPUDeviceName() (string, error) {
 	}
 
 	for _, d := range devices {
-		name, err := getProductName(d)
+		name, _, err := getProductName(d)
 		if err != nil {
 			return "", err
 		}
@@ -238,20 +238,21 @@ func LoadGPUDeviceName() (string, error) {
 }
 
 func GetProductName(dev device.Device) (string, error) {
-	return getProductName(dev)
+	name, _, err := getProductName(dev)
+	return name, err
 }
 
-func getProductName(dev nvml.Device) (string, error) {
+func getProductName(dev nvml.Device) (name string, inferred bool, err error) {
 	name, ret := dev.GetName()
 	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+		return "", false, fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 	}
 	// Early drivers can expose a generic name before a marketing name is available.
 	// Use the product label for reporting. Fabric detection uses separate evidence.
 	if strings.EqualFold(strings.TrimSpace(name), "NVIDIA Graphics Device") {
 		if arch, ret := dev.GetArchitecture(); ret == nvml.SUCCESS && arch == nvml.DEVICE_ARCH_RUBIN {
-			return product.VRNVL72Name, nil
+			return product.VRNVL72Name, true, nil
 		}
 	}
-	return name, nil
+	return name, false, nil
 }

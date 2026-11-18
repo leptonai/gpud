@@ -33,15 +33,15 @@ func TestRubinCapabilities(t *testing.T) {
 		},
 		{
 			name: "explicit NVL72 name without evidence", product: "NVIDIA Vera Rubin NVL72",
-			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true},
+			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true, ExplicitNVL72: true},
 		},
 		{
-			name: "VR NVL72 reporting name", product: "NVIDIA VR NVL72",
-			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true},
+			name: "VR NVL72 driver name", product: "NVIDIA VR NVL72",
+			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true, ExplicitNVL72: true},
 		},
 		{
-			name: "sanitized VR NVL72 reporting name", product: "NVIDIA-VR-NVL72",
-			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true},
+			name: "sanitized VR NVL72 driver name", product: "NVIDIA-VR-NVL72",
+			want: Capabilities{Rubin: true, MemoryManagement: memMgmtCapAllSupported, FabricState: true, NonPCIFabricCandidate: true, ExplicitNVL72: true},
 		},
 		{
 			name: "explicit NVL8 name without evidence", product: "NVIDIA DGX Rubin NVL8",

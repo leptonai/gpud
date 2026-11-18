@@ -79,7 +79,7 @@ func TestNVLinkEnumerationBoundary(t *testing.T) {
 }
 
 // rubinFabricInstance models a DGX Vera Rubin NVL72 compute tray: Rubin GPUs
-// attached to Vera CPUs over NVLink-C2C, with the NVLink fabric outside the tray.
+// attached to Vera CPUs over NVLink-C2C, with a generic driver product name.
 type rubinFabricInstance struct{ fabricTestInstance }
 
 type rubinHostInstance struct {
@@ -88,7 +88,7 @@ type rubinHostInstance struct {
 }
 
 func (i *rubinHostInstance) Capabilities() product.Capabilities {
-	return product.CapabilitiesForGPU(i.ProductName(), i.Architecture(), i.link)
+	return product.CapabilitiesForGPU("NVIDIA Graphics Device", i.Architecture(), i.link)
 }
 
 func TestRubinUnknownTopologyProbesFabric(t *testing.T) {
@@ -133,11 +133,14 @@ func TestRubinUnknownTopologyProbesFabric(t *testing.T) {
 	}
 }
 
-func (*rubinFabricInstance) ProductName() string          { return "NVIDIA-Graphics-Device" }
+func (*rubinFabricInstance) ProductName() string {
+	return product.SanitizeProductName(product.VRNVL72Name)
+}
+
 func (*rubinFabricInstance) Architecture() string         { return "rubin" }
 func (*rubinFabricInstance) FabricManagerSupported() bool { return false }
 func (*rubinFabricInstance) Capabilities() product.Capabilities {
-	return product.CapabilitiesForGPU("NVIDIA-Graphics-Device", "rubin", product.HostLinkC2C)
+	return product.CapabilitiesForGPU("NVIDIA Graphics Device", "rubin", product.HostLinkC2C)
 }
 
 func TestRubinGenericRegistrationAndRecovery(t *testing.T) {
