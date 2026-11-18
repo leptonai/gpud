@@ -3,13 +3,13 @@ package disk
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/bytedance/mockey"
+	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -18,11 +18,20 @@ import (
 )
 
 func TestBlockedNFSUsagePublishesFreshHealthAndThreshold(t *testing.T) {
-	info := filepath.Join(t.TempDir(), "mountinfo")
-	require.NoError(t, os.WriteFile(info, []byte("50 1 0:50 / /nfs rw - nfs4 server:/export rw\n"), 0600))
-	var open func(string) (*os.File, error)
-	inventory := mockey.Mock(os.Open).Origin(&open).When(func(path string) bool { return path == "/proc/self/mountinfo" }).To(func(string) (*os.File, error) { return open(info) }).Build()
-	defer inventory.UnPatch()
+	// Only the usage I/O is blocked. Let the native probe validate a real mount.
+	const target = "/proc"
+	part := disk.Partition{MountPoint: target}
+	if runtime.GOOS == "linux" {
+		mounts, err := procfs.GetMounts()
+		require.NoError(t, err)
+		for _, mount := range mounts {
+			if mount.MountPoint == target && mount.FSType == "proc" {
+				part.Fstype, part.Device = mount.FSType, mount.Source
+				break
+			}
+		}
+		require.NotEmpty(t, part.Fstype)
+	}
 
 	blocked := make(chan struct{})
 	started := make(chan struct{})
@@ -36,12 +45,12 @@ func TestBlockedNFSUsagePublishesFreshHealthAndThreshold(t *testing.T) {
 	}).Build()
 	defer patch.UnPatch()
 	collector := &disk.NFSUsageCollector{}
-	mounts := disk.Partitions{{Device: "server:/export", Fstype: "nfs4", MountPoint: "/nfs"}}
-	c := createTestComponent(t.Context(), []string{"/nfs"}, nil)
+	mounts := disk.Partitions{part}
+	c := createTestComponent(t.Context(), []string{target}, nil)
 	defer func() { _ = c.Close() }()
 	c.getBlockDevicesFunc = nil
 	c.getExt4PartitionsFunc = func(context.Context) (disk.Partitions, error) { return nil, nil }
-	c.getGroupConfigsFunc = func() pkgnfschecker.Configs { return pkgnfschecker.Configs{{VolumePath: "/nfs"}} }
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs { return pkgnfschecker.Configs{{VolumePath: target}} }
 	first := true
 	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 		if first {
@@ -50,7 +59,13 @@ func TestBlockedNFSUsagePublishesFreshHealthAndThreshold(t *testing.T) {
 			defer cancel()
 			result := make(chan disk.Partitions, 1)
 			go func() { result <- collector.Collect(timeout, mounts, "") }()
-			<-started
+			select {
+			case <-started:
+			case parts := <-result:
+				t.Fatalf("usage probe returned before reaching the blocked operation: %+v", parts)
+			case <-time.After(5 * time.Second):
+				t.Fatal("usage probe did not reach the blocked operation")
+			}
 			cancel()
 			return <-result, nil
 		}
@@ -74,7 +89,7 @@ func TestBlockedNFSUsagePublishesFreshHealthAndThreshold(t *testing.T) {
 			require.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		} else {
 			require.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
-			require.Contains(t, cr.reason, "/nfs stat timed out")
+			require.Contains(t, cr.reason, target+" stat timed out")
 			require.Contains(t, cr.reason, "5 checks")
 		}
 	}

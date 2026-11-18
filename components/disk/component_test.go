@@ -2227,6 +2227,31 @@ func TestComponent_StatTimedOut_ConsecutiveFailures(t *testing.T) {
 	assert.Equal(t, "ok", cr.reason)
 }
 
+func TestNFSUsageRecoversAfterIdentityErrors(t *testing.T) {
+	c := createTestComponent(t.Context(), nil, nil)
+	t.Cleanup(func() { _ = c.Close() })
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{{VolumePath: "/tools"}}
+	}
+	c.getBlockDevicesFunc = func(context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{{Name: "disk", Type: "disk"}}, nil
+	}
+	c.getExt4PartitionsFunc = func(context.Context) (disk.Partitions, error) { return nil, nil }
+	part := disk.Partition{MountPoint: "/tools", Fstype: "nfs", Device: "server:/export", StatError: "filesystem identity changed"}
+	c.getNFSPartitionsFunc = func(context.Context) (disk.Partitions, error) { return disk.Partitions{part}, nil }
+	cr := runChecks(c, nfsStatTimeoutConsecutiveThreshold)
+	require.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+	require.Contains(t, cr.reason, part.StatError)
+
+	part.StatError = ""
+	part.Mounted = true
+	part.Usage = &disk.Usage{TotalBytes: 100, FreeBytes: 75, UsedBytes: 25}
+	cr = runChecks(c, 1)
+	require.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	require.Equal(t, "ok", cr.reason)
+	require.Equal(t, disk.Partitions{part}, cr.NFSPartitions)
+}
+
 // TestComponent_StatTimedOut_False_HealthyState tests that the component health state remains healthy when StatTimedOut=false
 func TestComponent_StatTimedOut_False_HealthyState(t *testing.T) {
 	ctx := context.Background()

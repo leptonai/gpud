@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 )
 
@@ -141,23 +140,5 @@ func probeNFSUsage(ctx context.Context, part Partition, command string) (*Usage,
 		}
 		return parts[0].Usage, nil
 	}
-	if runtime.GOOS != "linux" {
-		return GetUsage(ctx, part.MountPoint)
-	}
-	before, err := readNFSUsageIdentity(part)
-	if err != nil {
-		return nil, err
-	}
-	usage, err := GetUsage(ctx, part.MountPoint)
-	if err != nil {
-		return nil, err
-	}
-	after, err := readNFSUsageIdentity(part)
-	if err != nil {
-		return nil, err
-	}
-	if before != after {
-		return nil, fmt.Errorf("filesystem identity changed while collecting %q", part.MountPoint)
-	}
-	return usage, nil
+	return probeNativeNFSUsage(ctx, part)
 }
