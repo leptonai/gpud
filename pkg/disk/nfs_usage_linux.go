@@ -49,9 +49,15 @@ func probeNativeNFSUsage(ctx context.Context, part Partition) (*Usage, error) {
 	}
 	defer func() { _ = mount.Close() }()
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// A concurrent overmount must never substitute another filesystem's capacity.
 	usage, err := GetUsage(ctx, fmt.Sprintf("/proc/self/fd/%d", mount.Fd()))
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	current, after, err := openNFSUsageMount(part)

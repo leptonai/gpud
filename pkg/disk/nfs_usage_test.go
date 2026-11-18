@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -159,11 +161,42 @@ func TestNFSUsageNativeMountIdentity(t *testing.T) {
 	original := "50 1 0:50 / /nfs\\040space rw - nfs4 server:/export rw\n"
 	identity, err := nfsUsageIdentity(strings.NewReader(original), part, "50")
 	require.NoError(t, err)
-	require.Contains(t, identity, "50 1")
+	require.Equal(t, "50", identity)
 	for _, changed := range []string{"", "invalid", strings.Replace(original, "nfs4", "ext4", 1), original + "51 1 0:51 / /nfs\\040space rw - ext4 /dev/root rw\n"} {
 		_, err = nfsUsageIdentity(strings.NewReader(changed), part, "50")
 		require.Error(t, err)
 	}
+}
+
+func TestNFSUsageIdentityDiscardsPartialMountinfo(t *testing.T) {
+	part := Partition{MountPoint: "/tools", Device: "server:/export", Fstype: "nfs4"}
+	const record = "50 1 0:50 / /tools rw - nfs4 server:/export rw\n"
+	readErr := errors.New("mountinfo read interrupted")
+	reader := io.MultiReader(strings.NewReader(record), iotest.ErrReader(readErr))
+	identity, err := nfsUsageIdentity(reader, part, "50")
+	require.ErrorIs(t, err, readErr)
+	require.Empty(t, identity)
+}
+
+func TestNFSUsageIdentitySurvivesOptionChanges(t *testing.T) {
+	part := Partition{MountPoint: "/tools", Fstype: "nfs4", Device: "server:/export"}
+	for _, record := range []string{
+		"50 1 0:50 / /tools rw shared:7 - nfs4 server:/export rw,vers=4.1",
+		"50 1 0:50 / /tools ro - nfs4 server:/export ro,vers=4.1",
+	} {
+		identity, err := nfsUsageIdentity(strings.NewReader(record), part, "50")
+		require.NoError(t, err)
+		require.Equal(t, "50", identity)
+	}
+}
+
+func TestNFSUsageIdentityPreservesUnicodeWhitespace(t *testing.T) {
+	// Linux uses ASCII space as its field separator and preserves nonbreaking spaces.
+	part := Partition{MountPoint: "/shared\u00a0tools", Fstype: "nfs4", Device: "server:/export\u00a0one"}
+	const record = "50 1 0:50 / /shared\u00a0tools rw - nfs4 server:/export\u00a0one rw"
+	identity, err := nfsUsageIdentity(strings.NewReader(record), part, "50")
+	require.NoError(t, err)
+	require.Equal(t, "50", identity)
 }
 
 func TestNFSUsageAutofsMountIdentity(t *testing.T) {
@@ -187,7 +220,7 @@ func TestNFSUsageAutofsMountIdentity(t *testing.T) {
 			identity, err := nfsUsageIdentity(strings.NewReader(tc.records), part, tc.visibleID)
 			if tc.wantUsage {
 				require.NoError(t, err)
-				require.Equal(t, strings.TrimSpace(export), identity)
+				require.Equal(t, tc.visibleID, identity)
 			} else {
 				require.Error(t, err)
 				require.Empty(t, identity)
