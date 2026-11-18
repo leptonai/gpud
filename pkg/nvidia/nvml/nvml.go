@@ -11,6 +11,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // GetArchFamily identifies the architecture independently of the product name.
@@ -224,9 +225,9 @@ func LoadGPUDeviceName() (string, error) {
 	}
 
 	for _, d := range devices {
-		name, ret := d.GetName()
-		if ret != nvml.SUCCESS {
-			return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+		name, _, err := getProductName(d)
+		if err != nil {
+			return "", err
 		}
 		if name != "" {
 			return name, nil
@@ -237,9 +238,21 @@ func LoadGPUDeviceName() (string, error) {
 }
 
 func GetProductName(dev device.Device) (string, error) {
+	name, _, err := getProductName(dev)
+	return name, err
+}
+
+func getProductName(dev nvml.Device) (name string, inferred bool, err error) {
 	name, ret := dev.GetName()
 	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+		return "", false, fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 	}
-	return name, nil
+	// Early drivers can expose a generic name before a marketing name is available.
+	// Use the product label for reporting. Fabric detection uses separate evidence.
+	if strings.EqualFold(strings.TrimSpace(name), "NVIDIA Graphics Device") {
+		if arch, ret := dev.GetArchitecture(); ret == nvml.SUCCESS && arch == nvml.DEVICE_ARCH_RUBIN {
+			return product.VRNVL72Name, true, nil
+		}
+	}
+	return name, false, nil
 }

@@ -13,16 +13,26 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
-func rubinInstance(name string, link product.HostLink, count int, state device.FabricState) *fakeNVMLInstanceDevices {
+type rubinTestInstance struct{ *fakeNVMLInstanceDevices }
+
+// Model the reported fallback while deriving capabilities from the driver name.
+func (i *rubinTestInstance) ProductName() string {
+	if i.productName == "NVIDIA-Graphics-Device" {
+		return product.SanitizeProductName(product.VRNVL72Name)
+	}
+	return i.productName
+}
+
+func rubinInstance(name string, link product.HostLink, count int, state device.FabricState) *rubinTestInstance {
 	caps := product.CapabilitiesForGPU(name, "rubin", link)
 	devs := map[string]device.Device{}
 	for i := range count {
 		devs[fmt.Sprint("GPU-", i)] = &mockFabricStateDevice{state: state}
 	}
-	return &fakeNVMLInstanceDevices{mockNVMLInstance: mockNVMLInstance{
-		exists: true, productName: name, architecture: "rubin", hostLink: link,
+	return &rubinTestInstance{&fakeNVMLInstanceDevices{mockNVMLInstance: mockNVMLInstance{
+		exists: true, productName: product.SanitizeProductName(name), architecture: "rubin", hostLink: link,
 		supportsFM: caps.FabricManager, supportsFabricState: caps.FabricState,
-	}, devs: devs}
+	}, devs: devs}}
 }
 
 // DGX Vera Rubin NVL72 compute trays (C2C to Vera) rely on NVOS switch trays
@@ -41,7 +51,7 @@ func TestRubinRackFabric(t *testing.T) {
 			{name: "C2C healthy without IMEX stays healthy", product: "NVIDIA-Graphics-Device", link: product.HostLinkC2C, state: device.FabricState{State: nvml.GPU_FABRIC_STATE_COMPLETED}, want: apiv1.HealthStateTypeHealthy, wantIMEX: imexStateNotRunning},
 			{name: "C2C pending", product: "NVIDIA-Graphics-Device", link: product.HostLinkC2C, state: device.FabricState{State: nvml.GPU_FABRIC_STATE_IN_PROGRESS, Status: nvml.ERROR_UNKNOWN}, want: apiv1.HealthStateTypeDegraded},
 			{name: "C2C fault", product: "NVIDIA-Graphics-Device", link: product.HostLinkC2C, state: device.FabricState{State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY}, want: apiv1.HealthStateTypeUnhealthy, wantIMEX: imexStateNotRunning},
-			{name: "explicit NVL72 must have telemetry", product: "NVIDIA-Vera-Rubin-NVL72", state: device.FabricState{State: nvml.GPU_FABRIC_STATE_NOT_SUPPORTED}, want: apiv1.HealthStateTypeUnhealthy},
+			{name: "explicit NVL72 must have telemetry", product: "NVIDIA-VR-NVL72", state: device.FabricState{State: nvml.GPU_FABRIC_STATE_NOT_SUPPORTED}, want: apiv1.HealthStateTypeUnhealthy},
 			{name: "C2C alone does not establish a configured rack", product: "NVIDIA-Graphics-Device", link: product.HostLinkC2C, state: device.FabricState{State: nvml.GPU_FABRIC_STATE_NOT_SUPPORTED}, want: apiv1.HealthStateTypeHealthy},
 		} {
 			t.Run(fmt.Sprintf("%s/%d", tc.name, count), func(t *testing.T) {

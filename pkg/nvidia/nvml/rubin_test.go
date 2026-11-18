@@ -60,21 +60,29 @@ func TestArchitectureIdentity(t *testing.T) {
 
 func TestRubinInstanceGenericProduct(t *testing.T) {
 	for _, tc := range []struct {
-		name, override  string
-		link            nvidiaproduct.HostLink
-		wantFabricState bool
-		wantExternal    bool
+		name, driverName, override string
+		link                       nvidiaproduct.HostLink
+		wantRubin                  bool
+		wantFabricState            bool
+		wantExternal               bool
+		wantExplicitNVL72          bool
 	}{
-		{name: "Vera Rubin NVL72 tray", link: nvidiaproduct.HostLinkC2C, wantFabricState: true, wantExternal: true},
-		{name: "disabled C2C leaves topology unknown", link: nvidiaproduct.HostLinkUnknown, wantFabricState: true},
-		{name: "no host-link evidence", link: nvidiaproduct.HostLinkUnknown, wantFabricState: true},
+		{name: "Vera Rubin NVL72 tray", link: nvidiaproduct.HostLinkC2C, wantRubin: true, wantFabricState: true, wantExternal: true},
+		{name: "disabled C2C leaves topology unknown", link: nvidiaproduct.HostLinkUnknown, wantRubin: true, wantFabricState: true},
+		{name: "no host-link evidence", link: nvidiaproduct.HostLinkUnknown, wantRubin: true, wantFabricState: true},
+		{name: "driver declares NVL72", driverName: nvidiaproduct.VRNVL72Name, wantRubin: true, wantFabricState: true, wantExplicitNVL72: true},
 		// The override simulates another product, so hardware evidence is ignored.
 		{name: "override", override: "NVIDIA H100 PCIe", link: nvidiaproduct.HostLinkC2C},
+		{name: "override declares NVL72", override: nvidiaproduct.VRNVL72Name, wantRubin: true, wantFabricState: true, wantExplicitNVL72: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mockey.PatchConvey("Rubin identity enables health checks without a marketing name", t, func() {
+				driverName := tc.driverName
+				if driverName == "" {
+					driverName = "NVIDIA Graphics Device"
+				}
 				dev := testutil.NewMockDevice(&mock.Device{
-					GetNameFunc:         func() (string, nvml.Return) { return "NVIDIA Graphics Device", nvml.SUCCESS },
+					GetNameFunc:         func() (string, nvml.Return) { return driverName, nvml.SUCCESS },
 					GetUUIDFunc:         func() (string, nvml.Return) { return "GPU-rubin", nvml.SUCCESS },
 					GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) { return nvml.DEVICE_ARCH_RUBIN, nvml.SUCCESS },
 					GetBrandFunc:        func() (nvml.BrandType, nvml.Return) { return nvml.BRAND_NVIDIA, nvml.SUCCESS },
@@ -85,8 +93,14 @@ func TestRubinInstanceGenericProduct(t *testing.T) {
 				inst, err := newInstance(context.Background(), nil, &FailureInjectorConfig{GPUProductNameOverride: tc.override})
 				require.NoError(t, err)
 				require.Equal(t, "rubin", inst.Architecture())
+				wantProduct := "NVIDIA-VR-NVL72"
+				if tc.override != "" {
+					wantProduct = nvidiaproduct.SanitizeProductName(tc.override)
+				}
+				require.Equal(t, wantProduct, inst.ProductName())
 				caps := inst.Capabilities()
-				require.Equal(t, tc.override == "", caps.Rubin)
+				require.Equal(t, tc.wantRubin, caps.Rubin)
+				require.Equal(t, tc.wantExplicitNVL72, caps.ExplicitNVL72)
 				require.Equal(t, tc.wantFabricState, inst.FabricStateSupported())
 				require.Equal(t, tc.wantExternal, caps.ExternalFabricCandidate)
 				// No Rubin system is known to need FM unconditionally.

@@ -22,6 +22,8 @@ type Capabilities struct {
 	FabricState             bool
 	ExternalFabricCandidate bool
 	NonPCIFabricCandidate   bool
+	// ExplicitNVL72 indicates that the driver name or a product-name override declares NVL72.
+	ExplicitNVL72 bool
 }
 
 // HostLink is NVML evidence of how a GPU attaches to its host CPU.
@@ -51,12 +53,14 @@ func CapabilitiesForGPU(name, architecture string, link HostLink) Capabilities {
 		FabricState:             caps.fabricState,
 		ExternalFabricCandidate: caps.externalFabricCandidate,
 		NonPCIFabricCandidate:   caps.externalFabricCandidate || caps.switchBehindBridge,
+		ExplicitNVL72:           strings.Contains(strings.ToLower(name), "nvl72"),
 	}
 }
 
 // IsRubin identifies the family without inferring a rack size or product SKU.
 func IsRubin(name, architecture string) bool {
-	return strings.EqualFold(architecture, "rubin") || strings.Contains(strings.ToLower(name), "rubin")
+	return strings.EqualFold(architecture, "rubin") || strings.Contains(strings.ToLower(name), "rubin") ||
+		strings.EqualFold(strings.ReplaceAll(name, "-", " "), VRNVL72Name)
 }
 
 // rubinCapabilities enables telemetry without guessing a rack size or NIC layout.
