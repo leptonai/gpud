@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/require"
 )
 
@@ -122,13 +121,11 @@ func TestNFSUsageDefaultProbe(t *testing.T) {
 	cancel()
 	_, err := probeNFSUsage(ctx, Partition{MountPoint: "/"}, "")
 	require.ErrorIs(t, err, context.Canceled)
-	// Root-device aliases vary between findmnt and mountinfo on CI hosts.
-	// Identity validation has dedicated fixtures; exercise real usage I/O here.
-	inventory := mockey.Mock(readNFSUsageIdentity).Return("stable mount", nil).Build()
-	defer inventory.UnPatch()
-	u, err := probeNFSUsage(t.Context(), Partition{MountPoint: "/"}, "")
-	require.NoError(t, err)
-	require.NotNil(t, u)
+	if runtime.GOOS != "linux" {
+		u, err := probeNFSUsage(t.Context(), Partition{MountPoint: "/"}, "")
+		require.NoError(t, err)
+		require.NotNil(t, u)
+	}
 	c := &NFSUsageCollector{}
 	parts := c.Collect(ctx, Partitions{{MountPoint: "/"}}, "")
 	require.True(t, parts[0].StatTimedOut)
@@ -160,20 +157,41 @@ func TestNFSUsageCommandRejectsReplacementFilesystem(t *testing.T) {
 func TestNFSUsageNativeMountIdentity(t *testing.T) {
 	part := Partition{MountPoint: "/nfs space", Device: "server:/export", Fstype: "nfs4"}
 	original := "50 1 0:50 / /nfs\\040space rw - nfs4 server:/export rw\n"
-	identity, err := nfsUsageIdentity(strings.NewReader(original), part)
+	identity, err := nfsUsageIdentity(strings.NewReader(original), part, "50")
 	require.NoError(t, err)
 	require.Contains(t, identity, "50 1")
 	for _, changed := range []string{"", "invalid", strings.Replace(original, "nfs4", "ext4", 1), original + "51 1 0:51 / /nfs\\040space rw - ext4 /dev/root rw\n"} {
-		_, err = nfsUsageIdentity(strings.NewReader(changed), part)
+		_, err = nfsUsageIdentity(strings.NewReader(changed), part, "50")
 		require.Error(t, err)
 	}
-	calls := 0
-	inventory := mockey.Mock(readNFSUsageIdentity).To(func(Partition) (string, error) { calls++; return fmt.Sprint(calls), nil }).Build()
-	defer inventory.UnPatch()
-	usage := mockey.Mock(GetUsage).Return(&Usage{TotalBytes: 100}, nil).Build()
-	defer usage.UnPatch()
-	if runtime.GOOS == "linux" {
-		_, err = probeNFSUsage(t.Context(), part, "")
-		require.ErrorContains(t, err, "identity changed")
+}
+
+func TestNFSUsageAutofsMountIdentity(t *testing.T) {
+	part := Partition{MountPoint: "/tools", Fstype: "nfs", Device: "server:/export"}
+	const trigger = "100 34 0:62 / /tools rw,relatime shared:806 - autofs auto.tools rw,indirect\n"
+	const export = "3950 905 0:531 / /tools ro,relatime shared:2042 - nfs server:/export ro,vers=3\n"
+	const local = "4100 3950 0:70 / /tools rw - tmpfs tmpfs rw\n"
+	for _, tc := range []struct {
+		name, records, visibleID string
+		wantUsage                bool
+	}{
+		{"trigger first", trigger + export, "3950", true},
+		{"export first", export + trigger, "3950", true},
+		{"expired export", trigger, "100", false},
+		{"covered export", trigger + export, "100", false},
+		{"replaced export", trigger + strings.Replace(export, "server:/export", "server:/other", 1), "3950", false},
+		{"local overmount", trigger + export + local, "4100", false},
+		{"two real mounts", export + strings.Replace(export, "3950", "3951", 1), "3951", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			identity, err := nfsUsageIdentity(strings.NewReader(tc.records), part, tc.visibleID)
+			if tc.wantUsage {
+				require.NoError(t, err)
+				require.Equal(t, strings.TrimSpace(export), identity)
+			} else {
+				require.Error(t, err)
+				require.Empty(t, identity)
+			}
+		})
 	}
 }
