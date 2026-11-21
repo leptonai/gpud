@@ -323,6 +323,30 @@ server, as `helm install` and `helm upgrade` do. Client-only renders such as
 Setting any `gpud.containerd.*` value turns detection off. Renders on other
 clusters are unchanged.
 
+### Installing on GKE
+
+The DaemonSet uses the `system-node-critical` priority class. GKE admits pods
+with that class only in a namespace that has a ResourceQuota scoped to it, and
+GKE creates this quota in `kube-system` only. In any other namespace the
+DaemonSet creates no pods, and its events show:
+
+```text
+insufficient quota to match these scopes: [{PriorityClass In [system-node-critical system-cluster-critical]}]
+```
+
+Set `criticalPodsQuota.enabled` to let the chart create the quota in the
+release namespace:
+
+```bash
+helm upgrade --install my-gpud gpud/gpud \
+  --set criticalPodsQuota.enabled=true \
+  --create-namespace \
+  --namespace gpud
+```
+
+The quota only admits the priority class. It does not limit how many GPUd pods
+can run. The default is `false`, so installs on other clusters are unchanged.
+
 ### NVSentinel Integration
 
 By default the chart enables GPUd's NVSentinel sink: GPUd serves the

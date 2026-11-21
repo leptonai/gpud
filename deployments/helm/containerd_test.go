@@ -2,10 +2,12 @@ package helm
 
 import (
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 )
 
@@ -108,5 +110,45 @@ func TestRegionChart(t *testing.T) {
 		}
 		require.Equal(t, "eu-north-1", env["GPUD_REGION"])
 		require.Contains(t, container.Command[2], `--region="$GPUD_REGION"`)
+	})
+}
+
+func TestCriticalPodsQuotaChart(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not installed")
+	}
+
+	t.Run("default renders no ResourceQuota", func(t *testing.T) {
+		out, err := exec.Command("helm", "template", "gpud", "gpud").Output()
+		require.NoError(t, err)
+		require.NotContains(t, string(out), "kind: ResourceQuota")
+	})
+
+	t.Run("enabled admits the DaemonSet priority class", func(t *testing.T) {
+		out, err := exec.Command("helm", "template", "gpud", "gpud", "--set", "criticalPodsQuota.enabled=true").Output()
+		require.NoError(t, err)
+
+		var ds appsv1.DaemonSet
+		var quota corev1.ResourceQuota
+		for _, doc := range strings.Split(string(out), "\n---\n") {
+			var kind struct {
+				Kind string `json:"kind"`
+			}
+			require.NoError(t, yaml.Unmarshal([]byte(doc), &kind))
+			switch kind.Kind {
+			case "DaemonSet":
+				require.NoError(t, yaml.Unmarshal([]byte(doc), &ds))
+			case "ResourceQuota":
+				require.NoError(t, yaml.Unmarshal([]byte(doc), &quota))
+			}
+		}
+
+		require.Equal(t, "gpud-critical-pods", quota.Name)
+		require.Equal(t, "1G", quota.Spec.Hard.Pods().String())
+		require.Len(t, quota.Spec.ScopeSelector.MatchExpressions, 1)
+		scope := quota.Spec.ScopeSelector.MatchExpressions[0]
+		require.Equal(t, corev1.ResourceQuotaScopePriorityClass, scope.ScopeName)
+		require.Equal(t, corev1.ScopeSelectorOpIn, scope.Operator)
+		require.Contains(t, scope.Values, ds.Spec.Template.Spec.PriorityClassName)
 	})
 }
