@@ -465,6 +465,14 @@ serviceAccount:
 # The name of the runtime class to use for the pod (e.g., "nvidia").
 runtimeClassName: null
 
+# GKE admits system-node-critical pods only in namespaces that have a
+# ResourceQuota scoped to that priority class, and ships one in kube-system
+# only. Enable this when installing on GKE outside kube-system; without it the
+# DaemonSet creates no pods. The quota exists to pass that check, so its pod
+# limit is effectively unbounded.
+criticalPodsQuota:
+  enabled: false
+
 # Node selector, tolerations, and affinity for pod scheduling.
 nodeSelector: {}
 tolerations:

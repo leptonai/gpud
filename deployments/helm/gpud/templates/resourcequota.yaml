@@ -1,0 +1,18 @@
+{{- if .Values.criticalPodsQuota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "gpud.fullname" . }}-critical-pods
+  labels:
+    {{- include "gpud.labels" . | nindent 4 }}
+spec:
+  hard:
+    pods: 1G
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values:
+          - system-node-critical
+          - system-cluster-critical
+{{- end }}
