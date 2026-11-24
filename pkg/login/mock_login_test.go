@@ -419,9 +419,10 @@ func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
 		}).Build()
 
 		storedProof := ""
+		var proofReadErr error
 		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
 			if key == pkgmetadata.MetadataKeyMachineProof {
-				return storedProof, nil
+				return storedProof, proofReadErr
 			}
 			return "", nil
 		}).Build()
@@ -487,6 +488,11 @@ func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
 		require.NoError(t, Login(ctx, cfg))
 		assert.False(t, requestSent)
 
+		// A storage error must not trigger recovery as if the proof were missing.
+		storedProof = ""
+		proofReadErr = errors.New("cannot read proof from storage")
+		require.ErrorIs(t, Login(ctx, cfg), proofReadErr)
+		assert.False(t, requestSent)
 	})
 }
 
