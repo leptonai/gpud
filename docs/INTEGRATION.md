@@ -112,6 +112,19 @@ unsupported or empty, an external echo is retained only when the address is
 actually assigned to a local interface. Successful provider detection alone
 does not prove that public-address metadata was read.
 
+The CLI reports the external echo separately as `Observed egress IP` in plain
+output and the top-level `egress_ip` field in JSON. For example, a machine behind
+NAT can report `egress_ip: "203.0.113.10"` with `provider.public_ip: ""`.
+An unavailable echo produces `egress_ip: ""`; plain output shows `unavailable`.
+An empty public address means that no assignment was verified. Plain output
+shows `Public IP assignment: unverified` for this case.
+
+Address discovery does not check inbound reachability. An egress address alone
+does not establish an inbound path to this machine. NAT requires a suitable
+mapping for inbound connections. An assigned public address still depends on
+routing, firewall rules, and a listening service. The CLI's `egress_ip` is a
+diagnostic observation; it does not replace the public address sent at login.
+
 Private, loopback, link-local and RFC 6598 shared addresses are not public
 assignments. If local assignments cannot be enumerated, the fallback stays empty
 rather than guessing. A dedicated 1:1 public mapping that is not present on a

@@ -95,8 +95,8 @@ func Command(cliContext *cli.Context) error {
 		machineInfo.RenderTable(os.Stdout)
 	}
 
-	pubIP, _ := netutil.PublicIP()
-	providerInfo := pkgmachineinfo.GetProvider(pubIP)
+	egressIP, _ := netutil.PublicIP()
+	providerInfo := pkgmachineinfo.GetProvider(egressIP)
 	if providerInfo == nil {
 		if outputFormat == gpudcommon.OutputFormatPlain {
 			fmt.Printf("%s failed to find provider (%v)\n", cmdcommon.WarningSign, err)
@@ -108,7 +108,7 @@ func Command(cliContext *cli.Context) error {
 		}
 		publicIPForPrivateSelection := providerInfo.PublicIP
 		if publicIPForPrivateSelection == "" {
-			publicIPForPrivateSelection = pubIP
+			publicIPForPrivateSelection = egressIP
 		}
 		providerInfo.PrivateIP = pkgmachineinfo.SelectPrivateIP(providerInfo.PrivateIP, publicIPForPrivateSelection, nicInfo)
 		// Match LoginRequest behavior: when provider metadata cannot provide
@@ -124,11 +124,24 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 
+	if outputFormat == gpudcommon.OutputFormatPlain {
+		if providerInfo == nil || providerInfo.PublicIP == "" {
+			fmt.Println("Public IP assignment: unverified")
+		}
+		if egressIP == "" {
+			fmt.Println("Observed egress IP: unavailable")
+		} else {
+			fmt.Printf("Observed egress IP: %s\n", egressIP)
+		}
+		fmt.Println("Inbound reachability: not checked")
+	}
+
 	if outputFormat == gpudcommon.OutputFormatJSON {
 		payload := map[string]any{
 			"machine_id":   machineID,
 			"machine_info": machineInfo,
 			"provider":     providerInfo,
+			"egress_ip":    egressIP,
 		}
 		return wrapErr("failed_to_write_json_output", gpudcommon.WriteJSON(payload))
 	}
