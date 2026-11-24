@@ -1,3 +1,4 @@
+{{- $podIdentityRecovery := .Values.gpud.podIdentityRecovery | default dict -}}
 {{- $containerd := .Values.gpud.containerd | default dict -}}
 {{- $explicitRuntime := or $containerd.endpoint $containerd.configPath $containerd.serviceName $containerd.systemctlCommands -}}
 {{- /*
@@ -113,7 +114,7 @@ spec:
 
       # --- Storage ---
       volumes:
-        {{- if .Values.gpud.podIdentityRecovery.enabled }}
+        {{- if $podIdentityRecovery.enabled }}
         - name: login-recovery
           projected:
             sources:
@@ -460,7 +461,7 @@ spec:
 
               # Endpoint priority: Node label > values.yaml > (none)
               ENDPOINT="{{ .Values.gpud.endpoint }}"
-              {{- if .Values.gpud.podIdentityRecovery.enabled }}
+              {{- if $podIdentityRecovery.enabled }}
               # Send the pod credential only to the operator-configured endpoint.
               set -- "$@" --recovery-token-file=/var/run/gpud-recovery/token
               {{- else }}
@@ -607,13 +608,13 @@ spec:
                   name: {{ .Values.gpud.tokenSecret.name | quote }}
                   key: {{ .Values.gpud.tokenSecret.key | quote }}
             {{- end }}
-            {{- if .Values.gpud.machineIdOverwrite }}
-            # Allow a changed machine-id label to check in the node (see the
-            # startup script). Consumed as $GPUD_MACHINE_ID_OVERWRITE.
             {{- with .Values.nodeLabelExporter.labelKeys.providerInstanceId }}
             - name: GPUD_INSTANCE_ID_LABEL_KEY
               value: {{ . | quote }}
             {{- end }}
+            {{- if .Values.gpud.machineIdOverwrite }}
+            # Allow a changed machine-id label to check in the node (see the
+            # startup script). Consumed as $GPUD_MACHINE_ID_OVERWRITE.
             - name: GPUD_MACHINE_ID_OVERWRITE
               value: "true"
             {{- end }}
@@ -712,7 +713,7 @@ spec:
           {{- end }}
 
           volumeMounts:
-            {{- if .Values.gpud.podIdentityRecovery.enabled }}
+            {{- if $podIdentityRecovery.enabled }}
             - name: login-recovery
               mountPath: /var/run/gpud-recovery
               readOnly: true

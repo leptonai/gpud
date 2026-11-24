@@ -418,7 +418,11 @@ func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
 			return "existing-machine-id", nil
 		}).Build()
 
-		mockey.Mock(pkgmetadata.ReadMetadata).To(func(context.Context, *sql.DB, string) (string, error) {
+		storedProof := ""
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
+			if key == pkgmetadata.MetadataKeyMachineProof {
+				return storedProof, nil
+			}
 			return "", nil
 		}).Build()
 
@@ -471,6 +475,18 @@ func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
 		assert.True(t, requestSent, "refresh-session-token should force a fresh login request")
 		assert.Equal(t, "existing-machine-id", receivedMachineID, "relogin must reuse the persisted machine id")
 		assert.Equal(t, "fresh-session-token", tokenPersisted, "the re-fetched session token should be persisted")
+		// A partial state DB can retain the machine ID while losing its proof.
+		// The recovery switch alone must repair it, even without a forced refresh.
+		cfg.RefreshSessionToken = false
+		cfg.RecoveryTokenFile = "/projected/token"
+		requestSent = false
+		require.NoError(t, Login(ctx, cfg))
+		assert.True(t, requestSent)
+		storedProof = "existing-proof"
+		requestSent = false
+		require.NoError(t, Login(ctx, cfg))
+		assert.False(t, requestSent)
+
 	})
 }
 

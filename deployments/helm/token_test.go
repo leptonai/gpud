@@ -123,7 +123,7 @@ func TestRecoveryTokenStartup(t *testing.T) {
 	args := []string{"template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml", "--set", "nodeLabelExporter.enabled=true",
 		"--set-string", "gpud.endpoint=manager.example", "--set-string", "nodeLabelExporter.outputFile=" + labelFile,
 		"--set-string", "nodeLabelExporter.labelKeys.endpoint=example.org/endpoint",
-		"--set-string", "nodeLabelExporter.labelKeys.providerInstanceId=example.org/instance", "--set", "gpud.podIdentityRecovery.enabled=true"}
+		"--set", "gpud.machineIdOverwrite=false", "--set-string", "nodeLabelExporter.labelKeys.providerInstanceId=example.org/instance", "--set", "gpud.podIdentityRecovery.enabled=true"}
 	data, err := exec.Command("helm", args...).Output()
 	require.NoError(t, err)
 	var ds appsv1.DaemonSet
@@ -155,4 +155,16 @@ func TestRecoveryTokenStartup(t *testing.T) {
 	require.Contains(t, string(out), "--endpoint=manager.example")
 	require.NotContains(t, string(out), "untrusted.example")
 	require.Contains(t, string(out), "--recovery-token-file=/var/run/gpud-recovery/token")
+}
+
+func TestRecoveryProjectionAbsentInOlderValues(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not installed")
+	}
+	// Simulate a release reusing values from before podIdentityRecovery existed.
+	args := []string{"template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml", "--set", "gpud.podIdentityRecovery=null"}
+	out, err := exec.Command("helm", args...).CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	require.NotContains(t, string(out), "login-recovery")
+	require.NotContains(t, string(out), "--recovery-token-file=")
 }

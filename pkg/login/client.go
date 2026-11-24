@@ -78,6 +78,13 @@ func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, m
 func sendLoginRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof, recoveryTokenFile string) (*apiv1.LoginResponse, error) {
 	var recoveryToken string
 	if req.MachineID != "" && machineProof == "" && recoveryTokenFile != "" {
+		// Accept a host[:port] or an HTTPS origin. The legacy URL builder
+		// prepends its scheme even when the input already has another one.
+		origin, err := url.Parse("https://" + strings.TrimPrefix(endpoint, "https://"))
+		if err != nil || origin.Hostname() == "" || origin.User != nil ||
+			(origin.Path != "" && origin.Path != "/") || origin.RawQuery != "" || origin.Fragment != "" {
+			return nil, errors.New("pod recovery requires a configured HTTPS login origin")
+		}
 		data, err := os.ReadFile(recoveryTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("read projected recovery token: %w", err)
@@ -135,6 +142,13 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	}
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
+		// net/http parses Location before CheckRedirect and can quote the
+		// entire header in an error, including a reflected credential.
+		if recoveryToken != "" {
+			if safe := loginCredentialReplacer(req.Token, recoveryToken).Replace(err.Error()); safe != err.Error() {
+				return nil, errors.New(safe)
+			}
+		}
 		return nil, err
 	}
 	defer func() {
@@ -166,6 +180,10 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		return &resp, ErrEmptyMachineID
 	}
 
+	if recoveryToken != "" && (resp.MachineID != req.MachineID || resp.MachineProof == "" || resp.Token == "") {
+		return nil, errors.New("incomplete credentials or unexpected machine ID in recovery response")
+	}
+
 	// The serialized request contains the enrollment token and must never reach logs.
 	log.Logger.Debugw("login request processed", "endpointURL", endpointURL, "machineID", resp.MachineID)
 	return &resp, nil
@@ -175,6 +193,16 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 // credentials reach the caller's logs or CLI output, including legacy fields.
 func redactLoginErrorResponse(resp *apiv1.LoginResponse, credentials ...string) {
 	credentials = append(credentials, resp.Token, resp.MachineProof)
+	replacer := loginCredentialReplacer(credentials...)
+	resp.Code = replacer.Replace(resp.Code)
+	resp.Message = replacer.Replace(resp.Message)
+	//nolint:staticcheck // Older servers still populate these error fields.
+	resp.Status = replacer.Replace(resp.Status)
+	//nolint:staticcheck // Older servers still populate these error fields.
+	resp.Error = replacer.Replace(resp.Error)
+}
+
+func loginCredentialReplacer(credentials ...string) *strings.Replacer {
 	// A rotated credential can extend an old one; match the longest value first
 	// so replacing the old prefix cannot leave the new credential's suffix behind.
 	slices.SortFunc(credentials, func(a, b string) int { return len(b) - len(a) })
@@ -184,11 +212,5 @@ func redactLoginErrorResponse(resp *apiv1.LoginResponse, credentials ...string) 
 			replacements = append(replacements, credential, "<redacted>")
 		}
 	}
-	replacer := strings.NewReplacer(replacements...)
-	resp.Code = replacer.Replace(resp.Code)
-	resp.Message = replacer.Replace(resp.Message)
-	//nolint:staticcheck // Older servers still populate these error fields.
-	resp.Status = replacer.Replace(resp.Status)
-	//nolint:staticcheck // Older servers still populate these error fields.
-	resp.Error = replacer.Replace(resp.Error)
+	return strings.NewReplacer(replacements...)
 }

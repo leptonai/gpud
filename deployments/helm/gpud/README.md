@@ -533,7 +533,10 @@ using a pod-bound Kubernetes service account token. The endpoint must accept
 the `gpud-machine-proof-recovery` audience. Configure a Node label containing
 the provider instance ID. The chart projects the token for ten minutes and mounts it in the GPUd
 container. GPUd reads it on a login with an existing Machine ID and an empty
-local proof. The endpoint must validate the token and the pod's Node binding.
+local proof. If the Machine ID survived but its proof did not, GPUd retries
+login even with `refreshSessionToken: false`. A successful recovery response
+must identify that Machine and supply a session token and a replacement proof.
+The endpoint must validate the token and the pod's Node binding.
 
 ```yaml
 gpud:

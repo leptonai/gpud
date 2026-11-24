@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -56,5 +57,52 @@ func TestProjectedRecoveryToken(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+func TestRecoveryHTTPResponse(t *testing.T) {
+	const token = "synthetic-pod-token"
+	const enrollment = "synthetic-enrollment"
+	req := apiv1.LoginRequest{MachineID: "machine-a", Token: enrollment}
+	for _, tc := range []struct {
+		name     string
+		response apiv1.LoginResponse
+		ok       bool
+	}{
+		{name: "success", response: apiv1.LoginResponse{MachineID: req.MachineID, MachineProof: "replacement", Token: "session"}, ok: true},
+		{name: "other machine", response: apiv1.LoginResponse{MachineID: "machine-b", MachineProof: "replacement", Token: "session"}},
+		{name: "missing proof", response: apiv1.LoginResponse{MachineID: req.MachineID, Token: "session"}},
+		{name: "missing session", response: apiv1.LoginResponse{MachineID: req.MachineID, MachineProof: "replacement"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode(tc.response)
+			}))
+			resp, err := sendRequest(context.Background(), server.URL, req, "", token)
+			if tc.ok {
+				require.NoError(t, err)
+				require.Equal(t, tc.response, *resp)
+			} else {
+				require.Error(t, err)
+				require.Nil(t, resp)
+			}
+		})
+	}
+	t.Run("invalid redirect cannot echo credentials through the HTTP error", func(t *testing.T) {
+		server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Location", "/%zz/"+r.Header.Get(httputil.RequestHeaderRecoveryToken))
+			w.WriteHeader(http.StatusTemporaryRedirect)
+		}))
+		_, err := sendRequest(context.Background(), server.URL, req, "", token)
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), token)
+	})
+}
+
+func TestRecoveryRequiresConfiguredOrigin(t *testing.T) {
+	req := apiv1.LoginRequest{MachineID: "machine-a"}
+	for _, endpoint := range []string{"", "https://", "http://manager.example", "//manager.example", "https://user@manager.example"} {
+		_, err := sendLoginRequest(context.Background(), endpoint, req, "", "/missing-token")
+		require.EqualError(t, err, "pod recovery requires a configured HTTPS login origin")
 	}
 }
