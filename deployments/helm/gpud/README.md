@@ -525,3 +525,28 @@ The command removes all the Kubernetes components associated with the chart and 
 ## Configuration
 
 For a full list of configurable parameters, see the [values.yaml](values.yaml) file.
+
+### Recovering a machine proof on ephemeral nodes
+
+For an existing Machine, a login endpoint can authorize a replacement proof
+using a pod-bound Kubernetes service account token. Configure the audience
+expected by that endpoint and a Node label containing the provider instance
+ID. The chart projects the token for ten minutes and mounts it in the GPUd
+container. GPUd reads it on a login with an existing Machine ID and an empty
+local proof. The endpoint must validate the token and the pod's Node binding.
+
+```yaml
+gpud:
+  endpoint: manager.example.org
+  recoveryTokenAudience: gpud-machine-proof-recovery
+  refreshSessionToken: true
+nodeLabelExporter:
+  enabled: true
+  labelKeys:
+    machineId: example.org/machine-id
+    instanceId: example.org/provider-instance-id
+```
+
+Configure the usual enrollment credential separately. When a recovery audience
+is set, the startup wrapper uses the chart's configured endpoint and ignores
+the endpoint label. An empty audience disables the token projection.

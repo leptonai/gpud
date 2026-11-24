@@ -113,6 +113,15 @@ spec:
 
       # --- Storage ---
       volumes:
+        {{- with .Values.gpud.recoveryTokenAudience }}
+        - name: login-recovery
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: {{ . | quote }}
+                  expirationSeconds: 600
+                  path: token
+        {{- end }}
         # System logs directory for GPUd to write logs and monitor system log files
         # Required by: pkg/gpud-manager/systemd/systemd.go (writes to /var/log/gpud.log)
         - name: host-log
@@ -418,6 +427,7 @@ spec:
               EP=""
               TOKEN=""
               MID=""
+              INSTANCE_ID=""
 
               # The label file lives on a pod-scoped emptyDir, so it cannot be
               # stale by construction. Keep the enabled guard anyway: if
@@ -432,6 +442,9 @@ spec:
                 # Example: "gpud.dgxc.lepton.ai/endpoint=https://api.example.com" -> "https://api.example.com"
                 EP="$(awk -v key="$EP_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
                 TOKEN="$(awk -v key="$TOKEN_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
+                if [ -n "${GPUD_INSTANCE_ID_LABEL_KEY:-}" ]; then
+                  INSTANCE_ID="$(awk -v key="$GPUD_INSTANCE_ID_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
+                fi
                 MID="$(awk -v key="$MID_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
               fi
 
@@ -447,9 +460,14 @@ spec:
 
               # Endpoint priority: Node label > values.yaml > (none)
               ENDPOINT="{{ .Values.gpud.endpoint }}"
+              {{- if .Values.gpud.recoveryTokenAudience }}
+              # Send the pod credential only to the operator-configured endpoint.
+              set -- "$@" --recovery-token-file=/var/run/gpud-recovery/token
+              {{- else }}
               if [ -n "$EP" ]; then
                 ENDPOINT="$EP"  # Label value overrides values.yaml
               fi
+              {{- end }}
               if [ -n "$ENDPOINT" ]; then
                 set -- "$@" --endpoint="$ENDPOINT"
               fi
@@ -486,6 +504,9 @@ spec:
                 unset GPUD_TOKEN
               fi
               unset TOKEN
+              if [ -n "$INSTANCE_ID" ]; then
+                set -- "$@" --instance-id="$INSTANCE_ID"
+              fi
               if [ -n "$MID" ]; then
                 set -- "$@" --machine-id="$MID"
               fi
@@ -589,6 +610,10 @@ spec:
             {{- if .Values.gpud.machineIdOverwrite }}
             # Allow a changed machine-id label to check in the node (see the
             # startup script). Consumed as $GPUD_MACHINE_ID_OVERWRITE.
+            {{- with .Values.nodeLabelExporter.labelKeys.instanceId }}
+            - name: GPUD_INSTANCE_ID_LABEL_KEY
+              value: {{ . | quote }}
+            {{- end }}
             - name: GPUD_MACHINE_ID_OVERWRITE
               value: "true"
             {{- end }}
@@ -687,6 +712,11 @@ spec:
           {{- end }}
 
           volumeMounts:
+            {{- if .Values.gpud.recoveryTokenAudience }}
+            - name: login-recovery
+              mountPath: /var/run/gpud-recovery
+              readOnly: true
+            {{- end }}
             # System logs - GPUd writes logs here and monitors system logs
             - name: host-log
               mountPath: /var/log

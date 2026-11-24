@@ -73,6 +73,9 @@ type LoginConfig struct {
 	// InstanceID overrides the provider instance ID only for login and skips its discovery.
 	InstanceID string
 
+	// RecoveryTokenFile holds a rotating pod-bound token for proofless existing-machine login.
+	RecoveryTokenFile string
+
 	// Region overrides the login region and skips provider-region IMDS and DERP lookup.
 	Region     string
 	Containerd configcommon.ContainerdConfig
@@ -335,7 +338,7 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	// thus request one and blocks until the login request is processed
 	loginSentAt := time.Now()
 	log.Logger.Debugw("sending login request")
-	loginResp, err := SendRequest(ctx, cfg.Endpoint, *req, machineProof)
+	loginResp, err := sendLoginRequest(ctx, cfg.Endpoint, *req, machineProof, cfg.RecoveryTokenFile)
 	if err != nil {
 		log.Logger.Debugw("failed to login", "error", err)
 		if loginResp != nil {

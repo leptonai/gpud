@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 
@@ -71,14 +72,29 @@ func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) err
 // sent in the X-GPUD-Machine-Proof header rather than the JSON body. Neither
 // credential-bearing payload is logged.
 func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
+	return sendLoginRequest(ctx, endpoint, req, machineProof, "")
+}
+
+func sendLoginRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof, recoveryTokenFile string) (*apiv1.LoginResponse, error) {
+	var recoveryToken string
+	if req.MachineID != "" && machineProof == "" && recoveryTokenFile != "" {
+		data, err := os.ReadFile(recoveryTokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("read projected recovery token: %w", err)
+		}
+		recoveryToken = strings.TrimSpace(string(data))
+		if recoveryToken == "" || strings.ContainsAny(recoveryToken, " \t\r\n") {
+			return nil, errors.New("invalid projected recovery token")
+		}
+	}
 	url, err := httputil.CreateURL("https", endpoint, "/api/v1/login")
 	if err != nil {
 		return nil, fmt.Errorf("error creating URL: %w", err)
 	}
-	return sendRequest(ctx, url, req, machineProof)
+	return sendRequest(ctx, url, req, machineProof, recoveryToken)
 }
 
-func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
+func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest, machineProof, recoveryToken string) (*apiv1.LoginResponse, error) {
 	log.Logger.Debugw("sending login request", "endpointURL", endpointURL)
 
 	u, err := url.Parse(endpointURL)
@@ -112,6 +128,11 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		},
 		CheckRedirect: dropMachineProofOnRedirect,
 	}
+	if recoveryToken != "" {
+		httpReq.Header.Set(httputil.RequestHeaderRecoveryToken, recoveryToken)
+		// A redirect can forward both custom headers and the enrollment request body.
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
@@ -133,7 +154,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	}
 
 	if httpResp.StatusCode != http.StatusOK || resp.MachineID == "" {
-		redactLoginErrorResponse(&resp, req.Token, machineProof)
+		redactLoginErrorResponse(&resp, req.Token, machineProof, recoveryToken)
 	}
 
 	if httpResp.StatusCode != http.StatusOK {

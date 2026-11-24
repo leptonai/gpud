@@ -205,6 +205,14 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden: true,
 					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and check in with the requested machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
 				},
+				&cli.StringFlag{
+					Name:  "instance-id",
+					Usage: "override the provider instance ID reported at login",
+				},
+				&cli.StringFlag{
+					Name:  "recovery-token-file",
+					Usage: "projected Kubernetes token file for existing-machine login when the local machine proof is missing",
+				},
 				// Re-login requires the registration token, which GPUd intentionally does not persist.
 				// Keep this opt-in for BYOK deployments that inject the token on every start.
 				&cli.BoolFlag{
