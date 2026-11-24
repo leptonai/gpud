@@ -1,6 +1,7 @@
 package xid
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -118,7 +119,16 @@ func (r *recoveryAccumulator) health(devices map[string]device.Device) apiv1.Hea
 		if state.Reason != "" {
 			state.Reason += "; "
 		}
-		state.Reason += detail.buildMessage(devices)
+		// Keep each GPU and its recovery target; Events retain the full details.
+		gpuID := detail.DeviceUUID
+		if uuid := convertBusIDToUUID(gpuID, devices); uuid != "" {
+			gpuID = uuid
+		}
+		if transition := detail.RecoveryAction; transition.Valid {
+			state.Reason += fmt.Sprintf("XID 154 recovery action 0x%x (%s) on GPU %s", transition.To, transition.ToName, gpuID)
+		} else {
+			state.Reason += fmt.Sprintf("XID 154 malformed recovery action on GPU %s", gpuID)
+		}
 	}
 	return state
 }
