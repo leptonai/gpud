@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +17,8 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
 	"github.com/leptonai/gpud/pkg/nvsentinel/nvsentineltest"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -270,6 +273,55 @@ func TestNVSentinelEventSkippedWhenGPUdTwinStored(t *testing.T) {
 	events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
+}
+
+// GPUd's kmsg path stores the PCI bus ID ("PCI:0000:05:00"), while
+// NVSentinel names the GPU by UUID. The twin check must resolve the bus ID
+// before comparing, or the same Xid is stored twice.
+func TestNVSentinelEventSkippedWhenGPUdTwinStoredByBusID(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		nvsUUID    string
+		wantEvents int
+	}{
+		{name: "same GPU", nvsUUID: "GPU-abc", wantEvents: 1},
+		{name: "different GPU", nvsUUID: "GPU-other", wantEvents: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := nvsentineltest.NewFakeSource()
+			c, _ := newTestComponentWithNVSentinel(t, src)
+			c.devices = map[string]device.Device{
+				"GPU-abc":   testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:05:00.0"),
+				"GPU-other": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:06:00.0"),
+			}
+
+			kmsgCh := make(chan kmsg.Message, 1)
+			go c.start(kmsgCh, time.Hour)
+			kmsgCh <- kmsg.Message{
+				Timestamp: metav1.Now(),
+				Message:   "NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.",
+			}
+
+			ctx := context.Background()
+			require.Eventually(t, func() bool {
+				events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+				return err == nil && len(events) == 1
+			}, 10*time.Second, 50*time.Millisecond)
+
+			ev := newNVSentinelXidEvent("79", "")
+			ev.Entities = []nvsentinel.Entity{{Type: "GPU_UUID", Value: tc.nvsUUID}}
+			src.Send(ev)
+
+			require.Eventually(t, func() bool {
+				events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+				return err == nil && len(events) == tc.wantEvents
+			}, 5*time.Second, 50*time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
+			events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+			require.NoError(t, err)
+			assert.Len(t, events, tc.wantEvents)
+		})
+	}
 }
 
 func TestHasStoredXidTwinJSONFormat(t *testing.T) {
