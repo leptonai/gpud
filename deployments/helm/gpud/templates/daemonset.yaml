@@ -113,12 +113,12 @@ spec:
 
       # --- Storage ---
       volumes:
-        {{- with .Values.gpud.recoveryTokenAudience }}
+        {{- if .Values.gpud.podIdentityRecovery.enabled }}
         - name: login-recovery
           projected:
             sources:
               - serviceAccountToken:
-                  audience: {{ . | quote }}
+                  audience: gpud-machine-proof-recovery
                   expirationSeconds: 600
                   path: token
         {{- end }}
@@ -460,7 +460,7 @@ spec:
 
               # Endpoint priority: Node label > values.yaml > (none)
               ENDPOINT="{{ .Values.gpud.endpoint }}"
-              {{- if .Values.gpud.recoveryTokenAudience }}
+              {{- if .Values.gpud.podIdentityRecovery.enabled }}
               # Send the pod credential only to the operator-configured endpoint.
               set -- "$@" --recovery-token-file=/var/run/gpud-recovery/token
               {{- else }}
@@ -610,7 +610,7 @@ spec:
             {{- if .Values.gpud.machineIdOverwrite }}
             # Allow a changed machine-id label to check in the node (see the
             # startup script). Consumed as $GPUD_MACHINE_ID_OVERWRITE.
-            {{- with .Values.nodeLabelExporter.labelKeys.instanceId }}
+            {{- with .Values.nodeLabelExporter.labelKeys.providerInstanceId }}
             - name: GPUD_INSTANCE_ID_LABEL_KEY
               value: {{ . | quote }}
             {{- end }}
@@ -712,7 +712,7 @@ spec:
           {{- end }}
 
           volumeMounts:
-            {{- if .Values.gpud.recoveryTokenAudience }}
+            {{- if .Values.gpud.podIdentityRecovery.enabled }}
             - name: login-recovery
               mountPath: /var/run/gpud-recovery
               readOnly: true

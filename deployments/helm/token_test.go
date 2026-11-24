@@ -123,7 +123,7 @@ func TestRecoveryTokenStartup(t *testing.T) {
 	args := []string{"template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml", "--set", "nodeLabelExporter.enabled=true",
 		"--set-string", "gpud.endpoint=manager.example", "--set-string", "nodeLabelExporter.outputFile=" + labelFile,
 		"--set-string", "nodeLabelExporter.labelKeys.endpoint=example.org/endpoint",
-		"--set-string", "nodeLabelExporter.labelKeys.instanceId=example.org/instance", "--set-string", "gpud.recoveryTokenAudience=proof-recovery"}
+		"--set-string", "nodeLabelExporter.labelKeys.providerInstanceId=example.org/instance", "--set", "gpud.podIdentityRecovery.enabled=true"}
 	data, err := exec.Command("helm", args...).Output()
 	require.NoError(t, err)
 	var ds appsv1.DaemonSet
@@ -133,7 +133,7 @@ func TestRecoveryTokenStartup(t *testing.T) {
 		if vol.Name == "login-recovery" {
 			require.NotNil(t, vol.Projected)
 			token := vol.Projected.Sources[0].ServiceAccountToken
-			require.Equal(t, "proof-recovery", token.Audience)
+			require.Equal(t, "gpud-machine-proof-recovery", token.Audience)
 			require.EqualValues(t, 600, *token.ExpirationSeconds)
 			projected = true
 		}
