@@ -182,8 +182,11 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		return &resp, ErrEmptyMachineID
 	}
 
-	if recoveryToken != "" && (resp.MachineID != req.MachineID || resp.MachineProof == "" || resp.Token == "") {
-		return nil, errors.New("incomplete credentials or unexpected machine ID in recovery response")
+	if req.MachineID != "" && resp.MachineID != req.MachineID {
+		return nil, errors.New("login response contains an unexpected machine ID")
+	}
+	if recoveryToken != "" && (resp.MachineProof == "" || resp.Token == "") {
+		return nil, errors.New("incomplete credentials in recovery response")
 	}
 
 	// The serialized request contains the enrollment token and must never reach logs.

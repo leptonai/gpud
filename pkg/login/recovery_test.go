@@ -132,3 +132,13 @@ func TestRecoveryRequiresConfiguredOrigin(t *testing.T) {
 		require.EqualError(t, err, "pod recovery requires a configured HTTPS login origin")
 	}
 }
+
+func TestStoredProofLoginRejectsDifferentMachine(t *testing.T) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: "other-machine", Token: "session"})
+	}))
+	req := apiv1.LoginRequest{MachineID: "registered-machine", Token: "enrollment"}
+	resp, err := sendRequest(t.Context(), server.URL, req, "stored-proof", "")
+	require.Error(t, err)
+	require.Nil(t, resp)
+}
