@@ -88,6 +88,23 @@ func TestRecoveryHTTPResponse(t *testing.T) {
 			}
 		})
 	}
+	t.Run("successful recovery redacts printed validation fields", func(t *testing.T) {
+		server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{
+				MachineID: req.MachineID, Token: "new-session", MachineProof: "new-proof",
+				ValidationResults: []apiv1.ValidationResult{{
+					Name: token, Reason: "failed " + enrollment, Suggestion: "retry new-session new-proof",
+				}},
+			})
+		}))
+		resp, err := sendRequest(t.Context(), server.URL, req, "", token)
+		require.NoError(t, err)
+		require.Equal(t, []apiv1.ValidationResult{{
+			Name: "<redacted>", Reason: "failed <redacted>", Suggestion: "retry <redacted> <redacted>",
+		}}, resp.ValidationResults)
+		require.Equal(t, "new-proof", resp.MachineProof)
+		require.Equal(t, "new-session", resp.Token)
+	})
 	t.Run("invalid redirect cannot echo credentials through the HTTP error", func(t *testing.T) {
 		server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Location", "/%zz/"+r.Header.Get(httputil.RequestHeaderRecoveryToken))
@@ -96,6 +113,15 @@ func TestRecoveryHTTPResponse(t *testing.T) {
 		_, err := sendRequest(context.Background(), server.URL, req, "", token)
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), token)
+	})
+	t.Run("invalid redirect cannot echo a stored proof", func(t *testing.T) {
+		server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Location", "/%zz/"+r.Header.Get(httputil.RequestHeaderMachineProof))
+			w.WriteHeader(http.StatusTemporaryRedirect)
+		}))
+		_, err := sendRequest(t.Context(), server.URL, req, "previous-proof", "")
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), "previous-proof")
 	})
 }
 

@@ -553,4 +553,6 @@ nodeLabelExporter:
 
 Configure the usual enrollment credential separately. When pod identity recovery
 is enabled, the startup wrapper uses the chart's configured endpoint and ignores
-the endpoint label. The token projection is disabled by default.
+the endpoint label. GPUd sends a projected token only to that endpoint and stops
+at redirects. Other logins follow redirects only within the original scheme,
+hostname, and port. The token projection is disabled by default.

@@ -21,19 +21,28 @@ import (
 // ErrEmptyMachineID reports a successful login response that omitted the assigned machine ID.
 var ErrEmptyMachineID = errors.New("login request failed with empty machine ID")
 
-// dropMachineProofOnRedirect keeps the default redirect limit but removes the
-// proof unless a redirect keeps the login request's scheme and host. Go
-// forwards custom headers on any redirect, including to another host or from
-// HTTPS to HTTP.
-func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) error {
+// A 307 or 308 can replay the enrollment credential in the POST body even
+// after headers are stripped. Keep ordinary login redirects on the same origin.
+func checkLoginRedirect(redirect *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
 		return errors.New("stopped after 10 redirects")
 	}
 	original := via[0].URL
-	if redirect.URL.Scheme != original.Scheme || !strings.EqualFold(redirect.URL.Hostname(), original.Hostname()) {
-		redirect.Header.Del(httputil.RequestHeaderMachineProof)
+	if redirect.URL.Scheme != original.Scheme || !strings.EqualFold(redirect.URL.Hostname(), original.Hostname()) ||
+		loginPort(redirect.URL) != loginPort(original) {
+		return http.ErrUseLastResponse
 	}
 	return nil
+}
+
+func loginPort(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
+	}
+	if u.Scheme == "https" {
+		return "443"
+	}
+	return "80"
 }
 
 // SendRequest sends a login request and blocks until the login request is processed.
@@ -133,7 +142,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 		},
-		CheckRedirect: dropMachineProofOnRedirect,
+		CheckRedirect: checkLoginRedirect,
 	}
 	if recoveryToken != "" {
 		httpReq.Header.Set(httputil.RequestHeaderRecoveryToken, recoveryToken)
@@ -144,12 +153,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	if err != nil {
 		// net/http parses Location before CheckRedirect and can quote the
 		// entire header in an error, including a reflected credential.
-		if recoveryToken != "" {
-			if safe := loginCredentialReplacer(req.Token, recoveryToken).Replace(err.Error()); safe != err.Error() {
-				return nil, errors.New(safe)
-			}
-		}
-		return nil, err
+		return nil, redactLoginTransportError(err, req.Token, machineProof, recoveryToken)
 	}
 	defer func() {
 		_ = httpResp.Body.Close()
@@ -157,7 +161,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %w", err)
+		return nil, fmt.Errorf("error reading response body: %w", redactLoginTransportError(err, req.Token, machineProof, recoveryToken))
 	}
 
 	var resp apiv1.LoginResponse
@@ -167,9 +171,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		return nil, fmt.Errorf("error unmarshaling login response (HTTP %d)", httpResp.StatusCode)
 	}
 
-	if httpResp.StatusCode != http.StatusOK || resp.MachineID == "" {
-		redactLoginErrorResponse(&resp, req.Token, machineProof, recoveryToken)
-	}
+	redactLoginDiagnostics(&resp, req.Token, machineProof, recoveryToken)
 
 	if httpResp.StatusCode != http.StatusOK {
 		// Response bodies can contain credentials; callers still receive the structured response.
@@ -189,9 +191,8 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	return &resp, nil
 }
 
-// redactLoginErrorResponse preserves server diagnostics without letting echoed
-// credentials reach the caller's logs or CLI output, including legacy fields.
-func redactLoginErrorResponse(resp *apiv1.LoginResponse, credentials ...string) {
+// Login prints validation diagnostics even when the request succeeds.
+func redactLoginDiagnostics(resp *apiv1.LoginResponse, credentials ...string) {
 	credentials = append(credentials, resp.Token, resp.MachineProof)
 	replacer := loginCredentialReplacer(credentials...)
 	resp.Code = replacer.Replace(resp.Code)
@@ -200,6 +201,19 @@ func redactLoginErrorResponse(resp *apiv1.LoginResponse, credentials ...string) 
 	resp.Status = replacer.Replace(resp.Status)
 	//nolint:staticcheck // Older servers still populate these error fields.
 	resp.Error = replacer.Replace(resp.Error)
+	for i := range resp.ValidationResults {
+		result := &resp.ValidationResults[i]
+		result.Name = replacer.Replace(result.Name)
+		result.Reason = replacer.Replace(result.Reason)
+		result.Suggestion = replacer.Replace(result.Suggestion)
+	}
+}
+
+func redactLoginTransportError(err error, credentials ...string) error {
+	if safe := loginCredentialReplacer(credentials...).Replace(err.Error()); safe != err.Error() {
+		return errors.New(safe)
+	}
+	return err
 }
 
 func loginCredentialReplacer(credentials ...string) *strings.Replacer {
