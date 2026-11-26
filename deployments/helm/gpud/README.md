@@ -530,10 +530,9 @@ For a full list of configurable parameters, see the [values.yaml](values.yaml) f
 
 For an existing Machine, a login endpoint can authorize a replacement proof
 using a pod-bound Kubernetes service account token. The endpoint must accept
-the `gpud-machine-proof-recovery` audience. Configure a Node label containing
-the provider instance ID. The chart projects the token for ten minutes and mounts it in the GPUd
-container. GPUd reads it on a login with an existing Machine ID and an empty
-local proof. If the Machine ID survived but its proof did not, GPUd retries
+the `gpud-machine-proof-recovery` audience. The chart projects a ten-minute
+token into each GPUd pod. GPUd reads it on a login with an existing Machine ID
+and an empty local proof. If the Machine ID survived but its proof did not, GPUd retries
 login even with `refreshSessionToken: false`. A successful recovery response
 must identify that Machine and supply a session token and a replacement proof.
 The endpoint must validate the token and the pod's Node binding.
@@ -548,11 +547,11 @@ nodeLabelExporter:
   enabled: true
   labelKeys:
     machineId: example.org/machine-id
-    providerInstanceId: example.org/provider-instance-id
 ```
 
-Configure the usual enrollment credential separately. When pod identity recovery
-is enabled, the startup wrapper uses the chart's configured endpoint and ignores
+To report a provider instance ID, set `nodeLabelExporter.labelKeys.providerInstanceId`
+to the corresponding Node label. Configure the usual enrollment credential
+separately. When pod identity recovery is enabled, the startup wrapper uses
+the chart's configured endpoint and ignores
 the endpoint label. GPUd sends a projected token only to that endpoint and stops
-at redirects. Other logins follow redirects only within the original scheme,
-hostname, and port. The token projection is disabled by default.
+at redirects. The token projection is disabled by default.

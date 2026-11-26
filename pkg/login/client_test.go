@@ -97,50 +97,45 @@ func TestSendRequest_OmitsMachineProofHeaderWithoutProof(t *testing.T) {
 	assert.False(t, headerSent)
 }
 
-func TestSendRequest_RedirectWithCredentials(t *testing.T) {
-	req := apiv1.LoginRequest{Token: "test-token", MachineID: "test-machine-id"}
-	t.Run("same origin", func(t *testing.T) {
-		origin := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/login" {
-				http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
-				return
-			}
-			assert.Equal(t, "previous-proof", r.Header.Get("X-GPUD-Machine-Proof"))
-			var body apiv1.LoginRequest
-			assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-			assert.Equal(t, req.Token, body.Token)
-			_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: req.MachineID})
-		}))
-		_, err := sendRequest(t.Context(), origin.URL, req, "previous-proof", "")
-		require.NoError(t, err)
-	})
-	for _, host := range []string{"127.0.0.1", "localhost"} {
-		t.Run("other origin "+host, func(t *testing.T) {
-			target := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				t.Error("login followed a redirect outside the configured origin")
-			}))
-			destination, err := url.Parse(target.URL)
-			require.NoError(t, err)
-			destination.Host = net.JoinHostPort(host, destination.Port())
-			origin := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				http.Redirect(w, r, destination.String(), http.StatusTemporaryRedirect)
-			}))
-			_, err = sendRequest(t.Context(), origin.URL, req, "previous-proof", "")
-			require.ErrorContains(t, err, "307")
-		})
-	}
+// redirectedProof sends a login with a proof to a server that redirects it to
+// targetHost on another loopback server, and returns the proof header the
+// redirect target received.
+func redirectedProof(t *testing.T, targetHost string) string {
+	var received string
+	target := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = r.Header.Get("X-GPUD-Machine-Proof")
+		_ = json.NewEncoder(w).Encode(apiv1.LoginResponse{MachineID: "test-machine-id"})
+	}))
+	targetURL, err := url.Parse(target.URL)
+	require.NoError(t, err)
+	targetURL.Host = net.JoinHostPort(targetHost, targetURL.Port())
+	origin := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, targetURL.String()+"/api/v1/login", http.StatusTemporaryRedirect)
+	}))
+
+	_, err = sendRequest(context.Background(), origin.URL, apiv1.LoginRequest{
+		Token:     "test-token",
+		MachineID: "test-machine-id",
+	}, "previous-proof", "")
+	require.NoError(t, err)
+	return received
 }
 
-func TestCheckLoginRedirect(t *testing.T) {
+func TestSendRequest_RedirectToAnotherHostDropsMachineProof(t *testing.T) {
+	assert.Empty(t, redirectedProof(t, "localhost"))
+}
+
+func TestSendRequest_RedirectOnSameHostKeepsMachineProof(t *testing.T) {
+	assert.Equal(t, "previous-proof", redirectedProof(t, "127.0.0.1"))
+}
+
+func TestDropMachineProofOnRedirect_HTTPSDowngrade(t *testing.T) {
 	original := httptest.NewRequest(http.MethodPost, "https://control.example/api/v1/login", nil)
 	redirect := httptest.NewRequest(http.MethodPost, "http://control.example/api/v1/login", nil)
-	require.ErrorIs(t, checkLoginRedirect(redirect, []*http.Request{original}), http.ErrUseLastResponse)
-	redirect = httptest.NewRequest(http.MethodPost, "https://control.example:443/login", nil)
-	require.NoError(t, checkLoginRedirect(redirect, []*http.Request{original}))
-	original = httptest.NewRequest(http.MethodPost, "http://control.example/login", nil)
-	redirect = httptest.NewRequest(http.MethodPost, "http://control.example:80/login", nil)
-	require.NoError(t, checkLoginRedirect(redirect, []*http.Request{original}))
-	require.EqualError(t, checkLoginRedirect(redirect, make([]*http.Request, 10)), "stopped after 10 redirects")
+	redirect.Header.Set("X-GPUD-Machine-Proof", "previous-proof")
+
+	require.NoError(t, dropMachineProofOnRedirect(redirect, []*http.Request{original}))
+	assert.Empty(t, redirect.Header.Get("X-GPUD-Machine-Proof"))
 }
 
 func TestSendRequest_HttpError(t *testing.T) {

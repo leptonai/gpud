@@ -105,6 +105,18 @@ func TestRecoveryHTTPResponse(t *testing.T) {
 		require.Equal(t, "new-proof", resp.MachineProof)
 		require.Equal(t, "new-session", resp.Token)
 	})
+	t.Run("recovery does not follow even a same-origin redirect", func(t *testing.T) {
+		server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/redirected" {
+				t.Error("redirect received a recovery request")
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			http.Redirect(w, r, "/redirected", http.StatusTemporaryRedirect)
+		}))
+		_, err := sendRequest(t.Context(), server.URL, req, "", token)
+		require.ErrorContains(t, err, "307")
+	})
 	t.Run("invalid redirect cannot echo credentials through the HTTP error", func(t *testing.T) {
 		server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Location", "/%zz/"+r.Header.Get(httputil.RequestHeaderRecoveryToken))

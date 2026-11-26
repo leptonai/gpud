@@ -21,28 +21,19 @@ import (
 // ErrEmptyMachineID reports a successful login response that omitted the assigned machine ID.
 var ErrEmptyMachineID = errors.New("login request failed with empty machine ID")
 
-// A 307 or 308 can replay the enrollment credential in the POST body even
-// after headers are stripped. Keep ordinary login redirects on the same origin.
-func checkLoginRedirect(redirect *http.Request, via []*http.Request) error {
+// dropMachineProofOnRedirect keeps the default redirect limit but removes the
+// proof unless a redirect keeps the login request's scheme and host. Go
+// forwards custom headers on any redirect, including to another host or from
+// HTTPS to HTTP.
+func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
 		return errors.New("stopped after 10 redirects")
 	}
 	original := via[0].URL
-	if redirect.URL.Scheme != original.Scheme || !strings.EqualFold(redirect.URL.Hostname(), original.Hostname()) ||
-		loginPort(redirect.URL) != loginPort(original) {
-		return http.ErrUseLastResponse
+	if redirect.URL.Scheme != original.Scheme || !strings.EqualFold(redirect.URL.Hostname(), original.Hostname()) {
+		redirect.Header.Del(httputil.RequestHeaderMachineProof)
 	}
 	return nil
-}
-
-func loginPort(u *url.URL) string {
-	if port := u.Port(); port != "" {
-		return port
-	}
-	if u.Scheme == "https" {
-		return "443"
-	}
-	return "80"
 }
 
 // SendRequest sends a login request and blocks until the login request is processed.
@@ -142,7 +133,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 		},
-		CheckRedirect: checkLoginRedirect,
+		CheckRedirect: dropMachineProofOnRedirect,
 	}
 	if recoveryToken != "" {
 		httpReq.Header.Set(httputil.RequestHeaderRecoveryToken, recoveryToken)
