@@ -6,24 +6,54 @@ import (
 	"os/exec"
 	"strings"
 
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 )
 
+// osReleasePath is a variable so tests can use a fixture file.
+var osReleasePath = pkghost.OSReleasePath
+
+// detectUbuntuVersion returns the Ubuntu suffix of the release tarball for
+// this system (for example "ubuntu22.04"), or "" for the generic tarball.
+// It asks lsb_release first. When lsb_release cannot run, it reads
+// /etc/os-release, as install.sh does. Container images such as the GPUd
+// image do not install lsb-release, and the release workflow builds only
+// the Ubuntu Linux tarballs.
 func detectUbuntuVersion() string {
-	outputBytes, err := exec.Command("lsb_release", "-i", "-s").Output()
+	id, version, err := lsbReleaseIDAndVersion()
 	if err != nil {
-		return ""
+		fields, err := pkghost.ReadOSRelease(osReleasePath)
+		if err != nil {
+			return ""
+		}
+		id, version = fields["ID"], fields["VERSION_ID"]
 	}
-	osName := strings.TrimSpace(strings.ToLower(string(outputBytes)))
-	if osName != "ubuntu" {
-		return ""
-	}
-	outputBytes, err = exec.Command("lsb_release", "-r", "-s").Output()
+	return ubuntuTarballSuffix(id, version)
+}
+
+func lsbReleaseIDAndVersion() (string, string, error) {
+	idOut, err := exec.Command("lsb_release", "-i", "-s").Output()
 	if err != nil {
+		return "", "", err
+	}
+	id := strings.TrimSpace(string(idOut))
+	if !strings.EqualFold(id, "ubuntu") {
+		// Do not ask for the version of a distribution that has no Ubuntu tarball.
+		return id, "", nil
+	}
+	versionOut, err := exec.Command("lsb_release", "-r", "-s").Output()
+	if err != nil {
+		return "", "", err
+	}
+	return id, strings.TrimSpace(string(versionOut)), nil
+}
+
+func ubuntuTarballSuffix(id, version string) string {
+	if !strings.EqualFold(id, "ubuntu") {
 		return ""
 	}
-	version := strings.TrimSpace(string(outputBytes))
-	if version == "22.04" || version == "24.04" || version == "26.04" {
+	switch version {
+	case "22.04", "24.04", "26.04":
 		return "ubuntu" + version
 	}
 	return ""

@@ -44,6 +44,22 @@ explicit gpud.containerd value disables detection.
 {{- $activeCommands = "nsenter --target 1 --mount -- systemctl is-active containerd" -}}
 {{- end -}}
 {{- end -}}
+{{- $hostBinary := .Values.gpud.hostBinary | default dict -}}
+{{- $gpudBin := "/usr/local/bin/gpud" -}}
+{{- if $hostBinary.enabled -}}
+{{- if .Values.gpud.commandOverride -}}
+{{- fail "gpud.hostBinary.enabled needs the chart's startup wrapper; unset gpud.commandOverride" -}}
+{{- end -}}
+{{- $newNodeVersion := $hostBinary.newNodeVersion | default "" | toString -}}
+{{- if and $newNodeVersion (ne $newNodeVersion "latest") (not (regexMatch "^v[0-9][0-9A-Za-z.+-]*$" $newNodeVersion)) -}}
+{{- fail "gpud.hostBinary.newNodeVersion must be empty, \"latest\", or a release with its v prefix such as v0.14.3" -}}
+{{- end -}}
+{{- $minVersion := $hostBinary.minVersion | default "" | toString -}}
+{{- if and $minVersion (not (regexMatch "^v?[0-9][0-9A-Za-z.+-]*$" $minVersion)) -}}
+{{- fail "gpud.hostBinary.minVersion must be empty or a release such as v0.14.3" -}}
+{{- end -}}
+{{- $gpudBin = "\"$GPUD_BIN\"" -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -448,6 +464,181 @@ spec:
                 fi
                 MID="$(awk -v key="$MID_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
               fi
+              {{- if $hostBinary.enabled }}
+
+              # --- GPUd binary kept on the node (gpud.hostBinary) ---
+              # Run a copy of GPUd kept on the /var/lib/gpud hostPath instead of the
+              # image binary. A self-update requested by the control plane replaces
+              # the running executable, so with the node copy the update survives
+              # container restarts, pod replacement and chart upgrades. The image
+              # binary seeds a node that has no copy yet, and replaces a copy that
+              # this chart cannot run.
+              GPUD_IMAGE_BIN=/usr/local/bin/gpud
+              GPUD_HOST_BIN=/var/lib/gpud/bin/gpud
+              GPUD_STATE_FILE=/var/lib/gpud/gpud.state
+              GPUD_SHIM_DIR=/tmp/gpud-shims
+              GPUD_NEW_NODE_VERSION={{ $hostBinary.newNodeVersion | default "" | quote }}
+              GPUD_REINSTALL_FROM_IMAGE={{ $hostBinary.reinstallFromImage | default false | quote }}
+              GPUD_SELF_UPDATE=true
+              # Oldest GPUd release that accepts every flag and environment variable
+              # this wrapper passes: GPUD_TOKEN arrived in v0.14.1, and
+              # --recovery-token-file and --instance-id in v0.14.4. Raise it when the
+              # wrapper starts to pass something newer.
+              GPUD_MIN_VERSION=v0.14.1
+              {{- if $podIdentityRecovery.enabled }}
+              GPUD_MIN_VERSION=v0.14.4
+              {{- else }}
+              if [ -n "$INSTANCE_ID" ]; then
+                GPUD_MIN_VERSION=v0.14.4
+              fi
+              {{- end }}
+
+              # Prints the version of the GPUd binary $1, or nothing if it cannot run.
+              gpud_version() {
+                { "$1" --version 2>/dev/null || true; } | awk '$1 == "gpud" && $2 == "version" { print $3; exit }'
+              }
+
+              # Succeeds when version $1 is older than version $2, ignoring a leading
+              # "v". sort -V orders a pre-release such as 0.15.0-rc.1 after 0.15.0.
+              gpud_version_older() {
+                set -- "${1#v}" "${2#v}"
+                [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | sed -n 1p)" = "$1" ]
+              }
+
+              # Copies the image binary to $1 through a temporary file and a rename,
+              # so $1 is never a partial file.
+              gpud_install_image_binary() {
+                mkdir -p "$(dirname "$1")"
+                cp "$GPUD_IMAGE_BIN" "$1.tmp"
+                chmod 0755 "$1.tmp"
+                mv -f "$1.tmp" "$1"
+              }
+
+              gpud_user_min_version={{ $hostBinary.minVersion | default "" | quote }}
+              if [ -n "$gpud_user_min_version" ] && gpud_version_older "$GPUD_MIN_VERSION" "$gpud_user_min_version"; then
+                GPUD_MIN_VERSION="$gpud_user_min_version"
+              fi
+
+              # GPUd releases up to v0.14.4 read the Ubuntu version that selects
+              # their release tarball only from lsb_release, which the image does
+              # not install. They then ask for a generic Linux tarball that is not
+              # published, and every update would fail. Give them a minimal
+              # lsb_release that reads /etc/os-release.
+              if ! command -v lsb_release >/dev/null 2>&1 && mkdir -p "$GPUD_SHIM_DIR" 2>/dev/null &&
+                printf '%s\n' \
+                  '#!/bin/sh' \
+                  '# Subset of lsb_release that GPUd uses to choose its release tarball.' \
+                  '[ -r /etc/os-release ] || exit 1' \
+                  '. /etc/os-release' \
+                  'case "$*" in' \
+                  '"-i -s" | -is | -si) echo "${ID:-}" ;;' \
+                  '"-r -s" | -rs | -sr) echo "${VERSION_ID:-}" ;;' \
+                  '*) exit 1 ;;' \
+                  'esac' >"$GPUD_SHIM_DIR/lsb_release" 2>/dev/null &&
+                chmod 0755 "$GPUD_SHIM_DIR/lsb_release"; then
+                export PATH="$GPUD_SHIM_DIR:$PATH"
+              fi
+
+              if [ "$GPUD_REINSTALL_FROM_IMAGE" = "true" ]; then
+                echo "gpud.hostBinary.reinstallFromImage is set: installing the image binary at $GPUD_HOST_BIN with self-update off"
+                gpud_install_image_binary "$GPUD_HOST_BIN"
+                GPUD_SELF_UPDATE=false
+              elif [ ! -e "$GPUD_HOST_BIN" ]; then
+                # No copy yet. Prepare it under another name: if the container stops
+                # during the download, the next start tries again instead of keeping
+                # the image version.
+                gpud_seed="$GPUD_HOST_BIN.seed"
+                gpud_install_image_binary "$gpud_seed"
+                gpud_image_version="$(gpud_version "$gpud_seed")"
+                gpud_target="$GPUD_NEW_NODE_VERSION"
+                if [ -n "$gpud_target" ] && [ -e "$GPUD_STATE_FILE" ]; then
+                  # GPUd already ran on this node, from an image, before
+                  # gpud.hostBinary was enabled. Keep the image version, so that
+                  # enabling it does not change GPUd on every node in the cluster.
+                  echo "GPUd ran on this node before gpud.hostBinary was enabled; keeping the image binary $gpud_image_version"
+                  gpud_target=""
+                fi
+                if [ "$gpud_target" = "latest" ]; then
+                  # Resolve the stable track here, as install.sh does. Without a
+                  # version, "gpud update" picks the track from its own version.
+                  gpud_target="$({ curl -fsSL --max-time 30 https://pkg.gpud.dev/stable_latest.txt 2>/dev/null || true; } | tr -d '[:space:]')"
+                  if [ -n "$gpud_target" ]; then
+                    gpud_target="v${gpud_target#v}"
+                  fi
+                  case "$gpud_target" in
+                    v[0-9]*[!0-9A-Za-z.+-]* | v[!0-9]* | v | "")
+                      echo "could not read the latest stable GPUd release; keeping the image binary" >&2
+                      gpud_target=""
+                      ;;
+                  esac
+                  if [ -n "$gpud_target" ] && gpud_version_older "$gpud_target" "$gpud_image_version"; then
+                    echo "the latest stable release $gpud_target is older than the image binary $gpud_image_version; keeping the image binary"
+                    gpud_target=""
+                  fi
+                fi
+                if [ -n "$gpud_target" ] && gpud_version_older "$gpud_target" "$GPUD_MIN_VERSION"; then
+                  echo "GPUd $gpud_target is older than the minimum version $GPUD_MIN_VERSION; keeping the image binary" >&2
+                  gpud_target=""
+                fi
+                if [ -n "$gpud_target" ] && [ "$gpud_target" = "$gpud_image_version" ]; then
+                  echo "the image binary is already GPUd $gpud_target"
+                elif [ -n "$gpud_target" ] && "$gpud_seed" --version >/dev/null 2>&1; then
+                  echo "installing GPUd $gpud_target on this node"
+                  # Limit the download time, so an unreachable release server falls
+                  # back to the image binary before the startup probe gives up.
+                  set -- "$gpud_seed" update --next-version="$gpud_target"
+                  if command -v timeout >/dev/null 2>&1; then
+                    set -- timeout 120 "$@"
+                  fi
+                  if ! "$@"; then
+                    echo "could not install GPUd $gpud_target; keeping the image binary" >&2
+                    gpud_install_image_binary "$gpud_seed"
+                  fi
+                  set --
+                fi
+                mv -f "$gpud_seed" "$GPUD_HOST_BIN"
+              fi
+
+              # A copy below the minimum version, for example after a rollback,
+              # would exit at every start, out of reach of the control plane.
+              # Replace it with the image binary.
+              if [ "$GPUD_REINSTALL_FROM_IMAGE" != "true" ]; then
+                gpud_host_version="$(gpud_version "$GPUD_HOST_BIN")"
+                gpud_image_version="$(gpud_version "$GPUD_IMAGE_BIN")"
+                if [ -n "$gpud_host_version" ] && gpud_version_older "$gpud_host_version" "$GPUD_MIN_VERSION"; then
+                  if gpud_version_older "$gpud_image_version" "$GPUD_MIN_VERSION"; then
+                    echo "the image binary $gpud_image_version is older than the minimum version $GPUD_MIN_VERSION; keeping $gpud_host_version" >&2
+                  else
+                    echo "$GPUD_HOST_BIN $gpud_host_version is older than the minimum version $GPUD_MIN_VERSION; installing the image binary $gpud_image_version" >&2
+                    gpud_install_image_binary "$GPUD_HOST_BIN"
+                  fi
+                fi
+              fi
+
+              if ! "$GPUD_HOST_BIN" --version >/dev/null 2>&1; then
+                # Tell a broken copy from a directory that cannot run programs: if
+                # a fresh copy of the image binary runs there, replace the broken
+                # copy with it.
+                gpud_install_image_binary "$GPUD_HOST_BIN.check"
+                if "$GPUD_HOST_BIN.check" --version >/dev/null 2>&1; then
+                  echo "cannot run $GPUD_HOST_BIN; installing the image binary" >&2
+                  mv -f "$GPUD_HOST_BIN.check" "$GPUD_HOST_BIN"
+                else
+                  rm -f "$GPUD_HOST_BIN.check"
+                fi
+              fi
+              if "$GPUD_HOST_BIN" --version >/dev/null 2>&1; then
+                GPUD_BIN="$GPUD_HOST_BIN"
+              else
+                # For example, the node mounts /var/lib/gpud with noexec. An update
+                # could not persist there, so turn self-update off. The control plane
+                # then gets an error instead of an update that the next restart undoes.
+                echo "cannot run $GPUD_HOST_BIN; running the image binary with self-update off" >&2
+                GPUD_BIN="$GPUD_IMAGE_BIN"
+                GPUD_SELF_UPDATE=false
+              fi
+              echo "GPUd binary: $GPUD_BIN $(gpud_version "$GPUD_BIN")"
+              {{- end }}
 
               # --- Build gpud command arguments ---
               # Using "set --" to safely build argument list without eval or quoting issues.
@@ -492,9 +683,15 @@ spec:
               # log nor the process argument list contains its value.
               token_status="unset"
               if [ -n "$TOKEN" ]; then
+                {{- if $hostBinary.enabled }}
+                if [ "$GPUD_BIN" = "$GPUD_HOST_BIN" ] && ! GPUD_TOKEN= "$GPUD_BIN" up --help 2>/dev/null | grep -q GPUD_TOKEN; then
+                  echo "$GPUD_HOST_BIN $(gpud_version "$GPUD_HOST_BIN") does not read GPUD_TOKEN; installing the image binary" >&2
+                  gpud_install_image_binary "$GPUD_HOST_BIN"
+                fi
+                {{- end }}
                 # An overridden older image could silently skip enrollment.
                 # Check the advertised capability before handing it a credential.
-                if ! GPUD_TOKEN= /usr/local/bin/gpud up --help 2>/dev/null | grep -q GPUD_TOKEN; then
+                if ! GPUD_TOKEN= {{ $gpudBin }} up --help 2>/dev/null | grep -q GPUD_TOKEN; then
                   echo "this gpud image does not read GPUD_TOKEN; use the image from the same release" >&2
                   exit 1
                 fi
@@ -539,8 +736,23 @@ spec:
                 set -- "$@" --components="$GPUD_COMPONENTS"
               fi
 
+              {{- if $hostBinary.enabled }}
+              if [ "$GPUD_SELF_UPDATE" = "true" ]; then
+                set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
+                set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
+              else
+                set -- "$@" --enable-auto-update=false
+                set -- "$@" --auto-update-exit-code=-1
+              fi
+              # Only the control plane changes the node copy. Otherwise GPUd also
+              # polls /var/lib/gpud/target_version on the hostPath and moves to any
+              # version written there, which would undo control-plane updates.
+              set -- "$@" --version-file=
+              {{- else }}
+
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
+              {{- end }}
 
               {{- if .Values.gpud.nvsentinel.enabled }}
               # NVSentinel sink: serve the PlatformConnector gRPC API on this unix
@@ -592,8 +804,12 @@ spec:
 
               # Using exec ensures gpud receives signals directly (important for graceful shutdown).
               # Never reconstruct a log from argv: future flags can carry secrets too.
+              {{- if $hostBinary.enabled }}
+              printf 'Starting: %s run (token=<%s>)\n' "$GPUD_BIN" "$token_status"
+              {{- else }}
               printf 'Starting: /usr/local/bin/gpud run (token=<%s>)\n' "$token_status"
-              exec /usr/local/bin/gpud "$@"
+              {{- end }}
+              exec {{ $gpudBin }} "$@"
 {{- end }}
 
           env:
