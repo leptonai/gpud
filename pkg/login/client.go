@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 
@@ -71,14 +72,36 @@ func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) err
 // sent in the X-GPUD-Machine-Proof header rather than the JSON body. Neither
 // credential-bearing payload is logged.
 func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
+	return sendLoginRequest(ctx, endpoint, req, machineProof, "")
+}
+
+func sendLoginRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof, recoveryTokenFile string) (*apiv1.LoginResponse, error) {
+	var recoveryToken string
+	if req.MachineID != "" && machineProof == "" && recoveryTokenFile != "" {
+		// Accept a host[:port] or an HTTPS origin. The legacy URL builder
+		// prepends its scheme even when the input already has another one.
+		origin, err := url.Parse("https://" + strings.TrimPrefix(endpoint, "https://"))
+		if err != nil || origin.Hostname() == "" || origin.User != nil ||
+			(origin.Path != "" && origin.Path != "/") || origin.RawQuery != "" || origin.Fragment != "" {
+			return nil, errors.New("pod recovery requires a configured HTTPS login origin")
+		}
+		data, err := os.ReadFile(recoveryTokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("read projected recovery token: %w", err)
+		}
+		recoveryToken = strings.TrimSpace(string(data))
+		if recoveryToken == "" || strings.ContainsAny(recoveryToken, " \t\r\n") {
+			return nil, errors.New("invalid projected recovery token")
+		}
+	}
 	url, err := httputil.CreateURL("https", endpoint, "/api/v1/login")
 	if err != nil {
 		return nil, fmt.Errorf("error creating URL: %w", err)
 	}
-	return sendRequest(ctx, url, req, machineProof)
+	return sendRequest(ctx, url, req, machineProof, recoveryToken)
 }
 
-func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
+func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest, machineProof, recoveryToken string) (*apiv1.LoginResponse, error) {
 	log.Logger.Debugw("sending login request", "endpointURL", endpointURL)
 
 	u, err := url.Parse(endpointURL)
@@ -112,9 +135,16 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		},
 		CheckRedirect: dropMachineProofOnRedirect,
 	}
+	if recoveryToken != "" {
+		httpReq.Header.Set(httputil.RequestHeaderRecoveryToken, recoveryToken)
+		// A redirect can forward both custom headers and the enrollment request body.
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
-		return nil, err
+		// net/http parses Location before CheckRedirect and can quote the
+		// entire header in an error, including a reflected credential.
+		return nil, redactLoginTransportError(err, req.Token, machineProof, recoveryToken)
 	}
 	defer func() {
 		_ = httpResp.Body.Close()
@@ -122,7 +152,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %w", err)
+		return nil, fmt.Errorf("error reading response body: %w", redactLoginTransportError(err, req.Token, machineProof, recoveryToken))
 	}
 
 	var resp apiv1.LoginResponse
@@ -132,9 +162,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		return nil, fmt.Errorf("error unmarshaling login response (HTTP %d)", httpResp.StatusCode)
 	}
 
-	if httpResp.StatusCode != http.StatusOK || resp.MachineID == "" {
-		redactLoginErrorResponse(&resp, req.Token, machineProof)
-	}
+	redactLoginDiagnostics(&resp, req.Token, machineProof, recoveryToken)
 
 	if httpResp.StatusCode != http.StatusOK {
 		// Response bodies can contain credentials; callers still receive the structured response.
@@ -145,15 +173,44 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		return &resp, ErrEmptyMachineID
 	}
 
+	if req.MachineID != "" && resp.MachineID != req.MachineID {
+		return nil, errors.New("login response contains an unexpected machine ID")
+	}
+	if recoveryToken != "" && (resp.MachineProof == "" || resp.Token == "") {
+		return nil, errors.New("incomplete credentials in recovery response")
+	}
+
 	// The serialized request contains the enrollment token and must never reach logs.
 	log.Logger.Debugw("login request processed", "endpointURL", endpointURL, "machineID", resp.MachineID)
 	return &resp, nil
 }
 
-// redactLoginErrorResponse preserves server diagnostics without letting echoed
-// credentials reach the caller's logs or CLI output, including legacy fields.
-func redactLoginErrorResponse(resp *apiv1.LoginResponse, credentials ...string) {
+// Login prints validation diagnostics even when the request succeeds.
+func redactLoginDiagnostics(resp *apiv1.LoginResponse, credentials ...string) {
 	credentials = append(credentials, resp.Token, resp.MachineProof)
+	replacer := loginCredentialReplacer(credentials...)
+	resp.Code = replacer.Replace(resp.Code)
+	resp.Message = replacer.Replace(resp.Message)
+	//nolint:staticcheck // Older servers still populate these error fields.
+	resp.Status = replacer.Replace(resp.Status)
+	//nolint:staticcheck // Older servers still populate these error fields.
+	resp.Error = replacer.Replace(resp.Error)
+	for i := range resp.ValidationResults {
+		result := &resp.ValidationResults[i]
+		result.Name = replacer.Replace(result.Name)
+		result.Reason = replacer.Replace(result.Reason)
+		result.Suggestion = replacer.Replace(result.Suggestion)
+	}
+}
+
+func redactLoginTransportError(err error, credentials ...string) error {
+	if safe := loginCredentialReplacer(credentials...).Replace(err.Error()); safe != err.Error() {
+		return errors.New(safe)
+	}
+	return err
+}
+
+func loginCredentialReplacer(credentials ...string) *strings.Replacer {
 	// A rotated credential can extend an old one; match the longest value first
 	// so replacing the old prefix cannot leave the new credential's suffix behind.
 	slices.SortFunc(credentials, func(a, b string) int { return len(b) - len(a) })
@@ -163,11 +220,5 @@ func redactLoginErrorResponse(resp *apiv1.LoginResponse, credentials ...string) 
 			replacements = append(replacements, credential, "<redacted>")
 		}
 	}
-	replacer := strings.NewReplacer(replacements...)
-	resp.Code = replacer.Replace(resp.Code)
-	resp.Message = replacer.Replace(resp.Message)
-	//nolint:staticcheck // Older servers still populate these error fields.
-	resp.Status = replacer.Replace(resp.Status)
-	//nolint:staticcheck // Older servers still populate these error fields.
-	resp.Error = replacer.Replace(resp.Error)
+	return strings.NewReplacer(replacements...)
 }

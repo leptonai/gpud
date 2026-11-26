@@ -162,9 +162,11 @@ func Command(cliContext *cli.Context) error {
 			RefreshSessionToken: refreshSessionToken,
 			DataDir:             dataDir,
 
-			GPUCount:   gpuCountStr,
-			Region:     cliContext.String("region"),
-			Containerd: containerdConfig,
+			GPUCount:          gpuCountStr,
+			Region:            cliContext.String("region"),
+			InstanceID:        cliContext.String("instance-id"),
+			RecoveryTokenFile: cliContext.String("recovery-token-file"),
+			Containerd:        containerdConfig,
 		}
 
 		// on successful login, we persist the session token in the metadata for future re-use

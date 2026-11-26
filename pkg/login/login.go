@@ -73,6 +73,9 @@ type LoginConfig struct {
 	// InstanceID overrides the provider instance ID only for login and skips its discovery.
 	InstanceID string
 
+	// RecoveryTokenFile holds a rotating pod-bound token for proofless existing-machine login.
+	RecoveryTokenFile string
+
 	// Region overrides the login region and skips provider-region IMDS and DERP lookup.
 	Region     string
 	Containerd configcommon.ContainerdConfig
@@ -236,39 +239,33 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 		return err
 	}
 
-	reloginExistingMachine := false
+	var machineProof string
 	if prevMachineID != "" {
 		shouldRefreshLogin, err := shouldRefreshLoginForNodeLabels(ctx, dbRO, desiredNodeLabelsJSON, cfg.NodeLabels != nil)
 		if err != nil {
 			return fmt.Errorf("failed to read previous node labels: %w", err)
 		}
-		if shouldRefreshLogin || cfg.RefreshSessionToken {
-			reloginExistingMachine = true
-			// The control plane returns its current session token on every successful
-			// login, so re-running login here re-fetches that token (and/or refreshes
-			// node labels) instead of reusing a possibly-stale persisted one.
-			log.Logger.Infow("re-running login for already-assigned machine",
-				"machineID", prevMachineID,
-				"nodeLabelsChanged", shouldRefreshLogin,
-				"refreshSessionToken", cfg.RefreshSessionToken,
-			)
-		} else {
+		refresh := shouldRefreshLogin || cfg.RefreshSessionToken
+		if refresh || cfg.RecoveryTokenFile != "" {
+			machineProof, err = pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyMachineProof)
+			if err != nil {
+				return fmt.Errorf("failed to read machine proof: %w", err)
+			}
+		}
+		needsRecovery := cfg.RecoveryTokenFile != "" && machineProof == ""
+		if !refresh && !needsRecovery {
 			fmt.Printf("machine ID %s already assigned (skipping login)\n", prevMachineID)
 			return nil
 		}
-	}
 
-	if reloginExistingMachine {
-		// A relogin is a refresh for this exact machine, not an opportunity to point this
-		// daemon at a different control-plane record. reconcileMachineID above has already
-		// guaranteed the caller is not retargeting a different machine ID: a mismatch either
-		// returned an error, or (with --machine-id-overwrite) cleared the persisted identity
-		// and reset prevMachineID to "", which drops us out of this relogin path entirely.
-		//
-		// Use the persisted machine ID for the refresh request even when the caller omitted it
-		// so the control plane sees an unambiguous relogin for the machine already assigned to
-		// this host.
+		// reconcileMachineID has already rejected or cleared a different local identity.
 		cfg.MachineID = prevMachineID
+		log.Logger.Infow("re-running login for already-assigned machine",
+			"machineID", prevMachineID,
+			"nodeLabelsChanged", shouldRefreshLogin,
+			"refreshSessionToken", cfg.RefreshSessionToken,
+			"needsRecovery", needsRecovery,
+		)
 	}
 
 	if prevMachineID != "" && cfg.NodeGroup == "" {
@@ -313,16 +310,6 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	req.NodeLabels = cfg.NodeLabels
 	log.Logger.Debugw("successfully created login request", "duration", time.Since(loginCreatedAt))
 
-	machineProof := ""
-	if reloginExistingMachine {
-		// The control plane can require the proof from this machine's previous
-		// login before it issues a new one.
-		machineProof, err = pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyMachineProof)
-		if err != nil {
-			return fmt.Errorf("failed to read machine proof: %w", err)
-		}
-	}
-
 	if cfg.PublicIP != "" { // overwrite if not empty
 		req.Network.PublicIP = cfg.PublicIP
 	}
@@ -335,7 +322,7 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	// thus request one and blocks until the login request is processed
 	loginSentAt := time.Now()
 	log.Logger.Debugw("sending login request")
-	loginResp, err := SendRequest(ctx, cfg.Endpoint, *req, machineProof)
+	loginResp, err := sendLoginRequest(ctx, cfg.Endpoint, *req, machineProof, cfg.RecoveryTokenFile)
 	if err != nil {
 		log.Logger.Debugw("failed to login", "error", err)
 		if loginResp != nil {

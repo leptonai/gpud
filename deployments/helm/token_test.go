@@ -112,3 +112,59 @@ printf '%s' "${GPUD_TOKEN+set}" > "$GPUD_TEST_DIR/present"
 		})
 	}
 }
+
+func TestRecoveryTokenStartup(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not installed")
+	}
+	dir := t.TempDir()
+	labelFile := filepath.Join(dir, "labels")
+	require.NoError(t, os.WriteFile(labelFile, []byte("example.org/instance=machine-serial\nexample.org/endpoint=untrusted.example\n"), 0600))
+	args := []string{"template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml", "--set", "nodeLabelExporter.enabled=true",
+		"--set-string", "gpud.endpoint=manager.example", "--set-string", "nodeLabelExporter.outputFile=" + labelFile,
+		"--set-string", "nodeLabelExporter.labelKeys.endpoint=example.org/endpoint",
+		"--set", "gpud.machineIdOverwrite=false", "--set-string", "nodeLabelExporter.labelKeys.providerInstanceId=example.org/instance", "--set", "gpud.podIdentityRecovery.enabled=true"}
+	data, err := exec.Command("helm", args...).Output()
+	require.NoError(t, err)
+	var ds appsv1.DaemonSet
+	require.NoError(t, yaml.Unmarshal(data, &ds))
+	projected := false
+	for _, vol := range ds.Spec.Template.Spec.Volumes {
+		if vol.Name == "login-recovery" {
+			require.NotNil(t, vol.Projected)
+			token := vol.Projected.Sources[0].ServiceAccountToken
+			require.Equal(t, "gpud-machine-proof-recovery", token.Audience)
+			require.EqualValues(t, 600, *token.ExpirationSeconds)
+			projected = true
+		}
+	}
+	require.True(t, projected)
+	main := ds.Spec.Template.Spec.Containers[0]
+	stub := filepath.Join(dir, "gpud")
+	require.NoError(t, os.WriteFile(stub, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\n"), 0700))
+	cmd := exec.Command("/bin/sh", "-ec", strings.ReplaceAll(main.Command[2], "/usr/local/bin/gpud", stub))
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+	for _, env := range main.Env {
+		if env.ValueFrom == nil {
+			cmd.Env = append(cmd.Env, env.Name+"="+env.Value)
+		}
+	}
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	require.Contains(t, string(out), "--instance-id=machine-serial")
+	require.Contains(t, string(out), "--endpoint=manager.example")
+	require.NotContains(t, string(out), "untrusted.example")
+	require.Contains(t, string(out), "--recovery-token-file=/var/run/gpud-recovery/token")
+}
+
+func TestRecoveryProjectionAbsentInOlderValues(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not installed")
+	}
+	// Simulate a release reusing values from before podIdentityRecovery existed.
+	args := []string{"template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml", "--set", "gpud.podIdentityRecovery=null"}
+	out, err := exec.Command("helm", args...).CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	require.NotContains(t, string(out), "login-recovery")
+	require.NotContains(t, string(out), "--recovery-token-file=")
+}

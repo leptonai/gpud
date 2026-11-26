@@ -49,6 +49,12 @@ gpud:
   # Leave empty to detect the region from provider metadata or DERP latency.
   region: ""
 
+  # Project a ten-minute, pod-bound token for recovering an existing machine
+  # proof. The login endpoint must accept the gpud-machine-proof-recovery
+  # audience. When enabled, the startup wrapper ignores endpoint labels.
+  podIdentityRecovery:
+    enabled: false
+
   # Optional: read the gpud enrollment token from a Secret instead of a node label.
   # Set create=true and value to have this chart create the Secret, or leave
   # create=false to reference an existing Secret. When name is set, the token is
@@ -549,6 +555,8 @@ nodeLabelExporter:
     endpoint: gpud.dgxc.lepton.ai/endpoint
     token: gpud.dgxc.lepton.ai/token
     machineId: gpud.dgxc.lepton.ai/machine-id
+    # Optional provider instance ID label, passed to gpud run at login.
+    providerInstanceId: ""
   # Extra environment variables for the node-label init container.
   extraEnv: []
   rbac:
