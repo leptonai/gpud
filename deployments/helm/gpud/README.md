@@ -449,6 +449,91 @@ gpud:
 The token is stored in Helm values and release state when `value` is used.
 Restrict access to both.
 
+### Keeping the GPUd binary on the node
+
+By default the pod runs the GPUd binary in the image. The GPUd version on
+every node follows `image.tag`, and each version change rolls the DaemonSet.
+A self-update requested by the control plane cannot last: it replaces the
+binary in the container's writable layer, and the next container start runs
+the image binary again.
+
+Set `gpud.hostBinary.enabled: true` to keep a copy of GPUd at
+`/var/lib/gpud/bin/gpud`, on the `/var/lib/gpud` hostPath that the chart
+already mounts, and run that copy:
+
+- A new node (no copy and no GPUd state in `/var/lib/gpud`) gets the image
+  binary. If `gpud.hostBinary.newNodeVersion` is set, the wrapper then
+  installs that release: `latest` reads
+  `https://pkg.gpud.dev/stable_latest.txt`, as `install.sh` does, and keeps
+  the image binary when the image is newer. A pinned release such as
+  `v0.14.3` is installed as given. If the lookup or the download fails, the
+  node keeps the image binary until the control plane updates it; later
+  starts do not try again.
+- A node that ran GPUd from an image before `gpud.hostBinary` was enabled
+  (it has `/var/lib/gpud/gpud.state`) keeps the image version. Enabling the
+  feature does not move every node to `newNodeVersion`.
+- A node with a copy keeps it. Container restarts, pod replacement, and
+  chart or image upgrades do not change its version, except for the minimum
+  version below.
+- A self-update requested by the control plane replaces the node copy in
+  place. GPUd exits with `gpud.autoUpdateExitCode`, and the kubelet restarts
+  the container on the new version.
+- The wrapper passes `--version-file=`, so GPUd does not poll
+  `/var/lib/gpud/target_version`. Only the control plane changes the version.
+
+```yaml
+gpud:
+  enableAutoUpdate: true
+  # Any value other than -1. A distinct code makes update restarts easy to find.
+  autoUpdateExitCode: 42
+  hostBinary:
+    enabled: true
+    newNodeVersion: latest
+```
+
+Minimum version:
+
+- The wrapper passes flags and environment variables that older releases
+  reject, and such a binary would exit at every start, out of reach of the
+  control plane. The chart therefore has a built-in minimum, v0.14.1 (the
+  first release that reads `GPUD_TOKEN`). It is v0.14.4 when the wrapper
+  passes `--recovery-token-file` (`gpud.podIdentityRecovery.enabled`) or
+  `--instance-id` (a provider instance ID label on the node). At each start,
+  a node copy older than the minimum, or one that does not read
+  `GPUD_TOKEN`, is replaced with the image binary. A new node does not
+  install a release below it.
+- `gpud.hostBinary.minVersion` raises the minimum. Set it only when a chart
+  change needs a newer binary; it must not be newer than the image. Leave it
+  empty otherwise, so chart upgrades do not change versions.
+- `sort -V` orders a pre-release such as `v0.15.0-rc.1` after `v0.15.0`.
+
+Requirements and limits:
+
+- Releases download from `https://pkg.gpud.dev/`, and GPUd checks their
+  signatures. A node that cannot reach it keeps its current version.
+- GPUd releases up to v0.14.4 read the Ubuntu version that selects their
+  release tarball only from `lsb_release`, which the image does not include.
+  The wrapper puts a minimal `lsb_release` that reads `/etc/os-release` on
+  the `PATH` of GPUd, so these releases can update themselves too.
+- If the node copy does not run but a fresh copy of the image binary does,
+  the wrapper replaces the node copy with the image binary. If nothing runs
+  from `/var/lib/gpud`, for example on a `noexec` mount, the wrapper runs the
+  image binary with self-update off. An update request then fails with "auto
+  update is disabled", instead of succeeding and being lost at the next
+  restart.
+- `image.tag` no longer shows the version that a node runs. Run
+  `/var/lib/gpud/bin/gpud --version` in the pod, read the wrapper's
+  `GPUd binary:` log line, or use the version that GPUd reports to the
+  control plane. `gpud --version` on the `PATH` is the image binary.
+- To roll back one node, request a self-update to the older release. A
+  rollback below the minimum version does not last: the next start
+  reinstalls the image binary. If node copies do not start, set
+  `gpud.hostBinary.reinstallFromImage: true`. Every node then reinstalls the
+  image binary at each start, with self-update off. Unset it after the
+  rollout.
+- The startup wrapper does this work, so `gpud.hostBinary.enabled` cannot be
+  combined with `gpud.commandOverride`.
+
 ### BYOK Worker Cluster Example
 
 The public default image also works for BYOK clusters without an image pull

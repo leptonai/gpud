@@ -111,6 +111,35 @@ gpud:
   # set -1 to disable exit code
   autoUpdateExitCode: -1
 
+  # Run a GPUd binary kept on the node instead of the image binary, so that
+  # a self-update requested by the control plane survives container restarts,
+  # pod replacement and chart upgrades. The image binary then seeds new nodes
+  # and replaces copies that this chart cannot run. For control-plane updates
+  # to work, also set enableAutoUpdate: true and autoUpdateExitCode to a value
+  # other than -1 (for example 42). See "Keeping the GPUd binary on the node"
+  # in the README.
+  hostBinary:
+    # Keep the binary at /var/lib/gpud/bin/gpud and run it from there.
+    # Requires the chart's startup wrapper (gpud.commandOverride unset).
+    enabled: false
+    # Version to install on a new node (no copy and no GPUd state yet): ""
+    # keeps the image version, "latest" installs the latest stable release
+    # unless the image is newer, or a release with its v prefix (for example
+    # v0.14.3). The node must reach pkg.gpud.dev. If the lookup or download
+    # fails, the node keeps the image binary until the control plane updates
+    # it. A node that already ran GPUd from an image keeps the image version.
+    newNodeVersion: ""
+    # Raises the built-in minimum version (v0.14.1, the oldest release that
+    # accepts every flag the startup wrapper passes, or v0.14.4 when it passes
+    # --recovery-token-file or --instance-id). A node copy older than
+    # the minimum is replaced with the image binary at the next start, so set
+    # this only when a chart change needs a newer binary, and never above the
+    # image version. Leave it empty so chart upgrades do not change versions.
+    minVersion: ""
+    # Emergency rollback: replace the node copy with the image binary at every
+    # start, with self-update off. Unset it after the rollout.
+    reinstallFromImage: false
+
   # --- Host command overrides ---
   # The settings in this block (rebootCommands and the disk findmntCommands /
   # lsblkCommands / blockdevUsageCommands) wrap host tools with nsenter so they

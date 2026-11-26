@@ -1,8 +1,12 @@
 package update
 
 import (
+	"bufio"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bytedance/mockey"
@@ -94,8 +98,23 @@ func TestDetectUbuntuVersion_UnsupportedVersion(t *testing.T) {
 	})
 }
 
-// TestDetectUbuntuVersion_LsbReleaseError tests when lsb_release command fails.
+// useOSRelease points detectUbuntuVersion at an os-release fixture with the
+// given content, or at a missing file when content is empty.
+func useOSRelease(t *testing.T, content string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "os-release")
+	if content != "" {
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	}
+	orig := osReleasePath
+	osReleasePath = path
+	t.Cleanup(func() { osReleasePath = orig })
+}
+
+// TestDetectUbuntuVersion_LsbReleaseError tests when lsb_release command fails
+// and no os-release file exists.
 func TestDetectUbuntuVersion_LsbReleaseError(t *testing.T) {
+	useOSRelease(t, "")
 	mockey.PatchConvey("lsb_release error", t, func() {
 		mockey.Mock((*exec.Cmd).Output).To(func(cmd *exec.Cmd) ([]byte, error) {
 			return nil, errors.New("command not found")
@@ -106,8 +125,10 @@ func TestDetectUbuntuVersion_LsbReleaseError(t *testing.T) {
 	})
 }
 
-// TestDetectUbuntuVersion_VersionCommandError tests when getting version fails.
+// TestDetectUbuntuVersion_VersionCommandError tests when getting version fails
+// and no os-release file exists.
 func TestDetectUbuntuVersion_VersionCommandError(t *testing.T) {
+	useOSRelease(t, "")
 	mockey.PatchConvey("version command error", t, func() {
 		cmdCallCount := 0
 		mockey.Mock((*exec.Cmd).Output).To(func(cmd *exec.Cmd) ([]byte, error) {
@@ -120,6 +141,49 @@ func TestDetectUbuntuVersion_VersionCommandError(t *testing.T) {
 
 		result := detectUbuntuVersion()
 		assert.Equal(t, "", result)
+	})
+}
+
+// TestDetectUbuntuVersion_OSReleaseFallback tests the os-release fallback when
+// lsb_release cannot run, as in the GPUd container image.
+func TestDetectUbuntuVersion_OSReleaseFallback(t *testing.T) {
+	for _, tt := range []struct {
+		name, osRelease, want string
+	}{
+		{name: "ubuntu 22.04", osRelease: "NAME=\"Ubuntu\"\nID=ubuntu\nVERSION_ID=\"22.04\"\n", want: "ubuntu22.04"},
+		{name: "ubuntu 24.04", osRelease: "ID=ubuntu\nVERSION_ID=\"24.04\"\n", want: "ubuntu24.04"},
+		{name: "ubuntu 26.04", osRelease: "ID=ubuntu\nVERSION_ID=26.04\n", want: "ubuntu26.04"},
+		{name: "single quotes and comments", osRelease: "# generated\n\nID='ubuntu'\nVERSION_ID='22.04'\n", want: "ubuntu22.04"},
+		{name: "unsupported ubuntu", osRelease: "ID=ubuntu\nVERSION_ID=\"20.04\"\n", want: ""},
+		{name: "not ubuntu", osRelease: "ID=rhel\nID_LIKE=\"fedora\"\nVERSION_ID=\"9.4\"\n", want: ""},
+		{name: "missing file", want: ""},
+		// A file that cannot be read to the end is not trusted, even if the
+		// fields came before the bad line.
+		{name: "unreadable line", osRelease: "ID=ubuntu\nVERSION_ID=22.04\nPADDING=" + strings.Repeat("a", bufio.MaxScanTokenSize) + "\n", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			useOSRelease(t, tt.osRelease)
+			mockey.PatchConvey(tt.name, t, func() {
+				mockey.Mock((*exec.Cmd).Output).To(func(cmd *exec.Cmd) ([]byte, error) {
+					return nil, exec.ErrNotFound
+				}).Build()
+
+				assert.Equal(t, tt.want, detectUbuntuVersion())
+			})
+		})
+	}
+}
+
+// TestDetectUbuntuVersion_LsbReleasePreferred tests that a working
+// lsb_release wins over os-release.
+func TestDetectUbuntuVersion_LsbReleasePreferred(t *testing.T) {
+	useOSRelease(t, "ID=ubuntu\nVERSION_ID=\"24.04\"\n")
+	mockey.PatchConvey("lsb_release preferred", t, func() {
+		mockey.Mock((*exec.Cmd).Output).To(func(cmd *exec.Cmd) ([]byte, error) {
+			return []byte("Debian\n"), nil
+		}).Build()
+
+		assert.Equal(t, "", detectUbuntuVersion())
 	})
 }
 

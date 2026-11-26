@@ -112,42 +112,51 @@ func getOSMachineID(files []string) (string, error) {
 	return "", nil
 }
 
-// GetOSName reads the os name from the /etc/os-release file.
-func GetOSName() (string, error) {
-	return getOSName("/etc/os-release")
-}
+// OSReleasePath is the os-release(5) file that identifies the operating system.
+const OSReleasePath = "/etc/os-release"
 
-func getOSName(file string) (string, error) {
-	if _, err := os.Stat(file); err != nil {
-		return "", err
-	}
-
+// ReadOSRelease reads the KEY=value fields of an os-release(5) file and
+// removes the quotes around each value. It skips lines without "=", such as
+// comments and blank lines. A later field replaces an earlier one with the
+// same key. It returns an error if the file cannot be read to the end.
+func ReadOSRelease(file string) (map[string]string, error) {
 	f, err := os.Open(file)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer func() {
 		_ = f.Close()
 	}()
 
-	name := ""
-	prettyName := ""
+	fields := make(map[string]string)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "NAME=") {
-			name = strings.TrimSpace(strings.TrimPrefix(line, "NAME="))
-			name = strings.TrimSpace(strings.Trim(name, "\""))
+		key, value, ok := strings.Cut(strings.TrimSpace(scanner.Text()), "=")
+		if !ok {
+			continue
 		}
-		if strings.HasPrefix(line, "PRETTY_NAME=") {
-			prettyName = strings.TrimSpace(strings.TrimPrefix(line, "PRETTY_NAME="))
-			prettyName = strings.TrimSpace(strings.Trim(prettyName, "\""))
-		}
+		fields[key] = strings.TrimSpace(strings.Trim(strings.TrimSpace(value), `"'`))
 	}
-	if prettyName != "" {
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return fields, nil
+}
+
+// GetOSName reads the os name from the /etc/os-release file.
+func GetOSName() (string, error) {
+	return getOSName(OSReleasePath)
+}
+
+func getOSName(file string) (string, error) {
+	fields, err := ReadOSRelease(file)
+	if err != nil {
+		return "", err
+	}
+	if prettyName := fields["PRETTY_NAME"]; prettyName != "" {
 		return prettyName, nil
 	}
-	return name, nil
+	return fields["NAME"], nil
 }
 
 const (
